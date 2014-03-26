@@ -1,9 +1,11 @@
 M4V-Converter
 =============
 
-This is a simple script that was made for OS X. It may work on Ubuntu or other linux distros as well but remains untested. It is designed to convert movies and tv shows to a more universal format so that Plex does not need to transcode files before sending to a client.
+A simple script designed to convert your media to M4V (mp4) format.
 
-What does it do exactly? It converts your media (movies & tv shows) to a universal format. Give it a try on a copy of just one of your files and see how that goes. Plex has not once needed to transcode media since I've been using this. More? It also can update couchpotato and sickbeard so they know the file has changed. It also downgrades 5.1 to stereo (2.0) so be aware of that. English audio is preferred and it will use that if found in a file otherwise it will fallback to whatever language is the default. Again thats something to be aware of before using. If for any reason it fails to convert the file it will mark it as ignored and move on. It will not attempt to convert it again. At this point you may need to convert this file mnaully or figure out what is the issue. It also does not bother wth subtitles and if dirty=true it will even delete your downloaded subtitles. If your like me then this once matter as I only want a English media collection.
+What does it do exactly? It converts your media (movies & tv shows) to a universal format. It also can update couchpotato and sickbeard so they know the file has changed. It also downgrades 5.1 to stereo (2.0) so be aware of that. English audio is preferred and it will use that if found in a file otherwise it will fallback to whatever language is the default. Again thats something to be aware of before using. If for any reason it fails to convert the file it will mark it as ignored and move on. It will not attempt to convert it again. At this point you may need to convert this file mnaully or figure out what is the issue. It also does not bother wth subtitles and if dirty=true it will even delete your downloaded subtitles. If your like me then this once matter as I only want a English media collection.
+
+Why? Plex! Plex transcodes anything a client cannot play normally and this is almost always caused by the audio format. Though transcoding is a CPU intensive task and if your CPU falls short soon after the client will begin to buffer. By doing this I've not seen Plex transcode not once yet.
 
 If your going to use this make sure you understand exactly what it will do. Give it a try, even a few tries before actually turning it lose of your entire media collection. This way your sure you like the results its producing.
 
@@ -23,9 +25,4 @@ While this script is good it can be better. Please feel free to offer suggestion
 Dependencies
 ------------
 
-If your on OS X you will need [Homebrew](http://brew.sh).
-
-FFMPEG
-Bash v4+
-
-To get these you simple execute 'brew install bash ffmpeg' in terminal.
+If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg and bash. To get these you simple execute 'brew install bash ffmpeg' in terminal.
