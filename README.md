@@ -18,7 +18,7 @@ It can be runned via terminal manually or you can set it up to run automaticlly 
 
 This means it will run every 3 hours.
 
-I take no reponsibility if you use this and it destroys your entire media collection (although highly unlikely this will happen)
+I take no responsibility if you use this and it destroys your entire media collection (although highly unlikely this will happen)
 
 While this script is good it can be better. Please feel free to offer suggestions or pull request.
 
