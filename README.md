@@ -14,9 +14,9 @@ It can be runned via terminal manually or you can set it up to run automaticlly 
 	SHELL=/usr/local/bin/bash
 	PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-	* */6 * * * /Users/Digiex/Scripts/m4v.sh
+	* */3 * * * /Users/Digiex/Scripts/m4v.sh
 
-This means it will run every 6 hours.
+This means it will run every 3 hours.
 
 I take no reponsibility if you use this and it destroys your entire media collection (although highly unlikely this will happen)
 
