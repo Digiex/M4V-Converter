@@ -3,7 +3,7 @@ M4V-Converter
 
 A simple script designed to convert your media to M4V (mp4) format.
 
-What does it do exactly? It converts your media (movies & tv shows) to a universal format. It also can update couchpotato and sickbeard so they know the file has changed. It also downgrades 5.1 to stereo (2.0) so be aware of that. English audio is preferred and it will use that if found in a file otherwise it will fallback to whatever language is the default. Again thats something to be aware of before using. If for any reason it fails to convert the file it will mark it as ignored and move on. It will not attempt to convert it again. At this point you may need to convert this file mnaully or figure out what is the issue. It also does not bother wth subtitles and if dirty=true it will even delete your downloaded subtitles. If your like me then this will not matter as I only want a English media collection.
+What does it do exactly? It converts your media (movies & tv shows) to a universal format. It also can update couchpotato and sickbeard so they know the file has changed. It also downgrades 5.1 to stereo (2.0) so be aware of that. English audio is preferred and it will use that if found in a file otherwise it will fallback to whatever language is the default. Again thats something to be aware of before using. If for any reason it fails to convert the file it will mark it as ignored and move on. It will not attempt to convert it again. At this point you may need to convert this file manually or figure out what is the issue. It also does not bother with subtitles and if dirty=true it will even delete your downloaded subtitles. If your like me then this will not matter as I only want a English media collection.
 
 Why? Plex! Plex transcodes anything a client cannot play normally and this is almost always caused by the audio format. Though transcoding is a CPU intensive task and if your CPU falls short soon after the client will begin to buffer. By doing this I've not seen Plex transcode not once yet.
 
@@ -28,3 +28,10 @@ Dependencies
 If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg and bash. To get these execute 'brew install bash ffmpeg' in terminal.
 
 If your using linux this script should work if you have ffmpeg installed. Although this remains untested at the moment.
+
+Updates
+-------
+
+I know 5.1 audio is important to some and I will fix that soon. When I made this it was for a friend and I to use. Neither of us had 5.1 or cared that much about it.
+
+This will work a few ways. You can have either 2.0, 5.1 or both. Both however will make 2.0 the default since its bound to have greater compatibility with devices. While still offering 5.1.
