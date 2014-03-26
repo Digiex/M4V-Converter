@@ -25,4 +25,6 @@ While this script is good it can be better. Please feel free to offer suggestion
 Dependencies
 ------------
 
-If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg and bash. To get these you simple execute 'brew install bash ffmpeg' in terminal.
+If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg and bash. To get these execute 'brew install bash ffmpeg' in terminal.
+
+If your using linux this script should work if you have ffmpeg installed. Although this remains untested at the moment.
