@@ -11,14 +11,14 @@ tmp=/tmp
 
 #--CouchPotato--#
 couch=false
-cip=10.0.1.3
+cip=127.0.0.1
 cport=5050
 capikey=1182f201774a420ea36ac39d740c4107
 #--CouchPotato--#
 
 #--SickBeard--#
 sick=false
-sip=10.0.1.3
+sip=127.0.0.1
 sport=8081
 sapikey=767c23d9c22029b2048519d97d65162d
 #--SickBeard--#
@@ -40,7 +40,7 @@ extension=m4v
 
 if [ -f "$pid" ]; then
     read p < "$pid"
-    if ps '$p' &>/dev/null; then
+    if ps "$p" &>/dev/null; then
         exit 1
     fi
 fi
@@ -91,9 +91,9 @@ function main() {
 								skip=true
 								break;
 							fi
-						done <<<"$ignored"
+						done < "$ignored"
 						if $skip; then
-							continue
+							continue;
 						fi
 					fi
 					lsof "$f" | grep -q COMMAND &>/dev/null
@@ -289,7 +289,7 @@ function main() {
 											break;
 										fi
 										acc=$(($acc++));
-									done <<<"$ag"
+									done <<< "$ag"
 								else
 									am=$(echo "$ag" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 									amc=${#am}
@@ -308,7 +308,7 @@ function main() {
 											if [ "$am" == "$im" ]; then
 												ahc=$(echo "$i" | awk '{print($2)}')
 											fi
-										done <<<"$agi"
+										done <<< "$agi"
 									else
 										im=$(echo "$agi" | awk '{print($1)}') 
 										if [ "$am" == "$im" ]; then
@@ -421,7 +421,7 @@ function main() {
 											fi
 										fi
 									fi
-								done <<<"$s"
+								done <<< "$s"
 								sgc=$(echo "$sg" | wc -l)
 								if (( $sgc > 1 )); then
 									while read xsg; do
@@ -439,7 +439,7 @@ function main() {
 										else
 											dc="$dc -map $sm -c:s:0 mov_text"
 										fi
-									done <<<"$sg"
+									done <<< "$sg"
 								else
 									sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 									smc=${#sm}
@@ -484,7 +484,7 @@ function main() {
 												fi
 											fi
 										fi
-									done <<<"$sm"
+									done <<< "$sm"
 									sgc=$(echo "$sg" | wc -l)
 									if (( $sgc > 1 )); then
 										while read xsg; do
@@ -502,7 +502,7 @@ function main() {
 											else
 												dc="$dc -map $sm -c:s:0 mov_text"
 											fi
-										done <<<"$sg"
+										done <<< "$sg"
 									else
 										sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 										smc=${#sm}
