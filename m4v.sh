@@ -605,6 +605,7 @@ function main() {
 	if $couch; then
 		log "Updating CouchPotato..."
 		curl -silent -f 'http://$cip:$cport/api/$capikey/manage.update' &>/dev/null
+	fi
 	if $sick; then
 	    log "Updating SickBeard..."
     	shows=$(curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id');
