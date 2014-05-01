@@ -288,7 +288,7 @@ function main() {
 											fi
 											break;
 										fi
-										acc=$(($acc++));
+										acc=$(($acc+1));
 									done <<< "$ag"
 								else
 									am=$(echo "$ag" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
