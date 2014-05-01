@@ -585,13 +585,14 @@ function main() {
 						chown $user:$group "$tm4v"
 						chmod $perms "$tm4v"
 						touch -r "$f" "$tm4v"
+						log "Cleaning up..."
 						if $delete; then
-							log "Cleaning up..."
 							rm "$f"
 						else
 							ignore "$f"
 						fi
 						mv "$tm4v" "$m4v"
+						update=true
 					fi
 					;;
 				*.jpg | *.nfo | *.txt | *sample*) if $dirty; then rm "$f"; fi;
@@ -602,16 +603,18 @@ function main() {
 		fi
 	done
 
-	if $couch; then
-		log "Updating CouchPotato..."
-		curl -silent -f 'http://$cip:$cport/api/$capikey/manage.update' &>/dev/null
+	if $update; then
+		if $couch; then
+			log "Updating CouchPotato..."
+			curl -silent -f 'http://$cip:$cport/api/$capikey/manage.update' &>/dev/null
+		fi
+		if $sick; then
+			log "Updating SickBeard..."
+			shows=$(curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id');
+			tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g);
+			echo "$tvdb" | tr ' ' '\n' | while read id; do curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id' &>/dev/null; done;
+		fi
 	fi
-	if $sick; then
-	    log "Updating SickBeard..."
-    	shows=$(curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id');
-    	tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g);
-    	echo "$tvdb" | tr ' ' '\n' | while read id; do curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id' &>/dev/null; done;
-    fi
 }
 
 main "$movies"
