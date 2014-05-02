@@ -2,9 +2,9 @@
 
 #### EDIT THESE TO MATCH YOUR SETUP ####
 
-movies=/Users/xzkingzxburnzx/Desktop
-series=/Users/xzkingzxburnzx/Desktop
-ignored=/Users/xzkingzxburnzx/Desktop/m4v.ignored
+movies=/mnt/NAS/Movies
+series=/mnt/NAS/Series
+ignored="$PWD/m4v.ignored"
 pid=/var/run/m4v.pid
 log=/var/log/m4v.log
 tmp=/tmp
@@ -38,10 +38,16 @@ extension=m4v
 
 #### DO NOT EDIT BEYOND THIS POINT ####
 
+if [[ $(whoami) != "root" ]]; then
+	echo "This script needs root permissions to run properly."
+	exit 1
+fi
+
 if [ -f "$pid" ]; then
     read p < "$pid"
     if ps "$p" &>/dev/null; then
-        exit 1
+    	echo "This script is already running."
+        exit 2
     fi
 fi
 
@@ -49,8 +55,8 @@ echo $$ > "$pid"
 trap 'rm -f "$pid"' EXIT
 
 if [ ! -z "$(pgrep 'Plex New Transcoder')" ]; then
-	log "Plex is currently transcoding. Exiting."
-    exit 2
+	echo "Plex is currently transcoding."
+    exit 3
 fi
 
 function log() {
