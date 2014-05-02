@@ -84,18 +84,8 @@ function ignore() {
 	echo "$1" >> "$ignored"
 }
 
-function search() {
-	for i in "$1"/*; do
-    	if [ -d "$i" ]; then
-        	search "$i"
-    	elif [ -f "$i" ]; then
-    		echo "$i"
-       	fi
- 	done
-}
-
 function main() {
-	log "Searching for files..."
+	files="$(find $1 -type f)"
 	while read file; do
 		case "$file" in
 			*.mkv | *.mp4 | *.avi) skip=false
@@ -110,13 +100,13 @@ function main() {
 						continue;
 					fi
 				fi
+				log "Found a file needing to be converted."
+				log "File: $file"
 				lsof "$file" | grep -q COMMAND &>/dev/null
 				if [ $? -ne 0 ]; then
 					dc="ffmpeg -threads $threads -i \"$file\""
-					log "Found a file needing to be converted."
-					log "File: $file"
-					orig=${f%.*}
-					m4v=$orig."$extension"
+					orig="${file%.*}"
+					m4v="$orig.$extension"
 					nm4v=$(basename "$m4v")
 					tm4v="$tmp/$nm4v"
 					if [ -f "$m4v" ]; then
@@ -607,6 +597,8 @@ function main() {
 					fi
 					mv "$tm4v" "$m4v"
 					update=true
+				else
+					log "File was in use, skipping..."
 				fi
 				;;
 			*.jpg | *.nfo | *.txt | *sample*) if $dirty; then rm "$file"; fi;
@@ -614,7 +606,7 @@ function main() {
 			*) continue;
 				;;
 		esac
-	done <<< "$(search $1)"
+	done <<< "$files"
 
 	if $update; then
 		if $couch; then
@@ -629,6 +621,8 @@ function main() {
 		fi
 	fi
 }
+
+log "Searching for files..."
 
 main "$movies"
 main "$series"
