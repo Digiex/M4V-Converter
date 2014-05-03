@@ -463,9 +463,9 @@ function main() {
 					fi
 					s=$(echo "$data" | grep "Subtitle:")
 					if [ ! -z "$s" ]; then
-						ss=$(echo "s" | wc -l)
+						ss=$(echo "$s" | wc -l)
+						sg=
 						if (( $ss > 1 )); then
-							sg=
 							while read xs; do
 								if [[ "$language" != "*" ]]; then
 									if [[ "$language" == *,* ]]; then
@@ -489,69 +489,7 @@ function main() {
 									fi
 								fi
 							done <<< "$s"
-							sgc=$(echo "$sg" | wc -l)
-							if (( $sgc > 1 )); then
-								while read xsg; do
-									sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-									smc=${#sm}
-									if (( $sm > 3 )); then
-										sm=${sm%:*}
-									fi
-									sc=$(echo "$xsg" | awk '{print($4)}')
-									if [[ "$sc" == *, ]]; then
-										sc=${sc%?}
-									fi
-									if [ "$sc" == "mov_text" ]; then
-										dc="$dc -map $sm -c:s:0 copy"
-									else
-										dc="$dc -map $sm -c:s:0 mov_text"
-									fi
-								done <<< "$sg"
-							else
-								sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-								smc=${#sm}
-								if (( $sm > 3 )); then
-									sm=${sm%:*}
-								fi
-								sc=$(echo "$sg" | awk '{print($4)}')
-								if [[ "$sc" == *, ]]; then
-									sc=${sc%?}
-								fi
-								if [ "$sc" == "mov_text" ]; then
-									dc="$dc -map $sm -c:s:0 copy"
-								else
-									dc="$dc -map $sm -c:s:0 mov_text"
-								fi
-							fi
-						else
-							sm=$(echo "$s" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-							smc=$(echo "$sm" | wc -l)
-							sg=
-							if (( $smc > 1 )); then
-								while read xss; do
-									smm=$(echo "$s" | grep "Stream #$xss")
-									if [[ "$language" != "*" ]]; then
-										if [[ "$language" == *,* ]]; then
-											for x in $xlx; do
-												if [[ "$smm" =~ "$x" ]]; then
-													if [ -z "$sg" ]; then
-														sg="$smm"
-													elif [[ ! "$sg" =~ "$x" ]]; then
-														sg="$smm"$'\n'"$sg"
-													fi
-												fi
-											done
-										else
-											if [[ "$smm" =~ "$language" ]]; then
-												if [ -z "$sg" ]; then
-													sg="$smm"
-												elif [[ ! "$sg" =~ "$language" ]]; then
-													sg="$smm"$'\n'"$sg"
-												fi
-											fi
-										fi
-									fi
-								done <<< "$sm"
+							if [ ! -z "$sg" ]; then
 								sgc=$(echo "$sg" | wc -l)
 								if (( $sgc > 1 )); then
 									while read xsg; do
@@ -586,45 +524,50 @@ function main() {
 										dc="$dc -map $sm -c:s:0 mov_text"
 									fi
 								fi
-							else
-								if [[ "$language" != "*" ]]; then
-									if [[ "$language" == *,* ]]; then
-										for x in $xlx; do
-											if [[ "$s" =~ "$x" ]]; then
-												if [ -z "$sg" ]; then
-													sg="$s"
-												elif [[ ! "$sg" =~ "$x" ]]; then
-													sg="$s"$'\n'"$sg"
-												fi
-											fi
-										done
-									else
-										if [[ "$s" =~ "$language" ]]; then
+							fi
+						else
+							sm=$(echo "$s" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
+							smc=$(echo "$sm" | wc -l)
+							if [[ "$language" != "*" ]]; then
+								if [[ "$language" == *,* ]]; then
+									for x in $xlx; do
+										if [[ "$s" =~ "$x" ]]; then
 											if [ -z "$sg" ]; then
 												sg="$s"
-											elif [[ ! "$sg" =~ "$language" ]]; then
+											elif [[ ! "$sg" =~ "$x" ]]; then
 												sg="$s"$'\n'"$sg"
 											fi
 										fi
-									fi
-								fi
-								if [ ! -z "$sg" ]; then
-									smc=${#sm}
-									if (( $smc > 3 )); then
-										sm=${sm%:*}
-									fi
-									sc=$(echo "$s" | awk '{print($4)}')
-									if [[ "$sc" == *, ]]; then
-										sc=${sc%?}
-									fi
-									if [ "$sc" == "mov_text" ]; then
-										dc="$dc -map $sm -c:s:0 copy"
-									else
-										dc="$dc -map $sm -c:s:0 mov_text"
+									done
+								else
+									if [[ "$s" =~ "$language" ]]; then
+										if [ -z "$sg" ]; then
+											sg="$s"
+										elif [[ ! "$sg" =~ "$language" ]]; then
+											sg="$s"$'\n'"$sg"
+										fi
 									fi
 								fi
 							fi
+							if [ ! -z "$sg" ]; then
+								smc=${#sm}
+								if (( $smc > 3 )); then
+									sm=${sm%:*}
+								fi
+								sc=$(echo "$s" | awk '{print($4)}')
+								if [[ "$sc" == *, ]]; then
+									sc=${sc%?}
+								fi
+								if [ "$sc" == "mov_text" ]; then
+									dc="$dc -map $sm -c:s:0 copy"
+								else
+									dc="$dc -map $sm -c:s:0 mov_text"
+								fi
+							fi
 						fi
+					fi
+					if [[ "$dc" =~ "-c:s" ]]; then
+						dc=$(echo "$dc" | sed s/-i/-fix_sub_duration\ -i/g)
 					fi
 					dc="$dc -f $format -movflags +faststart -strict experimental -y \"$tm4v\""
 					if $dryrun; then
