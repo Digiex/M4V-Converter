@@ -18,23 +18,14 @@ Dependencies
 
 In order to work properly this script will need root permissions.
 
-If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg and bash. To get these execute 'brew install bash ffmpeg' in terminal.
+If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg. To get this execute 'brew install ffmpeg' in terminal.
 
 This script works with linux, tested on Ubuntu 14.04. Just make sure [FFMPEG](https://trac.ffmpeg.org/wiki/UbuntuCompilationGuide) is installed.
 
 Usage
 -----
 
-This script can be runned via terminal manually or you can set it up to run automaticlly via cron. To do this you just need to execute this 'su', type the root passsword. Now execute 'crontab -e'. Then paste in the following. You should also edit the options before using it.
-
-OS X:
-
-	SHELL=/usr/local/bin/bash
-	PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-	* */3 * * * /Users/Digiex/Scripts/m4v.sh
-
-Linux:
+This script can be runned via terminal manually via 'sudo ./m4v.sh' or you can set it up to run automaticlly via cron. To do this you just need to execute this 'su', type the root passsword. Now execute 'crontab -e'. Then paste in the following. You should also edit the options before using it.
 
 	* */3 * * * /Users/Digiex/Scripts/m4v.sh
 
