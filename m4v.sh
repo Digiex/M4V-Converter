@@ -25,9 +25,9 @@ sapikey=767c23d9c22029b2048519d97d65162d
 
 #--NzbDrone--#
 drone=false
-nip=127.0.0.1
-nport=8989
-napikey=d33fbc0acd2146f2920098a57dcab923
+dip=127.0.0.1
+dport=8989
+dapikey=d33fbc0acd2146f2920098a57dcab923
 #--NzbDrone--#
 
 messages=true
@@ -672,7 +672,7 @@ function main() {
 					mv "$tm4v" "$m4v"
 					update=true
 				else
-					log "File was in use, skipping..."
+					log "File was in use. Skipping..."
 				fi
 				;;
 			*.jpg | *.nfo | *.txt | *sample*) if $dirty; then rm "$file"; fi;
@@ -695,16 +695,20 @@ function main() {
 		fi
 		if $drone; then
 			log "Updating NzbDrone..."
-			curl -silent -f "http://$nip:$nport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$napikey" &>/dev/null
-		fu
+			curl -silent -f "http://$dip:$dport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$dapikey" &>/dev/null
+		fi
 	fi
 }
 
 log "Searching for files..."
 
-main "$movies"
-main "$series"
+if [[ "$movies" != "$series" ]]; then
+	main "$movies"
+	main "$series"
+else
+	main "$movies"
+fi
 
-log "Finished."
+log "Finished!"
 
 exit 0
