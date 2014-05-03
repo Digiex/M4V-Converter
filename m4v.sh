@@ -2,9 +2,9 @@
 
 #### EDIT THESE TO MATCH YOUR SETUP ####
 
-movies=/Users/xzkingzxburnzx/Desktop/
-series=/Users/xzkingzxburnzx/Desktop
-ignored="$PWD/m4v.ignored"
+movies=/mnt/NAS/Movies
+series=/mnt/NAS/Series
+ignored=./m4v.ignored
 pid=/var/run/m4v.pid
 log=/var/log/m4v.log
 tmp=/tmp
@@ -36,7 +36,7 @@ logs=true
 delete=false
 dirty=false
 dualaudio=true
-dryrun=true
+dryrun=false
 
 threads=2
 language=eng
