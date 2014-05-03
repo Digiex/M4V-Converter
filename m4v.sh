@@ -31,7 +31,6 @@ dapikey=d33fbc0acd2146f2920098a57dcab923
 #--NzbDrone--#
 
 messages=true
-debug=false
 logs=true
 delete=false
 dirty=false
@@ -123,12 +122,6 @@ function log() {
 			touch "$log"
 		fi
 		echo "$1" >> "$log"
-	fi
-}
-
-function debug() {
-	if $debug; then
-		log "Debug: $1"
 	fi
 }
 
@@ -639,11 +632,9 @@ function main() {
 						continue;
 					fi
 					log "Starting conversion..."
-					result=$(eval "$dc" 2>&1)
+					eval "$dc" &>/dev/null
 					if [ $? -ne 0 ]; then
 						log "Result: Failed."
-						debug "$dc"
-						debug "$result"
 						if [ -f "$tm4v" ]; then
 							log "Cleaning up..."
 							rm "$tm4v"
