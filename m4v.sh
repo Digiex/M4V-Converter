@@ -23,6 +23,13 @@ sport=8081
 sapikey=767c23d9c22029b2048519d97d65162d
 #--SickBeard--#
 
+#--NzbDrone--#
+drone=false
+nip=127.0.0.1
+nport=8989
+napikey=d33fbc0acd2146f2920098a57dcab923
+#--NzbDrone--#
+
 messages=true
 debug=false
 logs=true
@@ -686,6 +693,10 @@ function main() {
 			tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g | tr ' ' '\n');
 			while read id; do curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id" &>/dev/null; done <<< "$tvdb";
 		fi
+		if $drone; then
+			log "Updating NzbDrone..."
+			curl -silent -f "http://$nip:$nport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$napikey" &>/dev/null
+		fu
 	fi
 }
 
