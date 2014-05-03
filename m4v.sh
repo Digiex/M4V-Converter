@@ -29,6 +29,7 @@ logs=true
 delete=false
 dirty=false
 dualaudio=true
+dryrun=true
 
 threads=2
 language=eng
@@ -61,21 +62,21 @@ if [[ "$series" == */ ]]; then
 	series="${series%?}"
 fi
 
-if [ "$ignored" != "$PWD/m4v.ignored" ] || [ "$ignored" != "./m4v.ignored" ]; then
-	if [ ! -d "$(dirname $ignored)" ]; then
+if [ "$ignored" != "$PWD/m4v.ignored" ]; then
+	if [ ! -d $(dirname "$ignored") ]; then
 		echo "Invalid: $ignored"
 		echo "Please check script settings."
 		exit 2
 	fi
 fi
 
-if [ ! -d "$(dirname $pid)" ]; then
+if [ ! -d $(dirname "$pid") ]; then
 	echo "Invalid: $pid"
 	echo "Please check script settings."
 	exit 2
 fi
 
-if [ ! -d "$(dirname $log)" ]; then
+if [ ! -d $(dirname "$log") ]; then
 	echo "Invalid: $log"
 	echo "Please check script settings."
 	exit 2
@@ -101,7 +102,7 @@ fi
 echo $$ > "$pid"
 trap 'rm -f "$pid"' EXIT
 
-if [ ! -z "$(pgrep 'Plex New Transcoder')" ]; then
+if [ ! -z $(pgrep 'Plex New Transcoder') ]; then
 	echo "Plex is currently transcoding."
     exit 4
 fi
@@ -132,10 +133,14 @@ function ignore() {
 }
 
 function main() {
-	files="$(find $1 -type f)"
+	files=$(find "$1" -type f)
 	while read file; do
+		ext="${file##*.}"
+		if [[ "$ext" == "$extension" ]]; then
+			continue;
+		fi
 		case "$file" in
-			*.mkv | *.mp4 | *.avi) skip=false
+			*.mkv | *.mp4 | *.m4v | *.avi) skip=false
 				if [ -f "$ignored" ]; then
 					while read ignore; do 
 						if [[ "$ignore" == *"$file"* ]]; then
@@ -154,13 +159,16 @@ function main() {
 					dc="ffmpeg -threads $threads -i \"$file\""
 					orig="${file%.*}"
 					m4v="$orig.$extension"
-					nm4v="$(basename $m4v)"
+					nm4v=$(basename "$m4v")
 					tm4v="$tmp/$nm4v"
-					if [ -f "$m4v" ]; then
+					if ! $dryrun && [ -f "$m4v" ]; then
 						rm "$m4v"
 					fi
-					data="$(ffprobe $file 2>&1)"
-					v="$(echo $data | grep Video:)"
+					if ! $dryrun && [ -f "$tm4v" ]; then
+						rm "$tm4v"
+					fi
+					data=$(ffprobe "$file" 2>&1)
+					v=$(echo "$data" | grep "Video:")
 					if [ ! -z "$v" ]; then
 						vs=$(echo "$v" | wc -l)
 						if (( $vs > 1 )); then
@@ -171,7 +179,7 @@ function main() {
 						vm=$(echo "$v" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 						vmc=${#vm}
 						if (( $vmc > 3 )); then
-							vm="${vm%:*}"
+							vm=${vm%:*}
 						fi
 						vc=$(echo "$v" | awk '{print($4)}')
 						if [ "$vc" == "h264" ] || [ "$vc" == "x264" ]; then
@@ -179,6 +187,10 @@ function main() {
 						else
 							dc="$dc -map $vm -c:v libx264 -preset $preset -profile:v baseline -level 3.0"
 						fi
+					else
+						log "The file was missing video. Ignoring..."
+						ignore "$file"
+						continue;
 					fi
 					xlx=$(echo "$language" | tr ',' '\n')
 					a=$(echo "$data" | grep "Audio:")
@@ -275,7 +287,7 @@ function main() {
 									am=$(echo "$xag" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 									amc=${#am}
 									if (( $amc > 3 )); then
-										am="${am%:*}"
+										am=${am%:*}
 									fi
 									ac=$(echo "$xag" | awk '{print($4)}')
 									if [[ "$ac" == *, ]]; then
@@ -345,7 +357,7 @@ function main() {
 								am=$(echo "$ag" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 								amc=${#am}
 								if (( $amc > 3 )); then
-									am="${am%:*}"
+									am=${am%:*}
 								fi
 								ac=$(echo "$ag" | awk '{print($4)}')
 								if [[ "$ac" == *, ]]; then
@@ -404,7 +416,7 @@ function main() {
 							am=$(echo "$a" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 							amc=${#am}
 							if (( $amc > 3 )); then
-								am="${am%:*}"
+								am=${am%:*}
 							fi
 							ac=$(echo "$a" | awk '{print($4)}')
 							if [[ "$ac" == *, ]]; then
@@ -444,6 +456,10 @@ function main() {
 								fi
 							fi
 						fi
+					else
+						log "The file was missing audio. Ignoring..."
+						ignore "$file"
+						continue;
 					fi
 					s=$(echo "$data" | grep "Subtitle:")
 					if [ ! -z "$s" ]; then
@@ -479,7 +495,7 @@ function main() {
 									sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 									smc=${#sm}
 									if (( $sm > 3 )); then
-										sm="${sm%:*}"
+										sm=${sm%:*}
 									fi
 									sc=$(echo "$xsg" | awk '{print($4)}')
 									if [[ "$sc" == *, ]]; then
@@ -495,7 +511,7 @@ function main() {
 								sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 								smc=${#sm}
 								if (( $sm > 3 )); then
-									sm="${sm%:*}"
+									sm=${sm%:*}
 								fi
 								sc=$(echo "$sg" | awk '{print($4)}')
 								if [[ "$sc" == *, ]]; then
@@ -542,7 +558,7 @@ function main() {
 										sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 										smc=${#sm}
 										if (( $smc > 3 )); then
-											sm="${sm%:*}"
+											sm=${sm%:*}
 										fi
 										sc=$(echo "$xsg" | awk '{print($4)}')
 										if [[ "$sc" == *, ]]; then
@@ -558,7 +574,7 @@ function main() {
 									sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 									smc=${#sm}
 									if (( $smc > 3 )); then
-										sm="${sm%:*}"
+										sm=${sm%:*}
 									fi
 									sc=$(echo "$sg" | awk '{print($4)}')
 									if [[ "$sc" == *, ]]; then
@@ -595,7 +611,7 @@ function main() {
 								if [ ! -z "$sg" ]; then
 									smc=${#sm}
 									if (( $smc > 3 )); then
-										sm="${sm%:*}"
+										sm=${sm%:*}
 									fi
 									sc=$(echo "$s" | awk '{print($4)}')
 									if [[ "$sc" == *, ]]; then
@@ -611,6 +627,10 @@ function main() {
 						fi
 					fi
 					dc="$dc -f $format -movflags +faststart -strict experimental -y \"$tm4v\""
+					if $dryrun; then
+						echo "Dry Run: $dc"
+						continue;
+					fi
 					log "Starting conversion..."
 					result=$(eval "$dc" 2>&1)
 					if [ $? -ne 0 ]; then
@@ -658,13 +678,13 @@ function main() {
 	if $update; then
 		if $couch; then
 			log "Updating CouchPotato..."
-			curl -silent -f 'http://$cip:$cport/api/$capikey/manage.update' &>/dev/null
+			curl -silent -f "http://$cip:$cport/api/$capikey/manage.update" &>/dev/null
 		fi
 		if $sick; then
 			log "Updating SickBeard..."
-			shows=$(curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id');
-			tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g);
-			echo "$tvdb" | tr ' ' '\n' | while read id; do curl -silent -f 'http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id' &>/dev/null; done;
+			shows=$(curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id");
+			tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g | tr ' ' '\n');
+			while read id; do curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id" &>/dev/null; done <<< "$tvdb";
 		fi
 	fi
 }
