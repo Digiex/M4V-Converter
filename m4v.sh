@@ -43,11 +43,49 @@ if [[ $(whoami) != "root" ]]; then
 	exit 1
 fi
 
+if [ ! -d "$movies" ]; then
+	echo "Invalid: $movies"
+	echo "Please check script settings."
+	exit 2
+fi
+
+if [ ! -d "$series" ]; then
+	echo "Invalid: $series"
+	echo "Please check script settings."
+	exit 2
+fi
+
+if [ "$ignored" != "$PWD/m4v.ignored" ] || [ "$ignored" != "./m4v.ignored" ]; then
+	if [ ! -d "$(dirname $ignored)" ]; then
+		echo "Invalid: $ignored"
+		echo "Please check script settings."
+		exit 2
+	fi
+fi
+
+if [ ! -d "$(dirname $pid)" ]; then
+	echo "Invalid: $pid"
+	echo "Please check script settings."
+	exit 2
+fi
+
+if [ ! -d "$(dirname $log)" ]; then
+	echo "Invalid: $log"
+	echo "Please check script settings."
+	exit 2
+fi
+
+if [ ! -d "$tmp" ]; then
+	echo "Invalid: $tmp"
+	echo "Please check script settings."
+	exit 2
+fi
+
 if [ -f "$pid" ]; then
     read p < "$pid"
     if ps "$p" &>/dev/null; then
     	echo "This script is already running."
-        exit 2
+        exit 3
     fi
 fi
 
@@ -56,7 +94,7 @@ trap 'rm -f "$pid"' EXIT
 
 if [ ! -z "$(pgrep 'Plex New Transcoder')" ]; then
 	echo "Plex is currently transcoding."
-    exit 3
+    exit 4
 fi
 
 function log() {
