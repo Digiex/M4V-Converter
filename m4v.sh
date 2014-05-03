@@ -2,8 +2,8 @@
 
 #### EDIT THESE TO MATCH YOUR SETUP ####
 
-movies=/mnt/NAS/Movies
-series=/mnt/NAS/Series
+movies=/Users/xzkingzxburnzx/Desktop/
+series=/Users/xzkingzxburnzx/Desktop
 ignored="$PWD/m4v.ignored"
 pid=/var/run/m4v.pid
 log=/var/log/m4v.log
@@ -48,11 +48,17 @@ if [ ! -d "$movies" ]; then
 	echo "Please check script settings."
 	exit 2
 fi
+if [[ "$movies" == */ ]]; then
+	movies="${movies%?}"
+fi
 
 if [ ! -d "$series" ]; then
 	echo "Invalid: $series"
 	echo "Please check script settings."
 	exit 2
+fi
+if [[ "$series" == */ ]]; then
+	series="${series%?}"
 fi
 
 if [ "$ignored" != "$PWD/m4v.ignored" ] || [ "$ignored" != "./m4v.ignored" ]; then
@@ -79,6 +85,9 @@ if [ ! -d "$tmp" ]; then
 	echo "Invalid: $tmp"
 	echo "Please check script settings."
 	exit 2
+fi
+if [[ "$tmp" == */ ]]; then
+	tmp="${tmp%?}"
 fi
 
 if [ -f "$pid" ]; then
@@ -145,13 +154,13 @@ function main() {
 					dc="ffmpeg -threads $threads -i \"$file\""
 					orig="${file%.*}"
 					m4v="$orig.$extension"
-					nm4v=$(basename "$m4v")
+					nm4v="$(basename $m4v)"
 					tm4v="$tmp/$nm4v"
 					if [ -f "$m4v" ]; then
 						rm "$m4v"
 					fi
-					data=$(ffprobe "$file" 2>&1)
-					v=$(echo "$data" | grep "Video:")
+					data="$(ffprobe $file 2>&1)"
+					v="$(echo $data | grep Video:)"
 					if [ ! -z "$v" ]; then
 						vs=$(echo "$v" | wc -l)
 						if (( $vs > 1 )); then
