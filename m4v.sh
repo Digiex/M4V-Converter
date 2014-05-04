@@ -195,6 +195,10 @@ function main() {
 									if [[ "$language" == *,* ]]; then
 										for x in $xlx; do
 											if [[ "$xa" =~ "$x" ]]; then
+												ao=$(ffprobe "$file" -show_streams -select_streams a:$agc 2>&1 | grep TAG:title= | sed s/TAG:title=//g | tr "A-Z" "a-z")
+												if [[ "$ao" =~ "commentary" ]]; then
+													continue;
+												fi
 												if [ -z "$ag" ]; then
 													ag="$xa"
 												else
@@ -211,6 +215,10 @@ function main() {
 										done
 									else
 										if [[ "$xa" =~ "$language" ]]; then
+											ao=$(ffprobe "$file" -show_streams -select_streams a:$agc 2>&1 | grep TAG:title= | sed s/TAG:title=//g | tr "A-Z" "a-z")
+											if [[ "$ao" =~ "commentary" ]]; then
+												continue;
+											fi
 											if [ -z "$ag" ]; then
 												ag="$xa"
 											else
@@ -235,6 +243,10 @@ function main() {
 										if [[ "$language" == *,* ]]; then
 											for x in $xlx; do
 												if [[ "$xa" =~ "default" ]]; then
+													ao=$(ffprobe "$file" -show_streams -select_streams a:$agc 2>&1 | grep TAG:title= | sed s/TAG:title=//g | tr "A-Z" "a-z")
+													if [[ "$ao" =~ "commentary" ]]; then
+														continue;
+													fi
 													if [ -z "$ag" ]; then
 														ag="$xa"
 													else
@@ -250,6 +262,10 @@ function main() {
 											done
 										else
 											if [[ "$xa" =~ "default" ]]; then
+												ao=$(ffprobe "$file" -show_streams -select_streams a:$agc 2>&1 | grep TAG:title= | sed s/TAG:title=//g | tr "A-Z" "a-z")
+												if [[ "$ao" =~ "commentary" ]]; then
+													continue;
+												fi
 												if [ -z "$ag" ]; then
 													ag="$xa"
 												else
