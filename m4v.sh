@@ -7,7 +7,6 @@ series=/mnt/NAS/Series
 ignored=./m4v.ignored
 pid=/var/run/m4v.pid
 log=/var/log/m4v.log
-tmp=/tmp
 
 #--CouchPotato--#
 couch=false
@@ -35,7 +34,7 @@ logs=true
 delete=false
 dirty=false
 dualaudio=true
-dryrun=false
+dryrun=true
 
 threads=2
 language=eng
@@ -86,15 +85,6 @@ if [ ! -d $(dirname "$log") ]; then
 	echo "Invalid: $log"
 	echo "Please check script settings."
 	exit 2
-fi
-
-if [ ! -d "$tmp" ]; then
-	echo "Invalid: $tmp"
-	echo "Please check script settings."
-	exit 2
-fi
-if [[ "$tmp" == */ ]]; then
-	tmp="${tmp%?}"
 fi
 
 if [ -f "$pid" ]; then
@@ -159,8 +149,7 @@ function main() {
 					dc="ffmpeg -threads $threads -i \"$file\""
 					orig="${file%.*}"
 					m4v="$orig.$extension"
-					nm4v=$(basename "$m4v")
-					tm4v="$tmp/$nm4v"
+					tm4v="$m4v.tmp"
 					if ! $dryrun && [ -f "$m4v" ]; then
 						rm "$m4v"
 					fi
@@ -240,6 +229,7 @@ function main() {
 								agc=$(($agc+1));
 							done <<< "$a"
 							if ! $lan; then
+								agc=0
 								while read xa; do
 									if [[ "$language" != "*" ]]; then
 										if [[ "$language" == *,* ]]; then
@@ -575,7 +565,7 @@ function main() {
 						continue;
 					fi
 					log "Starting conversion..."
-					eval "$dc" &>/dev/null
+					echo "$dc" | xargs -0 bash -c &>/dev/null
 					if [ $? -ne 0 ]; then
 						log "Result: Failed."
 						if [ -f "$tm4v" ]; then
