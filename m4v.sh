@@ -123,6 +123,7 @@ function ignore() {
 }
 
 function main() {
+	update=false
 	files=$(find "$1" -type f)
 	while read file; do
 		ext="${file##*.}"
@@ -629,7 +630,6 @@ function main() {
 			log "Updating NzbDrone..."
 			curl -silent -f "http://$dip:$dport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$dapikey" &>/dev/null
 		fi
-		update=false
 	fi
 }
 
