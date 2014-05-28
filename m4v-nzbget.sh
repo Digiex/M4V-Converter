@@ -40,11 +40,11 @@
 # NOTE: This does not apply to forced subtitles.
 #Subtitles=true
 
-# File format (MP4, MOV).
+# File format (mp4, mov).
 # MP4 is better supported universally. MOV is best for Apple devices and iTunes.
 #Format=mp4
 
-# File extension (M4V, MP4).
+# File extension (m4v, mp4).
 #Extension=m4v
 
 # Delete original file (true, false).
