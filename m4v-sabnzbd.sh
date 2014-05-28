@@ -31,17 +31,17 @@ language=eng
 # NOTE: Slower is more compressed.
 preset=fast
 
-# Create dual audio streams (yes, no).
+# Create dual audio streams (true, false).
 # This will create two audio streams, if possible. Typically AAC 2.0 and AC3 5.1.
 #
 # NOTE: AAC will be the default for better compatability with more devices.
 dualaudio=true
 
-# Ignore subtitles (yes, no).
+# Ignore subtitles (true, false).
 # This will ignore subtitles when converting. It is also useful if you use Plex or such to download subtitles automatically.
 #
 # NOTE: This does not apply to forced subtitles.
-subtitles=yes
+subtitles=true
 
 # File format (mp4, mov).
 # MP4 is better supported universally. MOV is best for Apple devices and iTunes.
