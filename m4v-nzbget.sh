@@ -61,7 +61,7 @@ if [ "$NZBPP_PARSTATUS" -eq 1 ] || [ "$NZBPP_UNPACKSTATUS" -eq 1 ]; then
 	exit $POSTPROCESS_NONE
 fi
 
-log "Searching for files..."
+echo "Searching for files..."
 files=$(find "$NZBPP_DIRECTORY" -type f)
 while read file; do
 	ext="${file##*.}"
@@ -70,8 +70,8 @@ while read file; do
 	fi
 	case "$file" in
 		*.mkv | *.mp4 | *.m4v | *.avi)
-			log "Found a file needing to be converted."
-			log "File: $file"
+			echo "Found a file needing to be converted."
+			echo "File: $file"
 			lsof "$file" | grep -q COMMAND &>/dev/null
 			if [ $? -ne 0 ]; then
 				dc="ffmpeg -threads $NZBPO_THREADS -i \"$file\""
@@ -83,7 +83,7 @@ while read file; do
 				if [ ! -z "$v" ]; then
 					vs=$(echo "$v" | wc -l)
 					if (( $vs > 1 )); then
-						log "This file has multiple video streams. Skipping..."
+						echo "This file has multiple video streams. Skipping..."
 						continue;
 					fi
 					vm=$(echo "$v" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
@@ -98,7 +98,7 @@ while read file; do
 						dc="$dc -map $vm -c:v libx264 -preset $NZBPO_PRESET -profile:v baseline -level 3.0"
 					fi
 				else
-					log "The file was missing video. Skipping..."
+					echo "The file was missing video. Skipping..."
 					continue;
 				fi
 				xlx=$(echo "$NZBPO_LANGUAGE" | tr ',' '\n')
@@ -375,7 +375,7 @@ while read file; do
 						fi
 					fi
 				else
-					log "The file was missing audio. Skipping..."
+					echo "The file was missing audio. Skipping..."
 					continue;
 				fi
 				s=$(echo "$data" | grep "Subtitle:")
@@ -487,17 +487,17 @@ while read file; do
 					dc=$(echo "$dc" | sed s/-i/-fix_sub_duration\ -i/g)
 				fi
 				dc="$dc -f $NZBPO_FORMAT -movflags +faststart -strict experimental -y \"$tm4v\""
-				log "Starting conversion..."
+				echo "Starting conversion..."
 				echo "$dc" | xargs -0 bash -c &>/dev/null
 				if [ $? -ne 0 ]; then
-					log "Result: Failed."
+					echo "Result: Failed."
 					if [ -f "$tm4v" ]; then
-						log "Cleaning up..."
+						echo "Cleaning up..."
 						rm "$tm4v"
 					fi
 					continue;
 				fi
-				log "Result: Success."
+				echo "Result: Success."
 				user=$(ls -l "$file" | awk '{print $3}')
 				group=$(ls -l "$file" | awk '{print $4}')
 				if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -508,13 +508,13 @@ while read file; do
 				chown $user:$group "$tm4v"
 				chmod $perms "$tm4v"
 				touch -r "$file" "$tm4v"
-				log "Cleaning up..."
+				echo "Cleaning up..."
 				if $NZBPO_DELETE; then
 					rm "$file"
 				fi
 				mv "$tm4v" "$m4v"
 			else
-				log "File was in use. Skipping..."
+				echo "File was in use. Skipping..."
 			fi
 			;;
 		*) continue;
