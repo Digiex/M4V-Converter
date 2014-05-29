@@ -26,4 +26,4 @@ if [ $? -ne 0 ]; then
 else
 	echo "Successfully notified NzbDrone to update."
 fi
-exit 93
+exit 0
