@@ -79,7 +79,7 @@ elif [[ "$OSTYPE" == "linux-gnu" ]]; then
 	make
 	make test
 	make tools/qt-faststart
-	cp -a tools/qt-faststart ~/bin
+	cp -a tools/qt-faststart /usr/local/bin
 	make install
 	make distclean
 	hash -r
