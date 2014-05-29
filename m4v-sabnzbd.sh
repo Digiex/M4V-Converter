@@ -12,7 +12,6 @@
 ### SABNZBD POST PROCESSING SCRIPT                                         ###
 ##############################################################################
 
-
 #### EDIT THESE SETTINGS ####
 
 # Number of threads (1-8).
