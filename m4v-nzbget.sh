@@ -35,10 +35,16 @@
 #DualAudio=true
 
 # Ignore subtitles (true, false).
-# This will ignore subtitles when converting. It is also useful if you use Plex or such to download subtitles automatically.
+# This will ignore subtitles when converting. This is useful if you use Plex or such to download subtitles.
 #
 # NOTE: This does not apply to forced subtitles.
-#Subtitles=true
+#IgnoreSubs=false
+
+# Ignore image based subtitles (true, false).
+# This will ignore subtitles which are not text based and thus cannot be converted. If you choose not to enable this then any file which contains these image based subtitles will fail to convert.
+#
+# NOTE: If you enable this I'd suggest using some other source to acquire subtitles. Such as Plex + OpenSubtitles.
+#IgnoreSubImgFormat=false
 
 # File format (mp4, mov).
 # MP4 is better supported universally. MOV is best for Apple devices and iTunes.
@@ -101,7 +107,7 @@ while read file; do
 					echo "The file was missing video. Skipping..."
 					continue;
 				fi
-				xlx=$(echo "$NZBPO_LANGUAGE" | tr ',' '\n')
+				xlx=$(echo "$NZBPO_LANGUAGE" | sed s/\ //g | tr ',' '\n')
 				a=$(echo "$data" | grep "Audio:")
 				if [ ! -z "$a" ]; then
 					as=$(echo "$a" | wc -l)
@@ -379,59 +385,68 @@ while read file; do
 					continue;
 				fi
 				s=$(echo "$data" | grep "Subtitle:")
-				if [ ! -z "$s" ]; then
-					ss=$(echo "$s" | wc -l)
-					sg=
-					if (( $ss > 1 )); then
+					if [ ! -z "$s" ]; then
+						sg=
 						while read xs; do
-							if [[ "$NZBPO_LANGUAGE" != "*" ]]; then
-								if [[ "$NZBPO_LANGUAGE" == *,* ]]; then
-									for x in $xlx; do
-										if [[ "$xs" =~ "$x" ]]; then
-											if [ -z "$sg" ]; then
+							if [[ ! "$xs" =~ "Stream" ]]; then
+								continue;
+							fi
+							if $NZBPO_IGNORESUBIMGFORMAT; then
+								if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
+									continue;
+								fi
+							fi
+							if [[ "$language" != "*" ]]; then
+								for x in $xlx; do
+									rx=${x:0:3}
+									if [[ "$xs" =~ "$rx" ]]; then
+										if [ -z "$sg" ]; then
+											if $NZBPO_IGNORESUBS; then
+												if [[ "$xs" =~ "forced" ]]; then
+													sg="$xs"
+												fi
+											else
 												sg="$xs"
-											elif [[ ! "$sg" =~ "$x" ]]; then
+											fi
+										elif [[ ! "$sg" =~ "$rx" ]]; then
+											if $NZBPO_IGNORESUBS; then
+												if [[ "$xs" =~ "forced" ]]; then
+													sg="$xs"$'\n'"$sg"
+												fi
+											else
 												sg="$xs"$'\n'"$sg"
 											fi
 										fi
-									done
-								else
-									if [[ "$xs" =~ "$NZBPO_LANGUAGE" ]]; then
-										if [ -z "$sg" ]; then
+									fi
+								done
+							else
+								if [ -z "$sg" ]; then
+									if $NZBPO_IGNORESUBS; then
+										if [[ "$xs" =~ "forced" ]]; then
 											sg="$xs"
-										elif [[ ! "$sg" =~ "$NZBPO_LANGUAGE" ]]; then
+										fi
+									else
+										sg="$xs"
+									fi
+								elif [[ ! "$sg" =~ "$rx" ]]; then
+									if $NZBPO_IGNORESUBS; then
+										if [[ "$xs" =~ "forced" ]]; then
 											sg="$xs"$'\n'"$sg"
 										fi
+									else
+										sg="$xs"$'\n'"$sg"
 									fi
 								fi
 							fi
 						done <<< "$s"
 						if [ ! -z "$sg" ]; then
-							sgc=$(echo "$sg" | wc -l)
-							if (( $sgc > 1 )); then
-								while read xsg; do
-									sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-									smc=${#sm}
-									if (( $smc > 3 )); then
-										sm=${sm%:*}
-									fi
-									sc=$(echo "$xsg" | awk '{print($4)}')
-									if [[ "$sc" == *, ]]; then
-										sc=${sc%?}
-									fi
-									if [ "$sc" == "mov_text" ]; then
-										dc="$dc -map $sm -c:s:0 copy"
-									else
-										dc="$dc -map $sm -c:s:0 mov_text"
-									fi
-								done <<< "$sg"
-							else
-								sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
+							while read xsg; do
+								sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 								smc=${#sm}
 								if (( $smc > 3 )); then
 									sm=${sm%:*}
 								fi
-								sc=$(echo "$sg" | awk '{print($4)}')
+								sc=$(echo "$xsg" | awk '{print($4)}')
 								if [[ "$sc" == *, ]]; then
 									sc=${sc%?}
 								fi
@@ -440,49 +455,9 @@ while read file; do
 								else
 									dc="$dc -map $sm -c:s:0 mov_text"
 								fi
-							fi
-						fi
-					else
-						sm=$(echo "$s" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-						smc=$(echo "$sm" | wc -l)
-						if [[ "$NZBPO_LANGUAGE" != "*" ]]; then
-							if [[ "$NZBPO_LANGUAGE" == *,* ]]; then
-								for x in $xlx; do
-									if [[ "$s" =~ "$x" ]]; then
-										if [ -z "$sg" ]; then
-											sg="$s"
-										elif [[ ! "$sg" =~ "$x" ]]; then
-											sg="$s"$'\n'"$sg"
-										fi
-									fi
-								done
-							else
-								if [[ "$s" =~ "$NZBPO_LANGUAGE" ]]; then
-									if [ -z "$sg" ]; then
-										sg="$s"
-									elif [[ ! "$sg" =~ "$NZBPO_LANGUAGE" ]]; then
-										sg="$s"$'\n'"$sg"
-									fi
-								fi
-							fi
-						fi
-						if [ ! -z "$sg" ]; then
-							smc=${#sm}
-							if (( $smc > 3 )); then
-								sm=${sm%:*}
-							fi
-							sc=$(echo "$s" | awk '{print($4)}')
-							if [[ "$sc" == *, ]]; then
-								sc=${sc%?}
-							fi
-							if [ "$sc" == "mov_text" ]; then
-								dc="$dc -map $sm -c:s:0 copy"
-							else
-								dc="$dc -map $sm -c:s:0 mov_text"
-							fi
+							done <<< "$sg"
 						fi
 					fi
-				fi
 				if [[ "$dc" =~ "-c:s" ]]; then
 					dc=$(echo "$dc" | sed s/-i/-fix_sub_duration\ -i/g)
 				fi

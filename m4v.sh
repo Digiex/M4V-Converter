@@ -29,18 +29,63 @@ dport=8989
 dapikey=d33fbc0acd2146f2920098a57dcab923
 #--NzbDrone--#
 
+# Messages (true, false).
+# Outputs any message to the console
+#
+# NOTE: Disable this if on OS X and using this script via crontab.
 messages=true
+
+# Logs (true, false).
+# Creates log files.
 logs=true
-delete=false
-dirty=false
+
+# Create dual audio streams (true, false).
+# This will create two audio streams, if possible. Typically AAC 2.0 and AC3 5.1.
+#
+# NOTE: AAC will be the default for better compatability with more devices.
 dualaudio=true
+
+# Dry run (true, false).
+# This will output the command it will issue to ffmpeg without touching anything. Useful for testing and debugging.
 dryrun=true
 
+# Ignore subtitles (true, false).
+# This will ignore subtitles when converting. This is useful if you use Plex or such to download subtitles.
+#
+# NOTE: This does not apply to forced subtitles.
+ignoresubs=false
+
+# Ignore image based subtitles (true, false).
+# This will ignore subtitles which are not text based and thus cannot be converted. If you choose not to enable this then any file which contains these image based subtitles will fail to convert.
+#
+# NOTE: If you enable this I'd suggest using some other source to acquire subtitles. Such as Plex + OpenSubtitles.
+ignoresubimgformat=false
+
+# Number of threads (1-8).
+# This is how many threads FFMPEG will use for conversion.
 threads=2
+
+# Preferred language.
+# This is the language(s) you prefer.
+#
+# NOTE: This is used for audio and subtitles.
 language=eng
+
+# H264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
+# This is the preset used for converting the video, if required.
+#
+# NOTE: Slower is more compressed.
 preset=fast
+
+# File format (mp4, mov).
+# MP4 is better supported universally. MOV is best for Apple devices and iTunes.
 format=mp4
+
+# File extension (m4v, mp4).
 extension=m4v
+
+# Delete original file (true, false).
+delete=false
 
 #### DO NOT EDIT BEYOND THIS POINT ####
 
@@ -182,7 +227,7 @@ function main() {
 						ignore "$file"
 						continue;
 					fi
-					xlx=$(echo "$language" | tr ',' '\n')
+					xlx=$(echo "$language" | sed s/\ //g | tr ',' '\n')
 					a=$(echo "$data" | grep "Audio:")
 					if [ ! -z "$a" ]; then
 						as=$(echo "$a" | wc -l)
@@ -462,98 +507,67 @@ function main() {
 					fi
 					s=$(echo "$data" | grep "Subtitle:")
 					if [ ! -z "$s" ]; then
-						ss=$(echo "$s" | wc -l)
 						sg=
-						if (( $ss > 1 )); then
-							while read xs; do
-								if [[ "$language" != "*" ]]; then
-									if [[ "$language" == *,* ]]; then
-										for x in $xlx; do
-											if [[ "$xs" =~ "$x" ]]; then
-												if [ -z "$sg" ]; then
+						while read xs; do
+							if [[ ! "$xs" =~ "Stream" ]]; then
+								continue;
+							fi
+							if $ignoresubimgformat; then
+								if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
+									continue;
+								fi
+							fi
+							if [[ "$language" != "*" ]]; then
+								for x in $xlx; do
+									rx=${x:0:3}
+									if [[ "$xs" =~ "$rx" ]]; then
+										if [ -z "$sg" ]; then
+											if $ignoresubs; then
+												if [[ "$xs" =~ "forced" ]]; then
 													sg="$xs"
-												elif [[ ! "$sg" =~ "$x" ]]; then
+												fi
+											else
+												sg="$xs"
+											fi
+										elif [[ ! "$sg" =~ "$rx" ]]; then
+											if $ignoresubs; then
+												if [[ "$xs" =~ "forced" ]]; then
 													sg="$xs"$'\n'"$sg"
 												fi
-											fi
-										done
-									else
-										if [[ "$xs" =~ "$language" ]]; then
-											if [ -z "$sg" ]; then
-												sg="$xs"
-											elif [[ ! "$sg" =~ "$language" ]]; then
+											else
 												sg="$xs"$'\n'"$sg"
 											fi
 										fi
 									fi
-								fi
-							done <<< "$s"
-							if [ ! -z "$sg" ]; then
-								sgc=$(echo "$sg" | wc -l)
-								if (( $sgc > 1 )); then
-									while read xsg; do
-										sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-										smc=${#sm}
-										if (( $smc > 3 )); then
-											sm=${sm%:*}
+								done
+							else
+								if [ -z "$sg" ]; then
+									if $ignoresubs; then
+										if [[ "$xs" =~ "forced" ]]; then
+											sg="$xs"
 										fi
-										sc=$(echo "$xsg" | awk '{print($4)}')
-										if [[ "$sc" == *, ]]; then
-											sc=${sc%?}
-										fi
-										if [ "$sc" == "mov_text" ]; then
-											dc="$dc -map $sm -c:s:0 copy"
-										else
-											dc="$dc -map $sm -c:s:0 mov_text"
-										fi
-									done <<< "$sg"
-								else
-									sm=$(echo "$sg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-									smc=${#sm}
-									if (( $smc > 3 )); then
-										sm=${sm%:*}
-									fi
-									sc=$(echo "$sg" | awk '{print($4)}')
-									if [[ "$sc" == *, ]]; then
-										sc=${sc%?}
-									fi
-									if [ "$sc" == "mov_text" ]; then
-										dc="$dc -map $sm -c:s:0 copy"
 									else
-										dc="$dc -map $sm -c:s:0 mov_text"
+										sg="$xs"
+									fi
+								elif [[ ! "$sg" =~ "$rx" ]]; then
+									if $ignoresubs; then
+										if [[ "$xs" =~ "forced" ]]; then
+											sg="$xs"$'\n'"$sg"
+										fi
+									else
+										sg="$xs"$'\n'"$sg"
 									fi
 								fi
 							fi
-						else
-							sm=$(echo "$s" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
-							smc=$(echo "$sm" | wc -l)
-							if [[ "$language" != "*" ]]; then
-								if [[ "$language" == *,* ]]; then
-									for x in $xlx; do
-										if [[ "$s" =~ "$x" ]]; then
-											if [ -z "$sg" ]; then
-												sg="$s"
-											elif [[ ! "$sg" =~ "$x" ]]; then
-												sg="$s"$'\n'"$sg"
-											fi
-										fi
-									done
-								else
-									if [[ "$s" =~ "$language" ]]; then
-										if [ -z "$sg" ]; then
-											sg="$s"
-										elif [[ ! "$sg" =~ "$language" ]]; then
-											sg="$s"$'\n'"$sg"
-										fi
-									fi
-								fi
-							fi
-							if [ ! -z "$sg" ]; then
+						done <<< "$s"
+						if [ ! -z "$sg" ]; then
+							while read xsg; do
+								sm=$(echo "$xsg" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
 								smc=${#sm}
 								if (( $smc > 3 )); then
 									sm=${sm%:*}
 								fi
-								sc=$(echo "$s" | awk '{print($4)}')
+								sc=$(echo "$xsg" | awk '{print($4)}')
 								if [[ "$sc" == *, ]]; then
 									sc=${sc%?}
 								fi
@@ -562,7 +576,7 @@ function main() {
 								else
 									dc="$dc -map $sm -c:s:0 mov_text"
 								fi
-							fi
+							done <<< "$sg"
 						fi
 					fi
 					if [[ "$dc" =~ "-c:s" ]]; then
@@ -607,8 +621,6 @@ function main() {
 				else
 					log "File was in use. Skipping..."
 				fi
-				;;
-			*.jpg | *.nfo | *.txt | *sample*) if $dirty; then rm "$file"; fi;
 				;;
 			*) continue;
 				;;
