@@ -15,8 +15,16 @@
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
 
-if [ "$NZBPP_PARSTATUS" -eq 1 ] || [ "$NZBPP_UNPACKSTATUS" -eq 1 ]; then
-	exit 95
+POSTPROCESS_SUCCESS=93
+POSTPROCESS_ERROR=94
+POSTPROCESS_NONE=95
+
+if [ "$NZBPP_TOTALSTATUS" != "SUCCESS" ]; then
+	exit $POSTPROCESS_NONE
+fi
+
+if [ "NZBPP_SCRIPTSTATUS" != "SUCCESS" ]; then
+	exit $POSTPROCESS_NONE
 fi
 
 curl -silent "http://$NZBPO_IP:$NZBPO_PORT/api/command" -X POST -d '{"name": "downloadedepisodesscan"}' --header "X-Api-Key:$NZBPO_KEY" &>/dev/null
@@ -25,4 +33,4 @@ if [ $? -ne 0 ]; then
 else
 	echo "Successfully notified NzbDrone to update."
 fi
-exit 93
+exit $POSTPROCESS_SUCCESS
