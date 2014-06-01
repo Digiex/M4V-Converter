@@ -23,7 +23,7 @@ if [ "$NZBPP_TOTALSTATUS" != "SUCCESS" ]; then
 	exit $POSTPROCESS_NONE
 fi
 
-if [ "NZBPP_SCRIPTSTATUS" != "SUCCESS" ]; then
+if [ "$NZBPP_SCRIPTSTATUS" != "SUCCESS" ]; then
 	exit $POSTPROCESS_NONE
 fi
 
