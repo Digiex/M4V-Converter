@@ -94,22 +94,24 @@ if [[ $(whoami) != "root" ]]; then
 	exit 1
 fi
 
-if [ ! -d "$movies" ]; then
-	echo "Invalid: $movies"
-	echo "Please check script settings."
-	exit 2
-fi
-if [[ "$movies" == */ ]]; then
-	movies="${movies%?}"
-fi
+if (( $# == 0 )); then
+	if [ ! -d "$movies" ]; then
+		echo "Invalid: $movies"
+		echo "Please check script settings."
+		exit 2
+	fi
+	if [[ "$movies" == */ ]]; then
+		movies="${movies%?}"
+	fi
 
-if [ ! -d "$series" ]; then
-	echo "Invalid: $series"
-	echo "Please check script settings."
-	exit 2
-fi
-if [[ "$series" == */ ]]; then
-	series="${series%?}"
+	if [ ! -d "$series" ]; then
+		echo "Invalid: $series"
+		echo "Please check script settings."
+		exit 2
+	fi
+	if [[ "$series" == */ ]]; then
+		series="${series%?}"
+	fi
 fi
 
 if [ "$ignored" != "$PWD/m4v.ignored" ]; then
@@ -169,6 +171,7 @@ function ignore() {
 
 function main() {
 	update=false
+	log "Searching for files..."
 	files=$(find "$1" -type f)
 	while read file; do
 		ext="${file##*.}"
@@ -645,13 +648,24 @@ function main() {
 	fi
 }
 
-log "Searching for files..."
-
-if [[ "$movies" != "$series" ]]; then
-	main "$movies"
-	main "$series"
+if (( $# > 0 )); then
+	for p in "$@"; do
+		if [ -d "$p" ]; then
+			if [[ "$p" == */ ]]; then
+				p="${p%?}"
+			fi
+			main "$p"
+		else
+			log "Directory $p does not exist."
+		fi
+	done
 else
-	main "$movies"
+	if [[ "$movies" != "$series" ]]; then
+		main "$movies"
+		main "$series"
+	else
+		main "$movies"
+	fi
 fi
 
 log "Finished!"
