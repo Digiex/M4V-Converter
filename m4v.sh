@@ -206,7 +206,7 @@ function main() {
 						rm "$tm4v"
 					fi
 					data=$(ffprobe "$file" 2>&1)
-					v=$(echo "$data" | grep "Video:")
+					v=$(echo "$data" | grep "Stream" | grep "Video:")
 					if [ ! -z "$v" ]; then
 						vs=$(echo "$v" | wc -l)
 						if (( $vs > 1 )); then
@@ -231,7 +231,7 @@ function main() {
 						continue;
 					fi
 					xlx=$(echo "$language" | sed s/\ //g | tr ',' '\n')
-					a=$(echo "$data" | grep "Audio:")
+					a=$(echo "$data" | grep "Stream" | grep "Audio:")
 					if [ ! -z "$a" ]; then
 						as=$(echo "$a" | wc -l)
 						agi=
@@ -508,13 +508,10 @@ function main() {
 						ignore "$file"
 						continue;
 					fi
-					s=$(echo "$data" | grep "Subtitle:")
+					s=$(echo "$data" | grep "Stream" | grep "Subtitle:")
 					if [ ! -z "$s" ]; then
 						sg=
 						while read xs; do
-							if [[ ! "$xs" =~ "Stream" ]]; then
-								continue;
-							fi
 							if $ignoresubimgformat; then
 								if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
 									continue;

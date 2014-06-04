@@ -102,7 +102,7 @@ while read file; do
 				m4v="$orig.$extension"
 				tm4v="$m4v.tmp"
 				data=$(ffprobe "$file" 2>&1)
-				v=$(echo "$data" | grep "Video:")
+				v=$(echo "$data" | grep "Stream" | grep "Video:")
 				if [ ! -z "$v" ]; then
 					vs=$(echo "$v" | wc -l)
 					if (( $vs > 1 )); then
@@ -125,7 +125,7 @@ while read file; do
 					continue;
 				fi
 				xlx=$(echo "$language" | sed s/\ //g | tr ',' '\n')
-				a=$(echo "$data" | grep "Audio:")
+				a=$(echo "$data" | grep "Stream" | grep "Audio:")
 				if [ ! -z "$a" ]; then
 					as=$(echo "$a" | wc -l)
 					agi=
@@ -401,13 +401,10 @@ while read file; do
 					echo "The file was missing audio. Skipping..."
 					continue;
 				fi
-				s=$(echo "$data" | grep "Subtitle:")
+				s=$(echo "$data" | grep "Stream" | grep "Subtitle:")
 				if [ ! -z "$s" ]; then
 					sg=
 					while read xs; do
-						if [[ ! "$xs" =~ "Stream" ]]; then
-							continue;
-						fi
 						if $ignoresubimgformat; then
 							if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
 								continue;
