@@ -142,13 +142,23 @@ if [ -f "$pid" ]; then
     fi
 fi
 
-echo $$ > "$pid"
-trap 'rm -f "$pid"' EXIT
-
 if [ ! -z $(pgrep 'Plex New Transcoder') ]; then
 	echo "Plex is currently transcoding."
     exit 4
 fi
+
+if ! hash ffmpeg &>/dev/null; then
+	echo "ERROR: FFMPEG is missing. (REQUIRED)"
+	exit 5
+fi
+
+if ! hash ffprobe &>/dev/null; then
+	echo "ERROR: FFPROBE is missing. (REQUIRED)"
+	exit 5
+fi
+
+echo $$ > "$pid"
+trap 'rm -f "$pid"' EXIT
 
 function log() {
 	if $messages; then

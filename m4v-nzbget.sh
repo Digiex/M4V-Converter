@@ -67,6 +67,16 @@ if [ "$NZBPP_TOTALSTATUS" != "SUCCESS" ]; then
 	exit $POSTPROCESS_NONE
 fi
 
+if ! hash ffmpeg &>/dev/null; then
+	echo "ERROR: FFMPEG is missing. (REQUIRED)"
+	exit 1
+fi
+
+if ! hash ffprobe &>/dev/null; then
+	echo "ERROR: FFPROBE is missing. (REQUIRED)"
+	exit 1
+fi
+
 echo "Searching for files..."
 files=$(find "$NZBPP_DIRECTORY" -type f)
 while read file; do

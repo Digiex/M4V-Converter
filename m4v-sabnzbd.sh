@@ -84,6 +84,16 @@ if [ "$7" -ne 0 ]; then
 	exit 0
 fi
 
+if ! hash ffmpeg &>/dev/null; then
+	echo "ERROR: FFMPEG is missing. (REQUIRED)"
+	exit 1
+fi
+
+if ! hash ffprobe &>/dev/null; then
+	echo "ERROR: FFPROBE is missing. (REQUIRED)"
+	exit 1
+fi
+
 echo "Searching for files..."
 files=$(find "$1" -type f)
 while read file; do
