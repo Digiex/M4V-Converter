@@ -639,18 +639,24 @@ function main() {
 
 	if $update; then
 		if $couch; then
-			log "Updating CouchPotato..."
-			curl -silent -f "http://$cip:$cport/api/$capikey/manage.update" &>/dev/null
+			if [ "$movies" == "$1" ]; then
+				log "Updating CouchPotato..."
+				curl -silent -f "http://$cip:$cport/api/$capikey/manage.update" &>/dev/null
+			fi
 		fi
 		if $sick; then
-			log "Updating SickBeard..."
-			shows=$(curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id");
-			tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g | tr ' ' '\n');
-			while read id; do curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id" &>/dev/null; done <<< "$tvdb";
+			if [ "$series" == "$1" ]; then
+				log "Updating SickBeard..."
+				shows=$(curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=shows&sort=id");
+				tvdb=$(echo "$shows" | sed '/tvdbid/!d' | sed s/\'tvdbid\'://g | sed s/\'//g | sed s/\ //g | sed s/,//g | tr ' ' '\n');
+				while read id; do curl -silent -f "http://$sip:$sport/api/$sapikey/?cmd=show.refresh&tvdbid=$id" &>/dev/null; done <<< "$tvdb";
+			fi
 		fi
 		if $drone; then
-			log "Updating NzbDrone..."
-			curl -silent -f "http://$dip:$dport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$dapikey" &>/dev/null
+			if [ "$series" == "$1" ]; then
+				log "Updating NzbDrone..."
+				curl -silent -f "http://$dip:$dport/api/command" -X POST -d '{"name": "RescanSeries"}' --header "X-Api-Key:$dapikey" &>/dev/null
+			fi
 		fi
 	fi
 }
