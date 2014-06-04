@@ -58,10 +58,30 @@ extension=m4v
 # Delete original file (true, false).
 delete=true
 
+# CouchPotato
+# Notify CouchPotato to scan for new files (true, false).
+#
+# NOTE: Requires category
+couch=false
+couchip=127.0.0.1
+couchport=5050
+couchapikey=1182f201774a420ea36ac39d740c4107
+couchcategory=movies
+
+# NzbDrone
+# Notify NzbDrone to scan for new files (true, false).
+#
+# NOTE: Requires category
+drone=false
+droneip=127.0.0.1
+droneport=5050
+droneapikey=d33fbc0acd2146f2920098a57dcab923
+dronecategory=series
+
 #### DO NOT EDIT BEYOND THIS POINT ####
 
-if [ "$7" -eq 1 ] || [ "$7" -eq 2 ]; then
-	exit 1
+if [ "$7" -ne 0 ]; then
+	exit 0
 fi
 
 echo "Searching for files..."
@@ -493,6 +513,28 @@ while read file; do
 			;;
 	esac
 done <<< "$files"
+
+if [ ! -z "$5" ]; then
+	if $couch; then
+		if [ "$5" == "$couchcategory" ]; then
+			curl -silent "http://$couchip:$couchport/api/$couchapikey/renamer.scan" &>/dev/null
+			if [ $? -ne 0 ]; then
+				echo "Failed to update CouchPotato, please check your settings."
+			else
+				echo "Successfully notified CouchPotato to update."
+			fi
+		fi
+	if $drone; then
+		if [ "$5" == "$dronecategory" ]; then
+			curl -silent "http://$droneip:$droneport/api/command" -X POST -d '{"name": "downloadedepisodesscan"}' --header "X-Api-Key:$droneapikey" &>/dev/null
+			if [ $? -ne 0 ]; then
+				echo "Failed to update NzbDrone, please check your settings."
+			else
+				echo "Successfully notified NzbDrone to update."
+			fi
+		fi
+	fi
+fi
 
 echo "Finished!"
 exit 0
