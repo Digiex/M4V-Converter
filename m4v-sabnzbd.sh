@@ -531,6 +531,7 @@ if [ ! -z "$5" ]; then
 				echo "Successfully notified CouchPotato to update."
 			fi
 		fi
+	fi
 	if $drone; then
 		if [ "$5" == "$dronecategory" ]; then
 			curl -silent "http://$droneip:$droneport/api/command" -X POST -d '{"name": "downloadedepisodesscan"}' --header "X-Api-Key:$droneapikey" &>/dev/null
