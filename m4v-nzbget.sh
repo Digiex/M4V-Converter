@@ -88,7 +88,7 @@ while read file; do
 		*.mkv | *.mp4 | *.m4v | *.avi)
 			echo "Found a file needing to be converted."
 			echo "File: $file"
-			lsof "$file" | grep -q COMMAND &>/dev/null
+			lsof "$file" 2>&1 | grep -q COMMAND &>/dev/null
 			if [ $? -ne 0 ]; then
 				dc="ffmpeg -threads $NZBPO_THREADS -i \"$file\""
 				orig="${file%.*}"

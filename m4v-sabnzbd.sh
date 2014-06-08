@@ -74,7 +74,7 @@ couchcategory=movies
 # NOTE: Requires category
 drone=false
 droneip=127.0.0.1
-droneport=5050
+droneport=8989
 droneapikey=d33fbc0acd2146f2920098a57dcab923
 dronecategory=series
 
@@ -105,7 +105,7 @@ while read file; do
 		*.mkv | *.mp4 | *.m4v | *.avi)
 			echo "Found a file needing to be converted."
 			echo "File: $file"
-			lsof "$file" | grep -q COMMAND &>/dev/null
+			lsof "$file" 2>&1 | grep -q COMMAND &>/dev/null
 			if [ $? -ne 0 ]; then
 				dc="ffmpeg -threads $threads -i \"$file\""
 				orig="${file%.*}"

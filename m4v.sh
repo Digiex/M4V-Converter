@@ -203,7 +203,7 @@ function main() {
 				fi
 				log "Found a file needing to be converted."
 				log "File: $file"
-				lsof "$file" | grep -q COMMAND &>/dev/null
+				lsof "$file" 2>&1 | grep -q COMMAND &>/dev/null
 				if [ $? -ne 0 ]; then
 					dc="ffmpeg -threads $threads -i \"$file\""
 					orig="${file%.*}"
