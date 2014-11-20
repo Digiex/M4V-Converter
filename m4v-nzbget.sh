@@ -12,12 +12,12 @@
 ##############################################################################
 ### OPTIONS                                                                ###
 
-# Number of threads (1-8).
+# Number of Threads (1-8).
 # This is how many threads FFMPEG will use for conversion.
-#Threads=2
+#Threads=auto
 
-# Preferred language.
-# This is the language(s) you prefer.
+# Preferred Language.
+# This is the language(s) you prefer. All others will be discarded.
 #
 # NOTE: This is used for audio and subtitles.
 #Language=eng
@@ -25,36 +25,46 @@
 # H264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This is the preset used for converting the video, if required.
 #
-# NOTE: Slower is more compressed.
+# NOTE: Slower is more compressed and has better quality but takes more time.
 #Preset=fast
 
-# Create dual audio streams (true, false).
-# This will create two audio streams, if possible. Typically AAC 2.0 and AC3 5.1.
+# Create Dual Audio Streams (true, false).
+# This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
 #
 # NOTE: AAC will be the default for better compatability with more devices.
 #DualAudio=true
 
-# Ignore subtitles (true, false).
-# This will ignore subtitles when converting. This is useful if you use Plex or such to download subtitles.
+# Copy Subtitles (true, false).
+# This will copy subtitles of your perferred language into the converted file.
 #
-# NOTE: This does not apply to forced subtitles.
-#IgnoreSubs=false
+# NOTE: Disable if you use Plex or such to download subtitles. This does not apply to forced subtitles. 
+#Subtitles=true
 
-# Ignore image based subtitles (true, false).
-# This will ignore subtitles which are not text based and thus cannot be converted. If you choose not to enable this then any file which contains these image based subtitles will fail to convert.
-#
-# NOTE: If you enable this I'd suggest using some other source to acquire subtitles. Such as Plex + OpenSubtitles.
-#IgnoreSubImgFormat=false
-
-# File format (mp4, mov).
+# File Format (mp4, mov).
 # MP4 is better supported universally. MOV is best for Apple devices and iTunes.
 #Format=mp4
 
-# File extension (m4v, mp4).
+# File Extension (mp4, m4v).
+# The extension applied at the end of the file, such as video.mp4.
 #Extension=m4v
 
-# Delete original file (true, false).
+# Delete Original File (true, false).
+# If true then the original file will be deleted. Otherwise it saves both original and converted files.
 #Delete=true
+
+# Mark Bad (true, false).
+# This will mark the download as bad if ffprobe cannot find a video stream, which is required. Thus meaning something is horribly wrong with this download or its fake.
+#Failed=true
+
+# Delete Samples (true, false).
+# This will delete sample files.
+#
+# NOTE: This will delete any file less than 200 megabytes.
+#Samples=true
+
+# Cleanup Files.
+# This will delete extra files with the above file extensions.
+#Cleanup=.nzb, .nfo, .srr, .srt, .sub, .idx, .info, .txt, .com, .db, .md5, .png, .jpg, .jpeg, .gif, .url, .lnk, .html, .htm, .ini, .bat, .exe, .scr, .sampl, .sample, .par2, .sfv
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
@@ -62,27 +72,46 @@
 POSTPROCESS_SUCCESS=93
 POSTPROCESS_ERROR=94
 POSTPROCESS_NONE=95
+SUCCESS=false
+FAILURE=false
 
 if [ "$NZBPP_TOTALSTATUS" != "SUCCESS" ]; then
 	exit $POSTPROCESS_NONE
 fi
 
-if ! hash ffmpeg &>/dev/null; then
-	echo "ERROR: FFMPEG is missing. (REQUIRED)"
-	exit 1
-fi
-
-if ! hash ffprobe &>/dev/null; then
-	echo "ERROR: FFPROBE is missing. (REQUIRED)"
-	exit 1
-fi
-
 echo "Searching for files..."
+
+if $NZBPO_SAMPLES; then
+	samples=$(find "$NZBPP_DIRECTORY" -type f -size -200M)
+	if [ ! -z "$samples" ]; then
+		while read file; do
+			rm "$file"
+		done <<< "$samples"
+	fi
+fi
+
+clean=(${NZBPO_CLEANUP//, / })
+
 files=$(find "$NZBPP_DIRECTORY" -type f)
+if [ ! -z "$files" ]; then
 while read file; do
 	ext="${file##*.}"
 	if [[ "$ext" == "$NZBPO_EXTENSION" ]]; then
 		continue;
+	fi
+	if [ ! -z "$clean" ]; then
+		for e in "${!clean[@]}"; do
+			if ! [[ "${clean[e]}" =~ "." ]]; then
+				echo "WARNING: You've given an invalid file extension to cleanup. issue=${clean[e]}"
+				continue;
+			fi
+			case "$file" in
+				*"${clean[e]}")
+					rm "$file"
+					break;
+				;;
+			esac
+		done
 	fi
 	case "$file" in
 		*.mkv | *.mp4 | *.m4v | *.avi)
@@ -95,11 +124,15 @@ while read file; do
 				m4v="$orig.$NZBPO_EXTENSION"
 				tm4v="$m4v.tmp"
 				data=$(ffprobe "$file" 2>&1)
-				v=$(echo "$data" | grep "Stream" | grep "Video:")
+				v=$(echo "$data" | grep "Video:")
 				if [ ! -z "$v" ]; then
 					vs=$(echo "$v" | wc -l)
 					if (( $vs > 1 )); then
 						echo "This file has multiple video streams. Skipping..."
+						if $NZBPO_FAILED; then
+							echo "[NZB] MARK=BAD"
+							FAILURE=true
+						fi
 						continue;
 					fi
 					vm=$(echo "$v" | awk '{print($2)}' | sed s/#//g | sed s/\(.*//g)
@@ -115,10 +148,14 @@ while read file; do
 					fi
 				else
 					echo "The file was missing video. Skipping..."
+					if $NZBPO_FAILED; then
+						echo "[NZB] MARK=BAD"
+						FAILURE=true
+					fi
 					continue;
 				fi
 				xlx=$(echo "$NZBPO_LANGUAGE" | sed s/\ //g | tr ',' '\n')
-				a=$(echo "$data" | grep "Stream" | grep "Audio:")
+				a=$(echo "$data" | grep "Audio:")
 				if [ ! -z "$a" ]; then
 					as=$(echo "$a" | wc -l)
 					agi=
@@ -392,23 +429,28 @@ while read file; do
 					fi
 				else
 					echo "The file was missing audio. Skipping..."
+					if $NZBPO_FAILED; then
+						echo "[NZB] MARK=BAD"
+						FAILURE=true
+					fi
 					continue;
 				fi
-				s=$(echo "$data" | grep "Stream" | grep "Subtitle:")
+				s=$(echo "$data" | grep "Subtitle:")
 					if [ ! -z "$s" ]; then
 						sg=
 						while read xs; do
-							if $NZBPO_IGNORESUBIMGFORMAT; then
-								if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
-									continue;
-								fi
+							if [[ ! "$xs" =~ "Stream" ]]; then
+								continue;
+							fi
+							if [[ "$xs" =~ "hdmv_pgs_subtitle" ]]; then
+								continue;
 							fi
 							if [[ "$language" != "*" ]]; then
 								for x in $xlx; do
 									rx=${x:0:3}
 									if [[ "$xs" =~ "$rx" ]]; then
 										if [ -z "$sg" ]; then
-											if $NZBPO_IGNORESUBS; then
+											if ! $NZBPO_SUBTITLES; then
 												if [[ "$xs" =~ "forced" ]]; then
 													sg="$xs"
 												fi
@@ -416,7 +458,7 @@ while read file; do
 												sg="$xs"
 											fi
 										elif [[ ! "$sg" =~ "$rx" ]]; then
-											if $NZBPO_IGNORESUBS; then
+											if ! $NZBPO_SUBTITLES; then
 												if [[ "$xs" =~ "forced" ]]; then
 													sg="$xs"$'\n'"$sg"
 												fi
@@ -428,7 +470,7 @@ while read file; do
 								done
 							else
 								if [ -z "$sg" ]; then
-									if $NZBPO_IGNORESUBS; then
+									if ! $NZBPO_SUBTITLES; then
 										if [[ "$xs" =~ "forced" ]]; then
 											sg="$xs"
 										fi
@@ -436,7 +478,7 @@ while read file; do
 										sg="$xs"
 									fi
 								elif [[ ! "$sg" =~ "$rx" ]]; then
-									if $NZBPO_IGNORESUBS; then
+									if ! $NZBPO_SUBTITLES; then
 										if [[ "$xs" =~ "forced" ]]; then
 											sg="$xs"$'\n'"$sg"
 										fi
@@ -477,6 +519,7 @@ while read file; do
 						echo "Cleaning up..."
 						rm "$tm4v"
 					fi
+					FAILURE=true
 					continue;
 				fi
 				echo "Result: Success."
@@ -491,18 +534,30 @@ while read file; do
 				chmod $perms "$tm4v"
 				touch -r "$file" "$tm4v"
 				echo "Cleaning up..."
-				if $delete; then
+				if $NZBPO_DELETE; then
 					rm "$file"
 				fi
 				mv "$tm4v" "$m4v"
+				SUCCESS=true
 			else
 				echo "File was in use. Skipping..."
+				FAILURE=true
 			fi
-			;;
-		*) continue;
-			;;
+		;;
 	esac
 done <<< "$files"
+else
+	echo "Couldn't find any files to convert."
+fi
 
 echo "Finished!"
-exit $POSTPROCESS_SUCCESS
+
+if $SUCCESS; then
+	exit $POSTPROCESS_SUCCESS
+else
+	if $FAILURE; then
+		exit $POSTPROCESS_ERROR
+	else
+		exit $POSTPROCESS_NONE
+	fi
+fi
