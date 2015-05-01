@@ -14,7 +14,7 @@ You will need [NzbGet](http://nzbget.net/)
 
 If your on OS X you will need [Homebrew](http://brew.sh). You will also need ffmpeg. To get this execute 'brew install ffmpeg' in terminal.
 
-This script works with linux, tested on Ubuntu 14.04. Just make sure [FFMPEG](https://trac.ffmpeg.org/wiki/UbuntuCompilationGuide) [FFPROBE](https://trac.ffmpeg.org/wiki/UbuntuCompilationGuide) and Bash 4+ is installed.
+This script works with linux, tested on Ubuntu 14.04. Just make sure [FFMPEG](https://trac.ffmpeg.org/wiki/UbuntuCompilationGuide) / [FFPROBE](https://trac.ffmpeg.org/wiki/UbuntuCompilationGuide) and Bash 4+ is installed.
 
 Usage
 -----
