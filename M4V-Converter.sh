@@ -38,6 +38,12 @@
 # NOTE: Slower is more compressed and has better quality but takes more time.
 #Preset=fast
 
+# Constant Rate Factor (0-51).
+# This controls compression efficiency.
+#
+# NOTE: Refer to the Wiki for help. https://trac.ffmpeg.org/wiki/Encode/H.264 .
+#CRF=23
+
 # Video Bitrate (KB).
 # Use this to limit video bitrate, if it exceeds this limit then video will be converted.
 #Video Bitrate=8000
@@ -155,7 +161,7 @@ if [[ ! -z "${files}" ]]; then
 				fi
 			;;
 		esac
-		read -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed s/\ //g | sed s/\\.//g | sed s/,/\ /g)"
+		read -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/\\.//g' | sed 's/,/\ /g')"
 		if (( ${#extensions[@]} > 0 )); then
 			while read file; do
 				for ((i = 0; i < ${#extensions[@]}; i++)); do
@@ -170,7 +176,7 @@ if [[ ! -z "${files}" ]]; then
 	if [[ -z "${NZBPO_LANGUAGE}" ]]; then
 		NZBPO_LANGUAGE="*"
 	fi
-	read -a languages <<< "$(echo "${NZBPO_LANGUAGE}" | sed s/\ //g | sed s/,/\ /g)"
+	read -a languages <<< "$(echo "${NZBPO_LANGUAGE}" | sed 's/\ //g' | sed 's/,/\ /g')"
 	defaultlanguage="${languages[0]}"
 
 	while read file; do
@@ -186,7 +192,7 @@ if [[ ! -z "${files}" ]]; then
 					tmpFiles+=("${tmpfile}")
 					data="$(ffprobe "${file}" 2>&1)"
 
-					cv="$(echo "${data}" | grep "Video:" | sed s/\ \ \ \ \ //g)"
+					cv="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
 					if [[ -z "${cv}" ]]; then
 						echo "The file was missing video. Fake? Skipping..."
 						failure=true
@@ -199,7 +205,7 @@ if [[ ! -z "${files}" ]]; then
 						if [[ -z "${video[${i}]}" ]]; then
 							continue
 						fi
-						if [[ $(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "TAG:mimetype=" | tr '[:upper:]' '[:lower:]' | sed s/tag:mimetype=//g) == "image/jpeg" ]]; then
+						if [[ $(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "TAG:mimetype=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:mimetype=//g') == "image/jpeg" ]]; then
 							continue
 						fi
 						videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
@@ -207,7 +213,7 @@ if [[ ! -z "${files}" ]]; then
 							videomap=${videomap%:*}
 						fi
 						videocodec=$(echo "${video[${i}]}" | awk '{print($4)}')
-						vb=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed s/bit_rate=//g | sed s/[^0-9]*//g)
+						vb=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 						if [[ -z ${vb} ]]; then
 							vb=0
 						fi
@@ -215,25 +221,25 @@ if [[ ! -z "${files}" ]]; then
 						videobitrate=$(( vb / 1024 ))
 						if [[ "${videocodec}" == "h264" ]] || [[ "${videocodec}" == "x264" ]]; then
 							if (( videobitrate > videobitratelimit )); then
-								command+=" -map ${videomap} -c:v libx264 -preset ${NZBPO_PRESET} -profile:v baseline -level 3.0 -b:v:${i} ${videobitratelimit}k"
+								command+=" -map ${videomap} -c:v libx264 -crf ${NZBPO_CRF} -preset ${NZBPO_PRESET} -profile:v baseline -level 3.0 -b:v:${i} ${videobitratelimit}k"
 							else 
 								command+=" -map ${videomap} -c:v copy"
 							fi
 						else
-							command+=" -map ${videomap} -c:v libx264 -preset ${NZBPO_PRESET} -profile:v baseline -level 3.0"
+							command+=" -map ${videomap} -c:v libx264 -crf ${NZBPO_CRF} -preset ${NZBPO_PRESET} -profile:v baseline -level 3.0"
 							if (( videobitrate > videobitratelimit )); then
 								command+=" -b:v:${i} ${videobitratelimit}k"
 							fi
 						fi
 						if [[ "${defaultlanguage}" != "*" ]]; then
-							videolang=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+							videolang=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 							if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
 								command+=" -metadata:s:v:${i} language=${defaultlanguage}"
 							fi
 						fi
 					done
 
-					ca="$(echo "${data}" | grep "Audio:" | sed s/\ \ \ \ \ //g)"
+					ca="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
 					if [[ -z "${ca}" ]]; then
 						echo "The file was missing audio. Fake? Skipping..."
 						failure=true
@@ -243,15 +249,15 @@ if [[ ! -z "${files}" ]]; then
 					audio=()
 					audiostreams=()
 					declare -A dualaudio
-					readarray -t audio <<< "$(echo "${data}" | grep "Audio:" | sed s/\ \ \ \ \ //g)"
+					readarray -t audio <<< "$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
 					for ((i = 0; i < ${#audio[@]}; i++)); do
 						if [[ -z "${audio[${i}]}" ]]; then
 							continue
 						fi
 						audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-						audiolang="$(echo "${audiodata}" | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)"
-						audiocodec="$(echo "${audiodata}" | grep -i "CODEC_NAME=" | tr '[:upper:]' '[:lower:]' | sed s/codec_name=//g)"
-						audiochannels=$(echo "${audiodata}" | grep -i "CHANNELS=" | tr '[:upper:]' '[:lower:]' | sed s/channels=//g)
+						audiolang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+						audiocodec=$(echo "${audiodata}" | grep -i 'CODEC_NAME=' | tr '[:upper:]' '[:lower:]' | sed 's/codec_name=//g')
+						audiochannels=$(echo "${audiodata}" | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
 						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 							audiolang="${defaultlanguage}"
 						fi
@@ -293,7 +299,22 @@ if [[ ! -z "${files}" ]]; then
 									ac3=true
 								fi
 							else
-								continue
+								have=false
+								for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+									if [[ -z "${audiostreams[${s}]}" ]]; then
+										continue
+									fi
+									lang=$(ffprobe "${file}" -show_streams -select_streams a:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+									if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+										lang="${defaultlanguage}"
+									fi
+									if [[ "${lang}" == "${audiolang}" ]]; then
+										have=true
+									fi
+								done
+								if ${have}; then
+									continue
+								fi
 							fi
 							dualaudio["${audiolang}"]="${aac}:${ac3}"
 						else
@@ -302,7 +323,7 @@ if [[ ! -z "${files}" ]]; then
 								if [[ -z "${audiostreams[${s}]}" ]]; then
 									continue
 								fi
-								lang=$(ffprobe "${file}" -show_streams -select_streams a:${s} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+								lang=$(ffprobe "${file}" -show_streams -select_streams a:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 									lang="${defaultlanguage}"
 								fi
@@ -344,8 +365,8 @@ if [[ ! -z "${files}" ]]; then
 							if [[ "${audiocodec}" == *, ]]; then
 								audiocodec=${audiocodec%?}
 							fi
-							audiochannels=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | grep -i "CHANNELS=" | tr '[:upper:]' '[:lower:]' | sed s/channels=//g)
-							audiolang=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+							audiochannels=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
+							audiolang=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 							tag=false
 							if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 								audiolang="${defaultlanguage}"
@@ -422,14 +443,14 @@ if [[ ! -z "${files}" ]]; then
 					if ${NZBPO_SUBTITLES}; then
 						subtitle=()
 						subtitlestreams=()
-						readarray -t subtitle <<< "$(echo "${data}" | grep "Subtitle:" | sed s/\ \ \ \ \ //g)"
+						readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ \ //g')"
 						for ((i = 0; i < ${#subtitle[@]}; i++)); do
 							if [[ -z "${subtitle[${i}]}" ]]; then
 								continue
 							fi
 							if [[ "${NZBPO_LANGUAGE}" != "*" ]]; then
 								subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
-								subtitlelang=$(echo "${subtitledata}" | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+								subtitlelang=$(echo "${subtitledata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 								if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 									subtitlelang="${defaultlanguage}"
 								fi
@@ -441,7 +462,7 @@ if [[ ! -z "${files}" ]]; then
 									if [[ -z "${subtitlestreams[${s}]}" ]]; then
 										continue
 									fi
-									lang=$(ffprobe "${file}" -show_streams -select_streams s:${s} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+									lang=$(ffprobe "${file}" -show_streams -select_streams s:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 									if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 										lang="${defaultlanguage}"
 									fi
@@ -452,7 +473,7 @@ if [[ ! -z "${files}" ]]; then
 								if ${have}; then
 									continue
 								fi
-								if [[  "${subtitlelang}" == "${defaultlanguage}" ]] && [[ ${subtitle[${i}],,} =~ forced ]] || [[ "${subtitlelang}" == "${defaultlanguage}" ]] && [[ $(echo "${subtitledata}" | grep -i "TAG:TITLE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:title=//g) =~ forced ]]; then
+								if [[  "${subtitlelang}" == "${defaultlanguage}" ]] && [[ ${subtitle[${i}],,} =~ forced ]] || [[ "${subtitlelang}" == "${defaultlanguage}" ]] && [[ $(echo "${subtitledata}" | grep -i 'TAG:TITLE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:title=//g') =~ forced ]]; then
 									subtitlestreams+=("${subtitle[${i}]}")
 									continue
 								fi
@@ -493,7 +514,7 @@ if [[ ! -z "${files}" ]]; then
 									command+=" -map ${subtitlemap} -c:s:${s} mov_text"
 								fi
 								if [[ "${defaultlanguage}" != "*" ]]; then
-									subtitlelang=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1 | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed s/tag:language=//g)
+									subtitlelang=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 									if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 										command+=" -metadata:s:s:${s} language=${defaultlanguage}"
 									fi
@@ -528,7 +549,7 @@ if [[ ! -z "${files}" ]]; then
 				fi
 			;;
 		esac
-	done <<< "${files}"
+	done < <(find "${NZBPP_DIRECTORY}" -type f)
 else
 	echo "Could not find any files to convert."
 fi
