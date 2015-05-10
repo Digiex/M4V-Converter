@@ -54,6 +54,10 @@
 # NOTE: AAC will be the default for better compatability with more devices.
 #Dual Audio=false
 
+# Normalize Audio (true, false).
+# This will normalize audio if needed due to downmixing 5.1 to 2.0.
+#Normalize=true
+
 # Copy Subtitles (true, false).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
 #
@@ -223,10 +227,8 @@ process() {
 					if [[ -z "${audio[${i}]}" ]]; then
 						continue
 					fi
-					local audiodata audiocodec audiochannels audiolang
+					local audiodata audiolang
 					audiodata=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1)
-					audiocodec=$(echo "${audiodata}" | grep -i 'CODEC_NAME=' | tr '[:upper:]' '[:lower:]' | sed 's/codec_name=//g')
-					audiochannels=$(echo "${audiodata}" | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
 					audiolang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 						audiolang="${CONF_DEFAULTLANGUAGE}"
@@ -250,11 +252,13 @@ process() {
 						fi
 					fi
 					if ${CONF_DUALAUDIO}; then
-						local aac=false ac3=false
+						local aac=false ac3=false audiocodec audiochannels
 						if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
 							aac=${dualaudio[${audiolang}]%%:*}
 							ac3=${dualaudio[${audiolang}]#*:}
 						fi
+						audiocodec=$(echo "${audiodata}" | grep -i 'CODEC_NAME=' | tr '[:upper:]' '[:lower:]' | sed 's/codec_name=//g')
+						audiochannels=$(echo "${audiodata}" | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
 						if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
 							if ${aac}; then
 								continue
@@ -596,10 +600,10 @@ normalize() {
 	if ${boost}; then
 		mv "${1}" "${newfile}"
 		TMPFILES+=("${newfile}")
-		echo "Attempting to boost audio to compensate for downmixing..."
 		if ${CONF_VERBOSE}; then
 			echo "VERBOSE: ${command}"
 		fi
+		echo "Boosting audio..."
 		eval "${command} &" &>/dev/null
 		PID=${!}
 		wait ${PID}
@@ -722,6 +726,9 @@ configure() {
 	CONF_DUALAUDIO=${NZBPO_DUAL_AUDIO:-${DUALAUDIO}}
 	CONF_DUALAUDIO=${CONF_DUALAUDIO,,}
 	: "${CONF_DUALAUDIO:=false}"
+	CONF_NORMALIZE=${NZBPO_NORMALIZE:-${NORMALIZE}}
+	CONF_NORMALIZE=${CONF_NORMALIZE,,}
+	: "${CONF_NORMALIZE:-true}"
 	CONF_SUBTITLES=${NZBPO_SUBTITLES:-${SUBTITLES}}
 	CONF_SUBTITLES=${CONF_SUBTITLES,,}
 	: "${CONF_SUBTITLES:=true}"
@@ -783,6 +790,11 @@ verify() {
 		true) ;;
 		false) ;;
 		*) echo "Dual Audio is incorrectly configured."; return 1 ;;
+	esac
+	case "${CONF_NORMALIZE}" in
+		true) ;;
+		false) ;;
+		*) echo "Normalize is incorrectly configured."; return 1 ;;
 	esac
 	case "${CONF_SUBTITLES}" in
 		true) ;;
@@ -884,11 +896,11 @@ main() {
 					read -a CONF_LANGUAGES <<< "$(echo "${2,,}" | sed 's/\ //g' | sed 's/,/\ /g')"
 					CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]}; shift 2 ;;
 				--dualaudio) CONF_DUALAUDIO="${2,,}"; shift 2 ;;
+				--normalize) CONF_NORMALIZE="${2,,}"; shift 2 ;;
 				--subtitles) CONF_SUBTITLES="${2,,}"; shift 2 ;;
 				--format) CONF_FORMAT="${2,,}"; shift 2 ;;
 				--extension) CONF_EXTENSION="${2,,}"; shift 2 ;;
 				--delete) CONF_DELETE="${2,,}"; shift 2 ;;
-				--normalize) CONF_NORMALIZE="${2,,}"; shift 2 ;;
 				--) shift; break ;;
 				*) usage ;;
 			esac
