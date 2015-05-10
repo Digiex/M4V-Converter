@@ -195,8 +195,8 @@ process() {
 					fi
 					if ${convert}; then
 						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v baseline -level 3.0"
-						if (( videobitratelimit > 0 )) && (( videobitrate > videobitratelimit )); then
-							command+=" -b:v:${i} ${videobitratelimit}k"
+						if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
+							command+=" -b:v:${i} ${CONF_VIDEOBITRATE}k"
 						fi
 					else
 						command+=" -map ${videomap} -c:v:${i} copy"
@@ -537,8 +537,8 @@ process() {
 }
 
 normalize() {
-	local newfile="${1}.old"
-	local command="ffmpeg -threads ${CONF_THREADS} -i \"${newfile}\"" boost=false video=() audio=() subtitle=() data
+	local newfile="${1}.old" boost=false video=() audio=() subtitle=() data
+	local command="ffmpeg -threads ${CONF_THREADS} -i \"${newfile}\""
 	data="$(ffprobe "${1}" 2>&1)"
 	readarray -t video <<< "$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
 	for ((i = 0; i < ${#video[@]}; i++)); do
