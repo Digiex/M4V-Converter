@@ -615,7 +615,7 @@ normalize() {
 cleanup() {
 	if ! ${NZBPO_TEST}; then
 		local files samples nzbsize samplesize extensions=()
-		readarray -t files < <(find "${dir}" -type f)
+		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
 		case "${NZBPO_SAMPLES^^}" in
 			NAME)
 				for file in "${files[@]}"; do
