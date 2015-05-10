@@ -179,11 +179,11 @@ process() {
 					if [[ -z "${video[${i}]}" ]]; then
 						continue
 					fi
+					local convert=false videodata videomap videocodec videobitrate
+					videodata=$(ffprobe "${1}" -show_streams -select_streams v:${i} 2>&1)
 					if [[ $(echo "${videodata}" | grep -i "TAG:mimetype=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:mimetype=//g') == "image/jpeg" ]]; then
 						continue
 					fi
-					local convert=false videodata videomap videocodec videobitrate
-					videodata=$(fprobe "${1}" -show_streams -select_streams v:${i} 2>&1)
 					videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 					if (( ${#videomap} > 3 )); then
 						videomap=${videomap%:*}
