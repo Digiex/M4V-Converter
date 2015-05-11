@@ -169,7 +169,7 @@ process() {
 				
 				v="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
 				if [[ -z "${v}" ]]; then
-					echo "File is missing video. Fake?"
+					echo "File is missing video."
 					return 1
 				fi
 
@@ -216,7 +216,7 @@ process() {
 
 				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
 				if [[ -z "${a}" ]]; then
-					echo "File is missing audio. Fake?"
+					echo "File is missing audio."
 					return 1
 				fi
 
@@ -233,7 +233,7 @@ process() {
 					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 						audiolang="${CONF_DEFAULTLANGUAGE}"
 					fi
-					if [[ "$(echo "${audiodata}" | tr '[:upper:]' '[:lower:]')" =~ commentary ]]; then
+					if [[ "$(echo "${audiodata}" | grep -i 'TAG:' | tr '[:upper:]' '[:lower:]')" =~ commentary ]]; then
 						continue
 					fi
 					if [[ "${CONF_LANGUAGES}" != "*" ]]; then
@@ -513,7 +513,7 @@ process() {
 					echo "Test Mode is enabled, therefore nothing was done."
 					return 1
 				fi
-				echo "Converting..."
+    			echo "Converting..."
 				eval "${command} &" &>/dev/null
 				PID=${!}
 				wait ${PID}
@@ -607,7 +607,7 @@ normalize() {
 		eval "${command} &" &>/dev/null
 		PID=${!}
 		wait ${PID}
-		if [[ $? -ne 0 ]]; then
+		if [[ ${?} -ne 0 ]]; then
 			echo "Result: failure"
 			return 1
 		fi
@@ -630,7 +630,7 @@ cleanup() {
 			;;
 			SIZE)
 				readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_SAMPLE_SIZE//[!0-9]/}"M)
-				if [[ ! -z "${samples}" ]]; then
+				if (( ${#samples[@]} > 0 )); then
 					nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
 					nzbsize=$(( nzbsize * 1024 ))
 					samplesize=$(( ${NZBPO_SIZE:-0} * 1024 * 1024 ))
@@ -648,7 +648,7 @@ cleanup() {
 					fi
 				done
 				readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_SAMPLE_SIZE//[!0-9]/}"M)
-				if [[ ! -z "${samples}" ]]; then
+				if (( ${#samples[@]} > 0 )); then
 					nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
 					nzbsize=$(( nzbsize * 1024 ))
 					samplesize=$(( ${NZBPO_SIZE:-0} * 1024 * 1024 ))
@@ -875,7 +875,7 @@ main() {
 	else
 		configure
 		local process=() temp
-		temp=$(getopt -o hvtp: --long help,process:,verbose:,test:,threads:,preset:,crf:,videobitrate:,languages:,dualaudio:,subtitles:,format:,extension:,delete:,normalize: -- "${@}")
+		temp=$(getopt -o hvtp: --long help,process:,verbose:,test:,threads:,preset:,crf:,videobitrate:,languages:,dualaudio:,normalize:,subtitles:,format:,extension:,delete: -- "${@}")
 		if [[ ${?} -ne 0 ]]; then
 			usage
 		fi
