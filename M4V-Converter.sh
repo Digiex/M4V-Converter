@@ -103,17 +103,25 @@
 
 TMPFILES=()
 
-onExit() {
+force() {
 	if [[ ! -z ${PID} ]] && (( PID > 0 )) && [[ -e /proc/${PID} ]]; then
+		disown "${PID}"
 		kill -9 "${PID}" &>/dev/null
 	fi
+	exit 1
+}
+
+onexit() {
 	for file in "${TMPFILES[@]}"; do
 		if [[ -e "${file}" ]]; then
 			rm "${file}"
 		fi
 	done
+	return 0
 }
-trap onExit EXIT
+
+trap force SIGINT
+trap onexit EXIT
 
 usage() {
 	cat <<-EOF
@@ -192,6 +200,10 @@ process() {
 					if [[ "${videocodec}" != "h264" ]]; then
 						convert=true
 					fi
+					videolevel=$(echo "${videodata}" | grep -i "LEVEL=" | tr '[:upper:]' '[:lower:]' | sed 's/level=//g')
+					if (( videolevel > 30 )); then
+						convert=true
+					fi
 					videobitrate=$(echo "${videodata}" | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 					videobitrate=$(( ${videobitrate:-0} / 1024 ))
 					if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
@@ -199,8 +211,22 @@ process() {
 					fi
 					if ${convert}; then
 						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v baseline -level 3.0"
-						if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
-							command+=" -b:v:${i} ${CONF_VIDEOBITRATE}k"
+						if (( CONF_VIDEOBITRATE > 0 )); then
+							command+=" -maxrate ${CONF_VIDEOBITRATE}k"
+						fi
+						if ${CONF_VERBOSE}; then
+							local fps dur hrs min sec total vstatsfile
+							fps=$(echo "${data}" | sed -n "s/.*, \(.*\) tbr.*/\1/p")
+    						dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p")
+    						hrs=$(echo "${dur}" | cut -d":" -f1)
+    						min=$(echo "${dur}" | cut -d":" -f2)
+    						sec=$(echo "${dur}" | cut -d":" -f3)
+    						total=$(echo "(${hrs}*3600+${min}*60+${sec})*${fps}" | bc | cut -d"." -f1)
+    						if (( total > 0 )); then
+    							vstatsfile="${1}.vstats"
+    							TMPFILES+=("${vstatsfile}")
+    							command="${command//-threads ${CONF_THREADS}/-threads ${CONF_THREADS} -vstats_file \"${vstatsfile}\"}"
+    						fi
 						fi
 					else
 						command+=" -map ${videomap} -c:v:${i} copy"
@@ -511,11 +537,14 @@ process() {
 				fi
 				if ${CONF_TEST}; then
 					echo "Test Mode is enabled, therefore nothing was done."
-					return 1
+					return 2
 				fi
-    			echo "Converting..."
+				echo "Converting..."
 				eval "${command} &" &>/dev/null
 				PID=${!}
+				if [[ ! -z "${vstatsfile}" ]]; then
+					progress "${vstatsfile}" "${total}"
+				fi
 				wait ${PID}
 				if [[ ${?} -ne 0 ]]; then
 					echo "Result: failure"
@@ -614,6 +643,29 @@ normalize() {
 		echo "Result: success"
 	fi
 	return 0
+}
+
+progress() {
+	local totalframes="${2}" currentframe=0 eta=0 elapsed=0 oldpercentage=0
+	local start vstats percentage
+	start=$(date +%s)
+	while [[ -e /proc/$PID ]]; do
+		if [[ -e "${1}" ]]; then
+			vstats=$(awk '{gsub(/frame=/, "")}/./{line=$1-1} END{print line}' "${1}")
+			if (( vstats > currentframe )); then
+				currentframe=${vstats}
+				percentage=$(( 100 * currentframe / totalframes ))
+				elapsed=$(( $(date +%s) - start ))
+				eta=$(date -d @"$(awk "BEGIN{print int((${elapsed} / ${currentframe}) * \
+					(${totalframes} - ${currentframe}))}")" -u +%H:%M:%S)
+			fi
+			if (( percentage > oldpercentage )); then
+				oldpercentage=${percentage}
+    			echo "Converting... ${percentage}% ETA: ${eta}"
+    		fi
+    	fi
+    	sleep 2
+	done
 }
 
 cleanup() {
@@ -856,11 +908,11 @@ main() {
 		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
 		for file in "${files[@]}"; do
 			process "${file}"
-			if [[ ${?} == 0 ]]; then
-				success=true
-			elif [[ ${?} == 1 ]]; then
-				failure=true
-			fi
+			case ${?} in
+				0) success=true; ;;
+				1) failure=true; ;;
+				*) ;;
+			esac
 		done
 		if ${success}; then
 			return ${postprocess_success}
@@ -913,22 +965,22 @@ main() {
 		for ((i = 0; i < ${#process[@]}; i++)); do
 			if [[ -f "${process[${i}]}" ]]; then
 				process "${process[${i}]}"
-				if [[ ${?} == 0 ]]; then
-					success=true
-				elif [[ ${?} == 1 ]]; then
-					failure=true
-				fi
+				case ${?} in
+					0) success=true; ;;
+					1) failure=true; ;;
+					*) ;;
+				esac
 			elif [[ -d "${process[${i}]}" ]]; then
 				local dir="${process[${i}]}" files
 				echo "Processing directory: ${dir}"
 				readarray -t files < <(find "${dir}" -type f)
 				for file in "${files[@]}"; do
 					process "${file}"
-					if [[ ${?} == 0 ]]; then
-						success=true
-					elif [[ ${?} == 1 ]]; then
-						failure=true
-					fi
+					case ${?} in
+						0) success=true; ;;
+						1) failure=true; ;;
+						*) ;;
+					esac
 				done
 			else
 				echo "${process[${i}]} is not a valid file or directory."
