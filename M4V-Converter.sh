@@ -661,10 +661,10 @@ progress() {
 			fi
 			if (( percentage > oldpercentage )); then
 				oldpercentage=${percentage}
-    			echo "Converting... ${percentage}% ETA: ${eta}"
-    		fi
-    	fi
-    	sleep 2
+				echo "Converting... ${percentage}% ETA: ${eta}"
+			fi
+		fi
+		sleep 2
 	done
 }
 
