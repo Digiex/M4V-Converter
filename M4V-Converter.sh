@@ -212,7 +212,7 @@ process() {
 					if ${convert}; then
 						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v baseline -level 3.0"
 						if (( CONF_VIDEOBITRATE > 0 )); then
-							command+=" -maxrate ${CONF_VIDEOBITRATE}k"
+							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
 						fi
 						if ${CONF_VERBOSE}; then
 							local fps dur hrs min sec total vstatsfile
@@ -661,10 +661,10 @@ progress() {
 			fi
 			if (( percentage > oldpercentage )); then
 				oldpercentage=${percentage}
-				echo "Converting... ${percentage}% ETA: ${eta}"
-			fi
-		fi
-		sleep 2
+    			echo "Converting... ${percentage}% ETA: ${eta}"
+    		fi
+    	fi
+    	sleep 2
 	done
 }
 
