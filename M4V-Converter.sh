@@ -221,7 +221,7 @@ process() {
     						hrs=$(echo "${dur}" | cut -d":" -f1)
     						min=$(echo "${dur}" | cut -d":" -f2)
     						sec=$(echo "${dur}" | cut -d":" -f3)
-    						total=$(echo "(${hrs}*3600+${min}*60+${sec})*${fps}" | bc | cut -d"." -f1)
+    						total=$(echo "(${hrs}*3600+${min}*60+${sec})*${fps}" | head -1 | bc | cut -d"." -f1)
     						if (( total > 0 )); then
     							vstatsfile="${1}.vstats"
     							TMPFILES+=("${vstatsfile}")
