@@ -167,8 +167,11 @@ process() {
 			echo "Processing file: ${1}"
 			lsof "${1}" 2>&1 | grep -q COMMAND &>/dev/null
 			if [[ ${?} -ne 0 ]]; then
-				local command="ffmpeg -threads ${CONF_THREADS} -i \"${1}\""
-				local newfile="${1//${1##*.}/${CONF_EXTENSION,,}}"
+				local command="ffmpeg -threads ${CONF_THREADS} -i ${1}"
+				local directory="$(dirname "${1}")"
+				local file="$(basename "${1}")"
+				local newname="${file//${file##*.}/${CONF_EXTENSION,,}}"
+				local newfile="${directory}/${newname}"
 				local tmpfile="${newfile}.tmp"
 				TMPFILES+=("${tmpfile}")
 
@@ -609,7 +612,7 @@ normalize() {
 			a=${dB:1:1}
 		fi
 		if (( a > 1 )); then
-			command+=" -map ${audiomap} -c:a:${i} aac -filter:a:${i} \"volume=${a}dB\""
+			command+=" -map ${audiomap} -c:a:${i} aac -filter:a:${i} \"volume=+${a}dB\""
 			boost=true
 		fi
 	done
