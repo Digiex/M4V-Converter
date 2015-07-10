@@ -167,7 +167,7 @@ process() {
 			echo "Processing file: ${1}"
 			lsof "${1}" 2>&1 | grep -q COMMAND &>/dev/null
 			if [[ ${?} -ne 0 ]]; then
-				local command="ffmpeg -threads ${CONF_THREADS} -i ${1}"
+				local command="ffmpeg -threads ${CONF_THREADS} -i \"${1}\""
 				local directory="$(dirname "${1}")"
 				local file="$(basename "${1}")"
 				local newname="${file//${file##*.}/${CONF_EXTENSION,,}}"
