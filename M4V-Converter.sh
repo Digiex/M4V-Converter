@@ -153,8 +153,6 @@ usage() {
 	--format
 	--extension
 	--delete
-	--size
-	--samples
 
 	EXAMPLE: ${0} -v -p ~/video.mkv
 	EOF
