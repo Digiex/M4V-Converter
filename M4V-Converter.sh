@@ -227,7 +227,7 @@ process() {
 						if (( CONF_VIDEOBITRATE > 0 )); then
 							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
 						fi
-						if ${CONF_VERBOSE}; then
+						if hash bc 2>/dev/null && ${CONF_VERBOSE}; then
 							local fps dur hrs min sec total vstatsfile
 							fps=$(echo "${data}" | sed -n "s/.*, \(.*\) tbr.*/\1/p")
     						dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p")
