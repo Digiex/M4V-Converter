@@ -33,6 +33,9 @@
 #Languages=
 
 # H.264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
+# This controls encoding speed to compression ratio.
+#
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #Preset=medium
 
 # H.264 Profile (baseline, main, high).
