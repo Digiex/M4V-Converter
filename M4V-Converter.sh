@@ -24,22 +24,6 @@
 # This is how many threads FFMPEG will use for conversion.
 #Threads=auto
 
-# H264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
-# This is the preset used for converting the video, if required.
-#
-# NOTE: Slower is more compressed and has better quality but takes more time.
-#Preset=medium
-
-# Constant Rate Factor (0-51).
-# This controls compression efficiency.
-#
-# NOTE: Refer to the Wiki for help. https://trac.ffmpeg.org/wiki/Encode/H.264 .
-#CRF=23
-
-# Video Bitrate (KB).
-# Use this to limit video bitrate, if it exceeds this limit then video will be converted.
-#Video Bitrate=
-
 # Preferred Languages.
 # This is the language(s) you prefer.
 #
@@ -47,6 +31,31 @@
 #
 # NOTE: This is used for audio and subtitles. The first listed is considered the default.
 #Languages=
+
+# H.264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
+#Preset=medium
+
+# H.264 Profile (baseline, main, high).
+# This defines the features / capabilities that the encoder can use.
+#
+# NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Profiles
+#Profile=main
+
+# H.264 Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2).
+# This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
+#
+# NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Levels
+#Level=4.1
+
+# H.264 Constant Rate Factor (0-51).
+# This controls maximum compression efficiency with a single pass.
+#
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
+#CRF=23
+
+# Video Bitrate (KB).
+# Use this to limit video bitrate, if it exceeds this limit then video will be converted.
+#Video Bitrate=
 
 # Create Dual Audio Streams (true, false).
 # This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
@@ -135,26 +144,26 @@ usage() {
 	-h            Show this message
 	-v            Verbose Mode
 	-t            Test Mode
-	-p            Process file or directory
+	-i            Input file or directory
 
 	--help           Same as -h
-	--process        Same as -p
+	--input          Same as -i
 
 	ADVANCED OPTIONS:
 	--verbose
 	--test
 	--threads
+	--languages
 	--preset
 	--crf
 	--videobitrate
-	--languages
 	--dualaudio
 	--subtitles
 	--format
 	--extension
 	--delete
 
-	EXAMPLE: ${0} -v -p ~/video.mkv
+	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
     exit 1
 }
@@ -202,7 +211,7 @@ process() {
 						convert=true
 					fi
 					videolevel=$(echo "${videodata}" | grep -i "LEVEL=" | tr '[:upper:]' '[:lower:]' | sed 's/level=//g')
-					if (( videolevel > 30 )); then
+					if (( videolevel != ${CONF_LEVEL//./} )); then
 						convert=true
 					fi
 					videobitrate=$(echo "${videodata}" | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
@@ -211,7 +220,7 @@ process() {
 						convert=true
 					fi
 					if ${convert}; then
-						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v baseline -level 3.0"
+						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
 						if (( CONF_VIDEOBITRATE > 0 )); then
 							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
 						fi
@@ -740,6 +749,9 @@ depend() {
 		echo "Sorry, you do not have FFPROBE."
 		return 5
 	fi
+	if ! hash bc 2>/dev/null; then
+		progress=false
+	fi
 	return 0
 }
 
@@ -767,9 +779,20 @@ configure() {
 	CONF_THREADS=${NZBPO_THREADS:-${THREADS}}
 	CONF_THREADS=${CONF_THREADS,,}
 	: "${CONF_THREADS:=auto}"
+	CONF_LANGUAGES="${NZBPO_LANGUAGES:-${LANGUAGES}}"
+	CONF_LANGUAGES="${CONF_LANGUAGES,,}"
+	: "${CONF_LANGUAGES:=*}"
+	read -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed 's/\ //g' | sed 's/,/\ /g')"
+	CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
 	CONF_PRESET=${NZBPO_PRESET:-${PRESET}}
 	CONF_PRESET=${CONF_PRESET,,}
 	: "${CONF_PRESET:=medium}"
+	CONF_PROFILE=${NZBPO_PROFILE:-${PROFILE}}
+	CONF_PROFILE=${CONF_PROFILE,,}
+	: "${CONF_PROFILE:=main}"
+	CONF_LEVEL=${NZBPO_LEVEL:-${LEVEL}}
+	CONF_LEVEL=${CONF_LEVEL,,}
+	: "${CONF_LEVEL:=4.1}"
 	CONF_CRF=${NZBPO_CRF:-${CRF}}
 	CONF_CRF=${CONF_CRF,,}
 	: "${CONF_CRF:=23}"
@@ -781,7 +804,7 @@ configure() {
 	: "${CONF_DUALAUDIO:=false}"
 	CONF_NORMALIZE=${NZBPO_NORMALIZE:-${NORMALIZE}}
 	CONF_NORMALIZE=${CONF_NORMALIZE,,}
-	: "${CONF_NORMALIZE:-true}"
+	: "${CONF_NORMALIZE:=true}"
 	CONF_SUBTITLES=${NZBPO_SUBTITLES:-${SUBTITLES}}
 	CONF_SUBTITLES=${CONF_SUBTITLES,,}
 	: "${CONF_SUBTITLES:=true}"
@@ -794,11 +817,6 @@ configure() {
 	CONF_DELETE=${NZBPO_DELETE:-${DELETE}}
 	CONF_DELETE=${CONF_DELETE,,}
 	: "${CONF_DELETE:=false}"
-	CONF_LANGUAGES="${NZBPO_LANGUAGES:-${LANGUAGES}}"
-	CONF_LANGUAGES="${CONF_LANGUAGES,,}"
-	: "${CONF_LANGUAGES:=*}"
-	read -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed 's/\ //g' | sed 's/,/\ /g')"
-	CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
 	return 0
 }
 
@@ -819,6 +837,18 @@ verify() {
 			return 1
 		fi
 	fi
+	if [[ "${CONF_LANGUAGES}" != "*" ]]; then
+		local incorrect=false
+		for ((l = 0; l < ${#CONF_LANGUAGES[@]}; l++)); do
+			if (( ${#CONF_LANGUAGES[${l}]} > 3 )); then
+				incorrect=true
+			fi
+		done
+		if ${incorrect}; then
+			echo "Languages is incorrectly configured."
+			return 1
+		fi
+	fi
 	case "${CONF_PRESET}" in
 		ultrafast) ;;
 		superfast) ;;
@@ -831,7 +861,25 @@ verify() {
 		veryslow) ;;
 		*) echo "Preset is incorrectly configured."; return 1 ;;
 	esac
-	if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" > 51 )); then
+	case "${CONF_PROFILE}" in
+		baseline) ;;
+		main) ;;
+		high) ;;
+		*) echo "Profile is incorrectly configured."; return 1 ;;
+	esac
+	case "${CONF_LEVEL}" in
+		3.0) ;;
+		3.1) ;;
+		3.2) ;;
+		4.0) ;;
+		4.1) ;;
+		4.2) ;;
+		5.0) ;;
+		5.1) ;;
+		5.2) ;;
+		*) echo "Level is incorrectly configured."; return 1 ;;
+	esac
+	if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
 		echo "CRF is incorrectly configured."
 		return 1
 	fi
@@ -847,7 +895,7 @@ verify() {
 	case "${CONF_NORMALIZE}" in
 		true) ;;
 		false) ;;
-		*) echo "Normalize is incorrectly configured."; return 1 ;;
+		*) echo "Normalize is incorrectly configured. VALUE=${CONF_NORMALIZE}"; return 1 ;;
 	esac
 	case "${CONF_SUBTITLES}" in
 		true) ;;
@@ -867,18 +915,6 @@ verify() {
 		false) ;;
 		*) echo "Delete is incorrectly configured."; return 1 ;;
 	esac
-	if [[ "${CONF_LANGUAGES}" != "*" ]]; then
-		local incorrect=false
-		for ((l = 0; l < ${#CONF_LANGUAGES[@]}; l++)); do
-			if (( ${#CONF_LANGUAGES[${l}]} > 3 )); then
-				incorrect=true
-			fi
-		done
-		if ${incorrect}; then
-			echo "Languages is incorrectly configured."
-			return 1
-		fi
-	fi
 	return 0
 }
 
@@ -928,7 +964,7 @@ main() {
 	else
 		configure
 		local process=() temp
-		temp=$(getopt -o hvtp: --long help,process:,verbose:,test:,threads:,preset:,crf:,videobitrate:,languages:,dualaudio:,normalize:,subtitles:,format:,extension:,delete: -- "${@}")
+		temp=$(getopt -o hvti: --long help,input:,verbose:,test:,threads:,languages:,preset:,profile:,level:,crf:,videobitrate:,dualaudio:,normalize:,subtitles:,format:,extension:,delete: -- "${@}")
 		if [[ ${?} -ne 0 ]]; then
 			usage
 		fi
@@ -938,16 +974,18 @@ main() {
 				-h|--help) usage ;;
 				-v) CONF_VERBOSE=true; shift ;;
 				-t) CONF_TEST=true; CONF_VERBOSE=true; shift ;;
-				-p|--process) process+=("${2}"); shift 2 ;;
+				-i|--input) process+=("${2}"); shift 2 ;;
 				--verbose) CONF_VERBOSE="${2,,}"; shift 2 ;;
 				--test) CONF_TEST="${2,,}"; shift 2 ;;
 				--threads) CONF_THREADS="${2,,}"; shift 2 ;;
-				--preset) CONF_PRESET="${2,,}"; shift 2 ;;
-				--crf) CONF_CRF="${2,,}"; shift 2 ;;
-				--videobitrate) CONF_VIDEOBITRATE="${2,,}"; shift 2 ;;
 				--languages)
 					read -a CONF_LANGUAGES <<< "$(echo "${2,,}" | sed 's/\ //g' | sed 's/,/\ /g')"
 					CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]}; shift 2 ;;
+				--preset) CONF_PRESET="${2,,}"; shift 2 ;;
+				--profile) CONF_PROFILE="${2,,}"; shift 2 ;;
+				--level) CONF_LEVEL="${2,,}"; shift 2 ;;
+				--crf) CONF_CRF="${2,,}"; shift 2 ;;
+				--videobitrate) CONF_VIDEOBITRATE="${2,,}"; shift 2 ;;
 				--dualaudio) CONF_DUALAUDIO="${2,,}"; shift 2 ;;
 				--normalize) CONF_NORMALIZE="${2,,}"; shift 2 ;;
 				--subtitles) CONF_SUBTITLES="${2,,}"; shift 2 ;;
