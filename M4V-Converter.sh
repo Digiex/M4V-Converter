@@ -188,19 +188,31 @@ process() {
 				local data v a
 				data="$(ffprobe "${1}" 2>&1)"
 				
+				local video=()
 				v="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
 				if [[ -z "${v}" ]]; then
 					echo "File is missing video."
 					return 1
 				fi
-
-				local video=()
 				readarray -t video <<< "${v}"
+				
+				local audio=()
+				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
+				if [[ -z "${a}" ]]; then
+					echo "File is missing audio."
+					return 1
+				fi
+				readarray -t audio <<< "${a}"
+				
+				local subtitle=()
+				s="$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ \ //g')"
+				readarray -t subtitle <<< "${s}"
+				
 				for ((i = 0; i < ${#video[@]}; i++)); do
 					if [[ -z "${video[${i}]}" ]]; then
 						continue
 					fi
-					local convert=false videodata videomap videocodec videobitrate
+					local convert=false videodata videomap videocodec videobitrate=0
 					videodata=$(ffprobe "${1}" -show_streams -select_streams v:${i} 2>&1)
 					if [[ $(echo "${videodata}" | grep -i "TAG:mimetype=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:mimetype=//g') == "image/jpeg" ]]; then
 						continue
@@ -218,7 +230,22 @@ process() {
 						convert=true
 					fi
 					videobitrate=$(echo "${videodata}" | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
-					videobitrate=$(( ${videobitrate:-0} / 1024 ))
+					if (( videobitrate == 0 )); then
+						local global_bitrate=0
+						global_bitrate=$(ffprobe "${1}" -show_format 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+						if (( global_bitrate > 0 )); then
+							local audio_bitrate=0
+							local bitrate=0
+							for ((i = 0; i < ${#audio[@]}; i++)); do
+								bitrate=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+								audio_bitrate=$(( audio_bitrate + bitrate ))
+							done
+							if (( audio_bitrate > 0 ));  then
+								videobitrate=$(( global_bitrate - audio_bitrate ))
+							fi
+						fi
+					fi
+					videobitrate=$(( videobitrate / 1024 ))
 					if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
 						convert=true
 					fi
@@ -253,15 +280,8 @@ process() {
 					fi
 				done
 
-				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
-				if [[ -z "${a}" ]]; then
-					echo "File is missing audio."
-					return 1
-				fi
-
-				local boost=false audio=() audiostreams=()
+				local audiostreams=() boost=false
 				local -A dualaudio=()
-				readarray -t audio <<< "${a}"
 				for ((i = 0; i < ${#audio[@]}; i++)); do
 					if [[ -z "${audio[${i}]}" ]]; then
 						continue
@@ -457,8 +477,7 @@ process() {
 				done
 
 				if ${CONF_SUBTITLES}; then
-					local subtitle=() subtitlestreams=()
-					readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ \ //g')"
+					local subtitlestreams=()
 					for ((i = 0; i < ${#subtitle[@]}; i++)); do
 						if [[ -z "${subtitle[${i}]}" ]]; then
 							continue
