@@ -185,7 +185,7 @@ process() {
 				local tmpfile="${newfile}.tmp"
 				TMPFILES+=("${tmpfile}")
 
-				local data v a
+				local data v a s
 				data="$(ffprobe "${1}" 2>&1)"
 				
 				local video=()
@@ -250,7 +250,7 @@ process() {
 						convert=true
 					fi
 					if ${convert}; then
-						command+=" -map ${videomap} -c:v:${i} libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
+						command+=" -map ${videomap} -c:v libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
 						if (( CONF_VIDEOBITRATE > 0 )); then
 							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
 						fi
@@ -269,13 +269,13 @@ process() {
     						fi
 						fi
 					else
-						command+=" -map ${videomap} -c:v:${i} copy"
+						command+=" -map ${videomap} -c:v copy"
 					fi
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						local videolang
 						videolang=$(echo "${videodata}" | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 						if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
-							command+=" -metadata:s:v:${i} language=${CONF_DEFAULTLANGUAGE}"
+							command+=" -metadata:s:v language=${CONF_DEFAULTLANGUAGE}"
 						fi
 					fi
 				done
@@ -561,6 +561,8 @@ process() {
 					if [[ "${command}" =~ -c:s ]]; then
 						command="${command//-i/-fix_sub_duration\ -i}"
 					fi
+				else
+					command+=" -sn"
 				fi
 
 				command+=" -f ${CONF_FORMAT,,} -movflags +faststart -strict experimental -y \"${tmpfile}\""
@@ -693,10 +695,10 @@ progress() {
 			fi
 			if (( percentage > oldpercentage )); then
 				oldpercentage=${percentage}
-    			echo "Converting... ${percentage}% ETA: ${eta}"
-    		fi
-    	fi
-    	sleep 2
+				echo "Converting... ${percentage}% ETA: ${eta}"
+			fi
+		fi
+		sleep 2
 	done
 }
 
