@@ -185,11 +185,11 @@ process() {
 				local tmpfile="${newfile}.tmp"
 				TMPFILES+=("${tmpfile}")
 
-				local data v a s
+				local data v a
 				data="$(ffprobe "${1}" 2>&1)"
 				
 				local video=()
-				v="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
+				v="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ //g')"
 				if [[ -z "${v}" ]]; then
 					echo "File is missing video."
 					return 1
@@ -197,7 +197,7 @@ process() {
 				readarray -t video <<< "${v}"
 				
 				local audio=()
-				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
+				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ //g')"
 				if [[ -z "${a}" ]]; then
 					echo "File is missing audio."
 					return 1
@@ -205,8 +205,7 @@ process() {
 				readarray -t audio <<< "${a}"
 				
 				local subtitle=()
-				s="$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ \ //g')"
-				readarray -t subtitle <<< "${s}"
+				readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ //g')"
 				
 				for ((i = 0; i < ${#video[@]}; i++)); do
 					if [[ -z "${video[${i}]}" ]]; then
@@ -562,7 +561,9 @@ process() {
 						command="${command//-i/-fix_sub_duration\ -i}"
 					fi
 				else
-					command+=" -sn"
+					if (( ${#subtitle[@]} > 0 )); then
+						command+=" -sn"
+					fi
 				fi
 
 				command+=" -f ${CONF_FORMAT,,} -movflags +faststart -strict experimental -y \"${tmpfile}\""
@@ -607,7 +608,7 @@ normalize() {
 	local newfile="${1}.old" boost=false video=() audio=() subtitle=() data
 	local command="ffmpeg -threads ${CONF_THREADS} -i \"${newfile}\""
 	data="$(ffprobe "${1}" 2>&1)"
-	readarray -t video <<< "$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ \ //g')"
+	readarray -t video <<< "$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ //g')"
 	for ((i = 0; i < ${#video[@]}; i++)); do
 		if [[ -z "${video[${i}]}" ]]; then
 			continue
@@ -619,7 +620,7 @@ normalize() {
 		fi
 		command+=" -map ${videomap} -c:v:${i} copy"
 	done
-	readarray -t audio <<< "$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ \ //g')"
+	readarray -t audio <<< "$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ //g')"
 	for ((i = 0; i < ${#audio[@]}; i++)); do
 		if [[ -z "${audio[${i}]}" ]]; then
 			continue
@@ -647,7 +648,7 @@ normalize() {
 			boost=true
 		fi
 	done
-	readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ \ //g')"
+	readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ //g')"
 	for ((i = 0; i < ${#subtitle[@]}; i++)); do
 		if [[ -z "${subtitle[${i}]}" ]]; then
 			continue
