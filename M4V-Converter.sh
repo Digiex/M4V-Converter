@@ -774,9 +774,6 @@ depend() {
 		echo "Sorry, you do not have FFPROBE."
 		return 5
 	fi
-	if ! hash bc 2>/dev/null; then
-		progress=false
-	fi
 	return 0
 }
 
