@@ -16,9 +16,9 @@
 # Prints extra details, useful for debugging.
 #Verbose=false
 
-# Test Mode (true, false).
+# Debug Mode (true, false).
 # When enabled this script does nothing.
-#Test=false
+#Debug=false
 
 # Number of Threads (1-8).
 # This is how many threads FFMPEG will use for conversion.
@@ -55,6 +55,12 @@
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #CRF=23
+
+# Video Resolution.
+# This will resize and convert the video if it exceeds this value.
+#
+# NOTE: https://trac.ffmpeg.org/wiki/Scaling%20%28resizing%29%20with%20ffmpeg
+#Resolution=
 
 # Video Bitrate (KB).
 # Use this to limit video bitrate, if it exceeds this limit then video will be converted.
@@ -94,13 +100,12 @@
 # NOTE: Helps to prevent fake releases.
 #Bad=true
 
-# Delete Samples (NONE, NAME, SIZE, BOTH).
+# Delete Samples (NAME, SIZE, BOTH, disabled).
 # This will delete sample files.
-#  NONE - disabled.
 #  NAME - deletes samples based on name.
 #  SIZE - deletes samples based on size, configure below.
 #  BOTH - does both name & size.
-#Samples=none
+#Samples=disabled
 
 # Sample Size (MB).
 # Any size less than the specified size is considered a sample.
@@ -115,25 +120,25 @@
 
 TMPFILES=()
 
-force() {
-	if [[ ! -z ${PID} ]] && (( PID > 0 )) && [[ -e /proc/${PID} ]]; then
-		disown "${PID}"
-		kill -9 "${PID}" &>/dev/null
-	fi
-	exit 1
-}
+if [[ -z "${NZBOP_SCRIPTDIR}" ]]; then
+	MODE=0
+else
+	MODE=1
+fi
 
-onexit() {
-	for file in "${TMPFILES[@]}"; do
-		if [[ -e "${file}" ]]; then
-			rm "${file}"
-		fi
-	done
-	return 0
-}
-
-trap force SIGINT
-trap onexit EXIT
+if (( ${MODE} == 0 )); then
+	SUCCESS=0
+	ERROR=1
+	NONE=2
+	DEPEND=3
+	CONFIG=4
+else
+	SUCCESS=93
+	ERROR=94
+	NONE=95
+	DEPEND=94
+	CONFIG=94
+fi
 
 usage() {
 	cat <<-EOF
@@ -146,7 +151,7 @@ usage() {
 	OPTIONS:
 	-h            Show this message
 	-v            Verbose Mode
-	-t            Test Mode
+	-d            Debug Mode
 	-i            Input file or directory
 
 	--help           Same as -h
@@ -154,7 +159,7 @@ usage() {
 
 	ADVANCED OPTIONS:
 	--verbose
-	--test
+	--debug
 	--threads
 	--languages
 	--preset
@@ -168,7 +173,23 @@ usage() {
 
 	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
-    exit 1
+    exit ${ERROR}
+}
+
+force() {
+	if [[ ! -z ${PID} ]] && (( PID > 0 )) && [[ -e /proc/${PID} ]]; then
+		disown "${PID}"
+		kill -9 "${PID}" &>/dev/null
+	fi
+	exit ${ERROR}
+}
+
+onExit() {
+	for file in "${TMPFILES[@]}"; do
+		if [[ -e "${file}" ]]; then
+			rm "${file}"
+		fi
+	done
 }
 
 process() {
@@ -185,11 +206,11 @@ process() {
 				local tmpfile="${newfile}.tmp"
 				TMPFILES+=("${tmpfile}")
 
-				local data v a
+				local skip=true data v a
 				data="$(ffprobe "${1}" 2>&1)"
 				
 				local video=()
-				v="$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ //g')"
+				v="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 				if [[ -z "${v}" ]]; then
 					echo "File is missing video."
 					return 1
@@ -197,7 +218,7 @@ process() {
 				readarray -t video <<< "${v}"
 				
 				local audio=()
-				a="$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ //g')"
+				a="$(echo "${data}" | grep 'Stream.*Audio:' | sed 's/.*Stream/Stream/g')"
 				if [[ -z "${a}" ]]; then
 					echo "File is missing audio."
 					return 1
@@ -205,7 +226,7 @@ process() {
 				readarray -t audio <<< "${a}"
 				
 				local subtitle=()
-				readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ //g')"
+				readarray -t subtitle <<< "$(echo "${data}" | grep 'Stream.*Subtitle:' | sed 's/.*Stream/Stream/g')"
 				
 				for ((i = 0; i < ${#video[@]}; i++)); do
 					if [[ -z "${video[${i}]}" ]]; then
@@ -224,19 +245,19 @@ process() {
 					if [[ "${videocodec}" != "h264" ]]; then
 						convert=true
 					fi
-					videolevel=$(echo "${videodata}" | grep -i "LEVEL=" | tr '[:upper:]' '[:lower:]' | sed 's/level=//g')
+					videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
 					if (( videolevel != ${CONF_LEVEL//./} )); then
 						convert=true
 					fi
-					videobitrate=$(echo "${videodata}" | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+					videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 					if (( videobitrate == 0 )); then
 						local global_bitrate=0
-						global_bitrate=$(ffprobe "${1}" -show_format 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+						global_bitrate=$(ffprobe "${1}" -show_format 2>&1 | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 						if (( global_bitrate > 0 )); then
-							local audio_bitrate=0
-							local bitrate=0
+							local audio_bitrate=0 bitrate=0
 							for ((i = 0; i < ${#audio[@]}; i++)); do
-								bitrate=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | grep -i "BIT_RATE=" | tr '[:upper:]' '[:lower:]' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+								bitrate=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | \
+								grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 								audio_bitrate=$(( audio_bitrate + bitrate ))
 							done
 							if (( audio_bitrate > 0 ));  then
@@ -248,11 +269,25 @@ process() {
 					if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
 						convert=true
 					fi
-					if ${convert}; then
-						command+=" -map ${videomap} -c:v libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
-						if (( CONF_VIDEOBITRATE > 0 )); then
-							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
+					local resize=false
+					if [[ ! -z "${CONF_RESOLUTION}" ]]; then
+						local scale
+						width=${CONF_RESOLUTION//[x|:]*/}
+						height=${CONF_RESOLUTION//*[x|:]/}
+						if (( width > height )); then
+							scale=${width}
+						else
+							scale=${height}
 						fi
+						if [[ ! -z "${scale}" ]]; then
+							videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed 's/width=//g')
+							if (( videowidth > scale )); then
+								convert=true
+								resize=true
+							fi	
+						fi
+					fi
+					if ${convert}; then
 						if hash bc 2>/dev/null && ${CONF_VERBOSE}; then
 							local fps dur hrs min sec total vstatsfile
 							fps=$(echo "${data}" | sed -n "s/.*, \(.*\) tbr.*/\1/p")
@@ -267,6 +302,14 @@ process() {
     							command="${command//-threads ${CONF_THREADS}/-threads ${CONF_THREADS} -vstats_file \"${vstatsfile}\"}"
     						fi
 						fi
+						command+=" -map ${videomap} -c:v libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
+						if (( CONF_VIDEOBITRATE > 0 )); then
+							command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
+						fi
+						if ${resize}; then
+							command="${command//-c:v libx264/-c:v libx264 -vf \"scale=${scale}:trunc(ow/a/2)*2\"}"
+						fi
+						skip=false
 					else
 						command+=" -map ${videomap} -c:v copy"
 					fi
@@ -315,8 +358,8 @@ process() {
 							aac=${dualaudio[${audiolang}]%%:*}
 							ac3=${dualaudio[${audiolang}]#*:}
 						fi
-						audiocodec=$(echo "${audiodata}" | grep -i 'CODEC_NAME=' | tr '[:upper:]' '[:lower:]' | sed 's/codec_name=//g')
-						audiochannels=$(echo "${audiodata}" | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
+						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
 						if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
 							if ${aac}; then
 								continue
@@ -336,7 +379,8 @@ process() {
 									continue
 								fi
 								local lang
-								lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+								lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 									lang="${CONF_DEFAULTLANGUAGE}"
 								fi
@@ -356,7 +400,8 @@ process() {
 								continue
 							fi
 							local lang
-							lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+							lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+							grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 							if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 								lang="${CONF_DEFAULTLANGUAGE}"
 							fi
@@ -399,8 +444,10 @@ process() {
 						if [[ "${audiocodec}" == *, ]]; then
 							audiocodec=${audiocodec%?}
 						fi
-						audiochannels=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | grep -i 'CHANNELS=' | tr '[:upper:]' '[:lower:]' | sed 's/channels=//g')
-						audiolang=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+						audiochannels=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | \
+						grep -x 'channels=.*' | sed 's/channels=//g')
+						audiolang=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | \
+						grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 							audiolang="${CONF_DEFAULTLANGUAGE}"
 							tag=true
@@ -423,10 +470,12 @@ process() {
 										fi
 										((x++))
 										command+=" -map ${audiomap} -c:a:${x} ac3"
+										skip=false
 									elif (( audiochannels == 2 )); then
 										command+=" -map ${audiomap} -c:a:${x} copy"
 									else
 										command+=" -map ${audiomap} -c:a:${x} aac"
+										skip=false
 									fi
 								elif [[ "${audiocodec}" == "ac3" ]]; then
 									if (( audiochannels > 2 )); then
@@ -437,8 +486,10 @@ process() {
 										fi
 										((x++))
 										command+=" -map ${audiomap} -c:a:${x} copy"
+										skip=false
 									else
 										command+=" -map ${audiomap} -c:a:${x} aac"
+										skip=false
 									fi
 								else
 									if (( audiochannels > 2 )); then
@@ -449,8 +500,10 @@ process() {
 										fi
 										((x++))
 										command+=" -map ${audiomap} -c:a:${x} ac3"
+										skip=false
 									else
 										command+=" -map ${audiomap} -c:a:${x} aac"
+										skip=false
 									fi
 								fi
 							fi
@@ -459,13 +512,16 @@ process() {
 								if (( audiochannels > 2 )); then
 									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:${x} 256k"
 									boost=true
+									skip=false
 								elif (( audiochannels == 2 )); then
 									command+=" -map ${audiomap} -c:a:${x} copy"
 								else
 									command+=" -map ${audiomap} -c:a:${x} aac"
+									skip=false
 								fi
 							else
 								command+=" -map ${audiomap} -c:a:${x} aac"
+								skip=false
 							fi
 						fi
 						if ${tag} && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
@@ -496,7 +552,8 @@ process() {
 								if [[ -z "${subtitlestreams[${s}]}" ]]; then
 									continue
 								fi
-								lang=$(ffprobe "${1}" -show_streams -select_streams s:${s} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+								lang=$(ffprobe "${1}" -show_streams -select_streams s:${s} 2>&1 | \
+								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 									lang="${CONF_DEFAULTLANGUAGE}"
 								fi
@@ -547,10 +604,12 @@ process() {
 								command+=" -map ${subtitlemap} -c:s:${s} copy"
 							else
 								command+=" -map ${subtitlemap} -c:s:${s} mov_text"
+								skip=false
 							fi
 							if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 								local subtitlelang
-								subtitlelang=$(ffprobe "${1}" -show_streams -select_streams s:${i} 2>&1 | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+								subtitlelang=$(ffprobe "${1}" -show_streams -select_streams s:${i} 2>&1 | \
+								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 								if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 									command+=" -metadata:s:s:${s} language=${CONF_DEFAULTLANGUAGE}"
 								fi
@@ -567,11 +626,15 @@ process() {
 				fi
 
 				command+=" -f ${CONF_FORMAT,,} -movflags +faststart -strict experimental -y \"${tmpfile}\""
+				if ${skip}; then
+					echo "This file does not need to be converted."
+					continue
+				fi
 				if ${CONF_VERBOSE}; then
 					echo "VERBOSE: ${command}"
 				fi
 				if ${CONF_TEST}; then
-					echo "Test Mode is enabled, therefore nothing was done."
+					echo "Debug Mode is enabled, therefore nothing was done."
 					return 2
 				fi
 				echo "Converting..."
@@ -605,10 +668,10 @@ process() {
 }
 
 normalize() {
-	local newfile="${1}.old" boost=false video=() audio=() subtitle=() data
+	local newfile="${1}.old" video=() audio=() subtitle=() boost=false data
 	local command="ffmpeg -threads ${CONF_THREADS} -i \"${newfile}\""
 	data="$(ffprobe "${1}" 2>&1)"
-	readarray -t video <<< "$(echo "${data}" | grep 'Video:' | sed 's/\ \ \ \ //g')"
+	readarray -t video <<< "$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 	for ((i = 0; i < ${#video[@]}; i++)); do
 		if [[ -z "${video[${i}]}" ]]; then
 			continue
@@ -620,7 +683,7 @@ normalize() {
 		fi
 		command+=" -map ${videomap} -c:v:${i} copy"
 	done
-	readarray -t audio <<< "$(echo "${data}" | grep 'Audio:' | sed 's/\ \ \ \ //g')"
+	readarray -t audio <<< "$(echo "${data}" | grep 'Stream.*Audio:' | sed 's/.*Stream/Stream/g')"
 	for ((i = 0; i < ${#audio[@]}; i++)); do
 		if [[ -z "${audio[${i}]}" ]]; then
 			continue
@@ -639,7 +702,8 @@ normalize() {
 			continue
 		fi
 		local dB=0 a=0
-		dB=$(ffmpeg -i "${1}" -map "${audiomap}" -filter:a:${i} "volumedetect" -f null /dev/null 2>&1 | grep 'max_volume:' | sed 's/.*]\ //g' | sed 's/max_volume:\ //g' | sed 's/\ dB//g')
+		dB=$(ffmpeg -i "${1}" -map "${audiomap}" -filter:a:${i} "volumedetect" -f null /dev/null 2>&1 | \
+		grep 'max_volume:' | sed 's/.*]\ //g' | sed 's/max_volume:\ //g' | sed 's/\ dB//g')
 		if (( ${#dB} == 4 )); then
 			a=${dB:1:1}
 		fi
@@ -648,7 +712,7 @@ normalize() {
 			boost=true
 		fi
 	done
-	readarray -t subtitle <<< "$(echo "${data}" | grep 'Subtitle:' | sed 's/\ \ \ \ //g')"
+	readarray -t subtitle <<< "$(echo "${data}" | grep 'Stream.*Subtitle:' | sed 's/.*Stream/Stream/g')"
 	for ((i = 0; i < ${#subtitle[@]}; i++)); do
 		if [[ -z "${subtitle[${i}]}" ]]; then
 			continue
@@ -673,16 +737,13 @@ normalize() {
 		wait ${PID}
 		if [[ ${?} -ne 0 ]]; then
 			echo "Result: failure"
-			return 1
 		fi
 		echo "Result: success"
 	fi
-	return 0
 }
 
 progress() {
-	local totalframes="${2}" currentframe=0 eta=0 elapsed=0 oldpercentage=0
-	local start vstats percentage
+	local totalframes="${2}" currentframe=0 eta=0 elapsed=0 oldpercentage=0 start vstats percentage
 	start=$(date +%s)
 	while [[ -e /proc/$PID ]]; do
 		if [[ -e "${1}" ]]; then
@@ -758,23 +819,21 @@ cleanup() {
 			done
 		fi
 	fi
-	return 0
 }
 
 depend() {
 	if (( BASH_VERSINFO < 4 )); then
 		echo "Sorry, you do not have Bash 4+."
-		return 3
+		exit ${DEPEND}
 	fi
 	if ! hash ffmpeg 2>/dev/null; then
 		echo "Sorry, you do not have FFMPEG."
-		return 4
+		exit ${DEPEND}
 	fi
 	if ! hash ffprobe 2>/dev/null; then
 		echo "Sorry, you do not have FFPROBE."
-		return 5
+		exit ${DEPEND}
 	fi
-	return 0
 }
 
 configure() {
@@ -839,24 +898,25 @@ configure() {
 	CONF_DELETE=${NZBPO_DELETE:-${DELETE}}
 	CONF_DELETE=${CONF_DELETE,,}
 	: "${CONF_DELETE:=false}"
-	return 0
+	CONF_RESOLUTION=${NZBPO_RESOLUTION:-${RESOLUTION}}
+	CONF_RESOLUTION=${CONF_RESOLUTION,,}
 }
 
 verify() {
 	case "${CONF_VERBOSE}" in
 		true) ;;
 		false) ;;
-		*) echo "VERBOSE is incorrectly configured."; return 1 ;;
+		*) echo "VERBOSE is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	case "${CONF_TEST}" in
 		true) ;;
 		false) ;;
-		*) echo "Test is incorrectly configured."; return 1 ;;
+		*) echo "Test is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	if [[ "${CONF_THREADS}" != "auto" ]]; then
 		if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > 8 )); then
 			echo "Threads is incorrectly configured."
-			return 1
+			exit ${CONFIG}
 		fi
 	fi
 	if [[ "${CONF_LANGUAGES}" != "*" ]]; then
@@ -868,7 +928,7 @@ verify() {
 		done
 		if ${incorrect}; then
 			echo "Languages is incorrectly configured."
-			return 1
+			exit ${CONFIG}
 		fi
 	fi
 	case "${CONF_PRESET}" in
@@ -881,13 +941,13 @@ verify() {
 		slow) ;;
 		slower) ;;
 		veryslow) ;;
-		*) echo "Preset is incorrectly configured."; return 1 ;;
+		*) echo "Preset is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	case "${CONF_PROFILE}" in
 		baseline) ;;
 		main) ;;
 		high) ;;
-		*) echo "Profile is incorrectly configured."; return 1 ;;
+		*) echo "Profile is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	case "${CONF_LEVEL}" in
 		3.0) ;;
@@ -899,165 +959,192 @@ verify() {
 		5.0) ;;
 		5.1) ;;
 		5.2) ;;
-		*) echo "Level is incorrectly configured."; return 1 ;;
+		*) echo "Level is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
 		echo "CRF is incorrectly configured."
-		return 1
+		exit ${CONFIG}
 	fi
 	if [[ ! "${CONF_VIDEOBITRATE}" =~ ^-?[0-9]+$ ]]; then
 		echo "Video Bitrate is incorrectly configured."
-		return 1
+		exit ${CONFIG}
 	fi
 	case "${CONF_DUALAUDIO}" in
 		true) ;;
 		false) ;;
-		*) echo "Dual Audio is incorrectly configured."; return 1 ;;
+		*) echo "Dual Audio is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	case "${CONF_NORMALIZE}" in
 		true) ;;
 		false) ;;
-		*) echo "Normalize is incorrectly configured. VALUE=${CONF_NORMALIZE}"; return 1 ;;
+		*) echo "Normalize is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	case "${CONF_SUBTITLES}" in
 		true) ;;
 		false) ;;
-		*) echo "Subtitles is incorrectly configured."; return 1 ;;
+		*) echo "Subtitles is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	if [[ "${CONF_FORMAT}" != "mp4" ]] && [[ "${CONF_FORMAT}" != "mov" ]]; then
 		echo "Format is incorrectly configured. ${CONF_FORMAT}"
-		return 1
+		exit ${CONFIG}
 	fi
 	if [[ "${CONF_EXTENSION}" != "mp4" ]] && [[ "${CONF_EXTENSION}" != "m4v" ]]; then
 		echo "Extension is incorrectly configured."
-		return 1
+		exit ${CONFIG}
 	fi
 	case "${CONF_DELETE}" in
 		true) ;;
 		false) ;;
-		*) echo "Delete is incorrectly configured."; return 1 ;;
+		*) echo "Delete is incorrectly configured."; exit ${CONFIG} ;;
 	esac
-	return 0
-}
-
-status() {
-    "${@}"
-    if [[ ${?} -ne 0 ]]; then
-    	if [[ ! -z "${NZBOP_SCRIPTDIR}" ]]; then
-    		exit 94
-    	else
-    		exit 1
-    	fi
-    fi
-    return 0
+	if [[ ! -z "${CONF_RESOLUTION}" ]]; then
+		if [[ ! "${CONF_RESOLUTION}" =~ [x|:] ]] || [[ ! "${CONF_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
+			echo "Resolution is incorrectly configured."
+			exit ${CONFIG}
+		fi
+	fi
 }
 
 main() {
-	status depend
-	if [[ ! -z "${NZBOP_SCRIPTDIR}" ]]; then
-		local postprocess_success=93 postprocess_error=94 postprocess_none=95
-		if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
-			exit ${postprocess_none}
-		fi
-		configure
-		status verify
+	depend
+	configure
+	local process=()
+	if (( ${MODE} == 0 )); then
+		local args
+		args=$(getopt -o hvdi: --long help,verbose:,debug:,input:,threads:,languages:,preset:,profile:,level:,crf:,videobitrate:,dualaudio:,normalize:,subtitles:,format:,extension:,delete:,resolution: -- "${@}")
+		[[ ${?} -ne 0 ]] && usage
+		eval set -- "${args}"
+		while true; do
+			case "${1}" in
+				-h|--help) usage; ;;
+				-v)
+					CONF_VERBOSE=true
+					shift
+				;;
+				-d)
+					CONF_TEST=true
+					CONF_VERBOSE=true
+					shift
+				;;
+				-i|--input)
+					process+=("${2}")
+					shift 2
+				;;
+				--verbose)
+					CONF_VERBOSE="${2,,}"
+					shift 2
+				;;
+				--debug)
+					CONF_TEST="${2,,}"
+					shift 2
+				;;
+				--threads)
+					CONF_THREADS="${2,,}"
+					shift 2
+				;;
+				--languages)
+					read -a CONF_LANGUAGES <<< "$(echo "${2,,}" | sed 's/\ //g' | sed 's/,/\ /g')"
+					CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]}
+					shift 2
+				;;
+				--preset)
+					CONF_PRESET="${2,,}"
+					shift 2
+				;;
+				--profile)
+					CONF_PROFILE="${2,,}"
+					shift 2
+				;;
+				--level)
+					CONF_LEVEL="${2,,}"
+					shift 2
+				;;
+				--crf)
+					CONF_CRF="${2,,}"
+					shift 2
+				;;
+				--videobitrate)
+					CONF_VIDEOBITRATE="${2,,}"
+					shift 2
+				;;
+				--dualaudio)
+					CONF_DUALAUDIO="${2,,}"
+					shift 2
+				;;
+				--normalize)
+					CONF_NORMALIZE="${2,,}"
+					shift 2
+				;;
+				--subtitles)
+					CONF_SUBTITLES="${2,,}"
+					shift 2
+				;;
+				--format)
+					CONF_FORMAT="${2,,}"
+					shift 2
+				;;
+				--extension)
+					CONF_EXTENSION="${2,,}"
+					shift 2
+				;;
+				--delete)
+					CONF_DELETE="${2,,}"
+					shift 2
+				;;
+				--resolution)
+					CONF_RESOLUTION="${2,,}"
+					shift 2
+				;;
+				--) shift; break ;;
+				*) usage; ;;
+			esac
+		done
+	else
 		cleanup
-		local success=false failure=false files
-		echo "Processing directory: ${NZBPP_DIRECTORY}"
-		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
-		for file in "${files[@]}"; do
-			process "${file}"
+		process+=("${NZBPP_DIRECTORY}")
+	fi
+	(( ${#process} == 0 )) && usage
+	verify
+	local success=false failure=false
+	for ((i = 0; i < ${#process[@]}; i++)); do
+		if [[ -f "${process[${i}]}" ]]; then
+			process "${process[${i}]}"
 			case ${?} in
 				0) success=true; ;;
 				1) failure=true; ;;
 				*) ;;
 			esac
-		done
-		if ${success}; then
-			return ${postprocess_success}
-		else
-			if ${failure}; then
-				${NZBPO_BAD} && echo "[NZB] MARK=BAD"
-				return ${postprocess_error}
-			else
-				return ${postprocess_none}
-			fi
-		fi
-	else
-		configure
-		local process=() temp
-		temp=$(getopt -o hvti: --long help,input:,verbose:,test:,threads:,languages:,preset:,profile:,level:,crf:,videobitrate:,dualaudio:,normalize:,subtitles:,format:,extension:,delete: -- "${@}")
-		if [[ ${?} -ne 0 ]]; then
-			usage
-		fi
-		eval set -- "${temp}"
-		while true; do
-			case "${1}" in
-				-h|--help) usage ;;
-				-v) CONF_VERBOSE=true; shift ;;
-				-t) CONF_TEST=true; CONF_VERBOSE=true; shift ;;
-				-i|--input) process+=("${2}"); shift 2 ;;
-				--verbose) CONF_VERBOSE="${2,,}"; shift 2 ;;
-				--test) CONF_TEST="${2,,}"; shift 2 ;;
-				--threads) CONF_THREADS="${2,,}"; shift 2 ;;
-				--languages)
-					read -a CONF_LANGUAGES <<< "$(echo "${2,,}" | sed 's/\ //g' | sed 's/,/\ /g')"
-					CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]}; shift 2 ;;
-				--preset) CONF_PRESET="${2,,}"; shift 2 ;;
-				--profile) CONF_PROFILE="${2,,}"; shift 2 ;;
-				--level) CONF_LEVEL="${2,,}"; shift 2 ;;
-				--crf) CONF_CRF="${2,,}"; shift 2 ;;
-				--videobitrate) CONF_VIDEOBITRATE="${2,,}"; shift 2 ;;
-				--dualaudio) CONF_DUALAUDIO="${2,,}"; shift 2 ;;
-				--normalize) CONF_NORMALIZE="${2,,}"; shift 2 ;;
-				--subtitles) CONF_SUBTITLES="${2,,}"; shift 2 ;;
-				--format) CONF_FORMAT="${2,,}"; shift 2 ;;
-				--extension) CONF_EXTENSION="${2,,}"; shift 2 ;;
-				--delete) CONF_DELETE="${2,,}"; shift 2 ;;
-				--) shift; break ;;
-				*) usage ;;
-			esac
-		done
-		if (( ${#process} == 0 )); then
-			usage
-		fi
-		status verify
-		local success=false failure=false
-		for ((i = 0; i < ${#process[@]}; i++)); do
-			if [[ -f "${process[${i}]}" ]]; then
-				process "${process[${i}]}"
+		elif [[ -d "${process[${i}]}" ]]; then
+			local files
+			echo "Processing directory: ${process[${i}]}"
+			readarray -t files < <(find "${process[${i}]}" -type f)
+			for file in "${files[@]}"; do
+				process "${file}"
 				case ${?} in
 					0) success=true; ;;
 					1) failure=true; ;;
 					*) ;;
 				esac
-			elif [[ -d "${process[${i}]}" ]]; then
-				local dir="${process[${i}]}" files
-				echo "Processing directory: ${dir}"
-				readarray -t files < <(find "${dir}" -type f)
-				for file in "${files[@]}"; do
-					process "${file}"
-					case ${?} in
-						0) success=true; ;;
-						1) failure=true; ;;
-						*) ;;
-					esac
-				done
-			else
-				echo "${process[${i}]} is not a valid file or directory."
-			fi
-		done
-		if ${success}; then
-			return 0
+			done
 		else
-			if ${failure}; then
-				return 1
-			else
-				return 2
+			echo "${process[${i}]} is not a valid file or directory."
+		fi
+	done
+	if ${success}; then
+		exit ${SUCCESS}
+	else
+		if ${failure}; then
+			if (( ${MODE} == 1 )) && ${NZBPO_BAD}; then
+				echo "[NZB] MARK=BAD"
 			fi
+			exit ${ERROR}
+		else
+			exit ${NONE}
 		fi
 	fi
 }
 
+trap force SIGINT SIGTERM
+trap onExit EXIT
+
 main "${@}"
-exit ${?}
