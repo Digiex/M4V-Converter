@@ -184,13 +184,16 @@ force() {
 	exit ${ERROR}
 }
 
-onExit() {
+clean() {
 	for file in "${TMPFILES[@]}"; do
 		if [[ -e "${file}" ]]; then
 			rm "${file}"
 		fi
 	done
 }
+
+trap force INT TERM
+trap clean EXIT
 
 process() {
 	case "${1}" in
@@ -420,6 +423,67 @@ process() {
 						if [[ -z "${audio[${i}]}" ]]; then
 							continue
 						fi
+						if ${CONF_DUALAUDIO}; then
+							local aac=false ac3=false audiocodec audiochannels
+							if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
+								aac=${dualaudio[${audiolang}]%%:*}
+								ac3=${dualaudio[${audiolang}]#*:}
+							fi
+							audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+							audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+							if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
+								if ${aac}; then
+									continue
+								else
+									aac=true
+								fi
+							elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
+								if ${ac3}; then
+									continue
+								else
+									ac3=true
+								fi
+							else
+								local have=false
+								for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+									if [[ -z "${audiostreams[${s}]}" ]]; then
+										continue
+									fi
+									local lang
+									lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+									grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+									if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+										lang="${CONF_DEFAULTLANGUAGE}"
+									fi
+									if [[ "${lang}" == "${audiolang}" ]]; then
+										have=true
+									fi
+								done
+								if ${have}; then
+									continue
+								fi
+							fi
+							dualaudio["${audiolang}"]="${aac}:${ac3}"
+						else
+							local have=false
+							for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+								if [[ -z "${audiostreams[${s}]}" ]]; then
+									continue
+								fi
+								local lang
+								lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+									lang="${CONF_DEFAULTLANGUAGE}"
+								fi
+								if [[ "${lang}" == "${audiolang}" ]]; then
+									have=true
+								fi
+							done
+							if ${have}; then
+								continue
+							fi
+						fi
 						audiostreams+=("${audio[${i}]}")
 					done
 				fi
@@ -471,11 +535,8 @@ process() {
 										((x++))
 										command+=" -map ${audiomap} -c:a:${x} ac3"
 										skip=false
-									elif (( audiochannels == 2 )); then
-										command+=" -map ${audiomap} -c:a:${x} copy"
 									else
-										command+=" -map ${audiomap} -c:a:${x} aac"
-										skip=false
+										command+=" -map ${audiomap} -c:a:${x} copy"
 									fi
 								elif [[ "${audiocodec}" == "ac3" ]]; then
 									if (( audiochannels > 2 )); then
@@ -513,14 +574,15 @@ process() {
 									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:${x} 256k"
 									boost=true
 									skip=false
-								elif (( audiochannels == 2 )); then
-									command+=" -map ${audiomap} -c:a:${x} copy"
 								else
-									command+=" -map ${audiomap} -c:a:${x} aac"
-									skip=false
+									command+=" -map ${audiomap} -c:a:${x} copy"
 								fi
 							else
 								command+=" -map ${audiomap} -c:a:${x} aac"
+								if (( audiochannels > 2 )); then
+									command+=" -ac:a:${x} 2 -ab:a:${x} 256k"
+									boost=true
+								fi
 								skip=false
 							fi
 						fi
@@ -633,7 +695,7 @@ process() {
 				if ${CONF_VERBOSE}; then
 					echo "VERBOSE: ${command}"
 				fi
-				if ${CONF_TEST}; then
+				if ${CONF_DEBUG}; then
 					echo "Debug Mode is enabled, therefore nothing was done."
 					return 2
 				fi
@@ -765,7 +827,7 @@ progress() {
 }
 
 cleanup() {
-	if ! ${NZBPO_TEST}; then
+	if ! ${NZBPO_DEBUG}; then
 		local files samples nzbsize samplesize extensions=()
 		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
 		case "${NZBPO_SAMPLES^^}" in
@@ -854,9 +916,9 @@ configure() {
 	CONF_VERBOSE=${NZBPO_VERBOSE:-${VERBOSE}}
 	CONF_VERBOSE=${CONF_VERBOSE,,}
 	: "${CONF_VERBOSE:=false}"
-	CONF_TEST=${NZBPO_TEST:-${TEST}}
-	CONF_TEST=${CONF_TEST,,}
-	: "${CONF_TEST:=false}"
+	CONF_DEBUG=${NZBPO_DEBUG:-${DEBUG}}
+	CONF_DEBUG=${CONF_DEBUG,,}
+	: "${CONF_DEBUG:=false}"
 	CONF_THREADS=${NZBPO_THREADS:-${THREADS}}
 	CONF_THREADS=${CONF_THREADS,,}
 	: "${CONF_THREADS:=auto}"
@@ -908,10 +970,10 @@ verify() {
 		false) ;;
 		*) echo "VERBOSE is incorrectly configured."; exit ${CONFIG} ;;
 	esac
-	case "${CONF_TEST}" in
+	case "${CONF_DEBUG}" in
 		true) ;;
 		false) ;;
-		*) echo "Test is incorrectly configured."; exit ${CONFIG} ;;
+		*) echo "DEBUG is incorrectly configured."; exit ${CONFIG} ;;
 	esac
 	if [[ "${CONF_THREADS}" != "auto" ]]; then
 		if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > 8 )); then
@@ -1022,7 +1084,7 @@ main() {
 					shift
 				;;
 				-d)
-					CONF_TEST=true
+					CONF_DEBUG=true
 					CONF_VERBOSE=true
 					shift
 				;;
@@ -1035,7 +1097,7 @@ main() {
 					shift 2
 				;;
 				--debug)
-					CONF_TEST="${2,,}"
+					CONF_DEBUG="${2,,}"
 					shift 2
 				;;
 				--threads)
@@ -1143,8 +1205,5 @@ main() {
 		fi
 	fi
 }
-
-trap force SIGINT SIGTERM
-trap onExit EXIT
 
 main "${@}"
