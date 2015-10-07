@@ -100,20 +100,13 @@
 # NOTE: Helps to prevent fake releases.
 #Bad=true
 
-# Delete Samples (NAME, SIZE, BOTH, disabled).
-# This will delete sample files.
-#  NAME - deletes samples based on name.
-#  SIZE - deletes samples based on size, configure below.
-#  BOTH - does both name & size.
-#Samples=disabled
-
-# Sample Size (MB).
-# Any size less than the specified size is considered a sample.
-#Sample Size=
+# Cleanup Size (MB).
+# Any file less than the specified size is deleted.
+#Cleanup Size=
 
 # Cleanup Files.
-# This will delete extra files with the above file extensions.
-#Cleanup=.nfo, .nzb
+# This will delete extra files with the above file extensions or pattern.
+#Cleanup=.nfo, .nzb, *sample*, *trailer*
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
@@ -827,59 +820,32 @@ progress() {
 }
 
 cleanup() {
-	if ! ${NZBPO_DEBUG}; then
-		local files samples nzbsize samplesize extensions=()
-		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
-		case "${NZBPO_SAMPLES^^}" in
-			NAME)
-				for file in "${files[@]}"; do
-					if [[ "${file,,}" =~ sample ]] || [[ "${file,,}" =~ trailer ]]; then
-						rm "${file}"
-					fi
+	local samples nzbsize samplesize extensions=()
+	samplesize=$(( ${NZBPO_CLEANUP_SIZE:-0} * 1024 * 1024 ))
+	if (( sameplesize > 0 )); then
+		readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)
+		if (( ${#samples[@]} > 0 )); then
+			nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
+			nzbsize=$(( nzbsize * 1024 ))
+			if (( nzbsize > samplesize )); then
+				for file in "${samples[@]}"; do
+					rm "${file}"
 				done
-			;;
-			SIZE)
-				readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_SAMPLE_SIZE//[!0-9]/}"M)
-				if (( ${#samples[@]} > 0 )); then
-					nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
-					nzbsize=$(( nzbsize * 1024 ))
-					samplesize=$(( ${NZBPO_SIZE:-0} * 1024 * 1024 ))
-					if (( nzbsize > samplesize )); then
-						for file in "${samples[@]}"; do
-							rm "${file}"
-						done
-					fi
-				fi
-			;;
-			BOTH)
-				for file in "${files[@]}"; do
-					if [[ "${file,,}" =~ sample ]] || [[ "${file,,}" =~ trailer ]]; then
-						rm "${file}"
-					fi
-				done
-				readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_SAMPLE_SIZE//[!0-9]/}"M)
-				if (( ${#samples[@]} > 0 )); then
-					nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
-					nzbsize=$(( nzbsize * 1024 ))
-					samplesize=$(( ${NZBPO_SIZE:-0} * 1024 * 1024 ))
-					if (( nzbsize > samplesize )); then
-						for file in "${samples[@]}"; do
-							rm "${file}"
-						done
-					fi
-				fi
-			;;
-		esac
-		read -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/\\.//g' | sed 's/,/\ /g')"
-		if (( ${#extensions[@]} > 0 )); then
-			for file in "${files[@]}"; do
-				for ext in "${extensions[@]}"; do
-					if [[ "${file##*.}" == "${ext}" ]]; then
-						rm "${file}"
-					fi
-				done
-			done
+			fi
 		fi
+	fi
+	read -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/\\.//g' | sed 's/,/\ /g')"
+	if (( ${#extensions[@]} > 0 )); then
+		for file in "${files[@]}"; do
+			local name="$(basename "${file}")"
+			for ext in "${extensions[@]}"; do
+				if [[ "${file##*.}" == "${ext}" ]]; then
+					rm "${file}"
+				elif [[ "${name}" =~ ${ext} ]]; then
+					rm "${file}"
+				fi
+			done
+		done
 	fi
 }
 
