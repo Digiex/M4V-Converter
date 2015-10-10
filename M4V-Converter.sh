@@ -119,7 +119,7 @@ else
 	MODE=1
 fi
 
-if (( ${MODE} == 0 )); then
+if (( MODE == 0 )); then
 	SUCCESS=0
 	ERROR=1
 	NONE=2
@@ -251,8 +251,8 @@ process() {
 						global_bitrate=$(ffprobe "${1}" -show_format 2>&1 | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 						if (( global_bitrate > 0 )); then
 							local audio_bitrate=0 bitrate=0
-							for ((i = 0; i < ${#audio[@]}; i++)); do
-								bitrate=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1 | \
+							for ((a = 0; a < ${#audio[@]}; a++)); do
+								bitrate=$(ffprobe "${1}" -show_streams -select_streams a:${a} 2>&1 | \
 								grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 								audio_bitrate=$(( audio_bitrate + bitrate ))
 							done
@@ -683,14 +683,14 @@ process() {
 				command+=" -f ${CONF_FORMAT,,} -movflags +faststart -strict experimental -y \"${tmpfile}\""
 				if ${skip}; then
 					echo "This file does not need to be converted."
-					continue
+					return 3
 				fi
 				if ${CONF_VERBOSE}; then
 					echo "VERBOSE: ${command}"
 				fi
 				if ${CONF_DEBUG}; then
 					echo "Debug Mode is enabled, therefore nothing was done."
-					return 2
+					return 4
 				fi
 				echo "Converting..."
 				eval "${command} &" &>/dev/null
@@ -717,7 +717,7 @@ process() {
 				echo "File was in use."
 			fi
 		;;
-		*) echo "File: ${1} is not convertable."; return 1 ;;
+		*) echo "File: ${1} is not convertable."; return 2 ;;
 	esac
 	return 0
 }
@@ -822,7 +822,7 @@ progress() {
 cleanup() {
 	local files samples nzbsize samplesize extensions=()
 	samplesize=${NZBPO_CLEANUP_SIZE:-0}
-	if (( sameplesize > 0 )); then
+	if (( samplesize > 0 )); then
 		readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)
 		if (( ${#samples[@]} > 0 )); then
 			nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
@@ -1167,7 +1167,7 @@ main() {
 		exit ${SUCCESS}
 	else
 		if ${failure}; then
-			if (( ${MODE} == 1 )) && ${NZBPO_BAD}; then
+			if (( MODE == 1 )) && ${NZBPO_BAD}; then
 				echo "[NZB] MARK=BAD"
 			fi
 			exit ${ERROR}
