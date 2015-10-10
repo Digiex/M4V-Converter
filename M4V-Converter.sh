@@ -56,7 +56,7 @@
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #CRF=23
 
-# Video Resolution.
+# Video Resolution (*).
 # This will resize and convert the video if it exceeds this value.
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Scaling%20%28resizing%29%20with%20ffmpeg
@@ -820,13 +820,14 @@ progress() {
 }
 
 cleanup() {
-	local samples nzbsize samplesize extensions=()
-	samplesize=$(( ${NZBPO_CLEANUP_SIZE:-0} * 1024 * 1024 ))
+	local files samples nzbsize samplesize extensions=()
+	samplesize=${NZBPO_CLEANUP_SIZE:-0}
 	if (( sameplesize > 0 )); then
 		readarray -t samples < <(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)
 		if (( ${#samples[@]} > 0 )); then
 			nzbsize=$(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}')
 			nzbsize=$(( nzbsize * 1024 ))
+			samplesize=$(( samplesize * 1024 * 1024 ))
 			if (( nzbsize > samplesize )); then
 				for file in "${samples[@]}"; do
 					rm "${file}"
@@ -836,6 +837,7 @@ cleanup() {
 	fi
 	read -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/\\.//g' | sed 's/,/\ /g')"
 	if (( ${#extensions[@]} > 0 )); then
+		readarray -t files < <(find "${NZBPP_DIRECTORY}" -type f)
 		for file in "${files[@]}"; do
 			local name="$(basename "${file}")"
 			for ext in "${extensions[@]}"; do
@@ -1128,6 +1130,9 @@ main() {
 			esac
 		done
 	else
+		if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
+			exit ${NONE}
+		fi
 		cleanup
 		process+=("${NZBPP_DIRECTORY}")
 	fi
