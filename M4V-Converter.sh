@@ -137,20 +137,19 @@ usage() {
 	cat <<-EOF
 	USAGE: ${0} parameters
 
-	A script designed to convert media.
+	This script is designed to convert media.
 
 	NOTE: This script requires FFMPEG, FFPROBE and BASH 4+
 
 	OPTIONS:
-	-h            Show this message
+	--------
+	-h  --help    Show this message
 	-v            Verbose Mode
 	-d            Debug Mode
-	-i            Input file or directory
-
-	--help           Same as -h
-	--input          Same as -i
+	-i  --input   Input file or directory
 
 	ADVANCED OPTIONS:
+	-----------------
 	--verbose
 	--debug
 	--threads
@@ -170,7 +169,7 @@ usage() {
 }
 
 force() {
-	if [[ ! -z ${PID} ]] && (( PID > 0 )) && [[ -e /proc/${PID} ]]; then
+	if [[ ! -z ${PID} ]] && (( PID > 0 )) && $(ps -p ${PID} &>/dev/null); then
 		disown "${PID}"
 		kill -9 "${PID}" &>/dev/null
 	fi
@@ -185,7 +184,7 @@ clean() {
 	done
 }
 
-trap force INT TERM
+trap force INT TERM QUIT
 trap clean EXIT
 
 process() {
@@ -195,8 +194,10 @@ process() {
 			lsof "${1}" 2>&1 | grep -q COMMAND &>/dev/null
 			if [[ ${?} -ne 0 ]]; then
 				local command="ffmpeg -threads ${CONF_THREADS} -i \"${1}\""
-				local directory="$(dirname "${1}")"
-				local file="$(basename "${1}")"
+				#local directory="$(dirname "${1}")"
+				#local file="$(basename "${1}")"
+				local directory="${1%/*}"
+				local file="${1##*/}"
 				local newname="${file//${file##*.}/${CONF_EXTENSION,,}}"
 				local newfile="${directory}/${newname}"
 				local tmpfile="${newfile}.tmp"
@@ -798,20 +799,25 @@ normalize() {
 }
 
 progress() {
-	local totalframes="${2}" currentframe=0 eta=0 elapsed=0 oldpercentage=0 start vstats percentage
+	local totalframes="${2}" currentframe=0 eta="Unknown" elapsed=0 oldpercentage=0 start vstats percentage
 	start=$(date +%s)
-	while [[ -e /proc/$PID ]]; do
+	while $(ps -p ${PID} &>/dev/null); do
 		if [[ -e "${1}" ]]; then
 			vstats=$(awk '{gsub(/frame=/, "")}/./{line=$1-1} END{print line}' "${1}")
 			if (( vstats > currentframe )); then
 				currentframe=${vstats}
 				percentage=$(( 100 * currentframe / totalframes ))
-				elapsed=$(( $(date +%s) - start ))
-				eta=$(date -d @"$(awk "BEGIN{print int((${elapsed} / ${currentframe}) * \
-					(${totalframes} - ${currentframe}))}")" -u +%H:%M:%S)
 			fi
 			if (( percentage > oldpercentage )); then
 				oldpercentage=${percentage}
+				message="Converting... ${percentage}%"
+				elapsed=$(( $(date +%s) - start ))
+				case "${OSTYPE}" in
+					linux-gnu) eta=$(date -d @"$(awk "BEGIN{print int((${elapsed} / ${currentframe}) * \
+					(${totalframes} - ${currentframe}))}")" -u +%H:%M:%S 2>&1) ;;
+					darwin*) eta=$(date -r "$(awk "BEGIN{print int((${elapsed} / ${currentframe}) * \
+					(${totalframes} - ${currentframe}))}")" -u +%H:%M:%S 2>&1) ;;
+				esac
 				echo "Converting... ${percentage}% ETA: ${eta}"
 			fi
 		fi
@@ -1040,93 +1046,36 @@ main() {
 	configure
 	local process=()
 	if (( ${MODE} == 0 )); then
-		local args
-		args=$(getopt -o hvdi: --long help,verbose:,debug:,input:,threads:,languages:,preset:,profile:,level:,crf:,videobitrate:,dualaudio:,normalize:,subtitles:,format:,extension:,delete:,resolution: -- "${@}")
-		[[ ${?} -ne 0 ]] && usage
-		eval set -- "${args}"
-		while true; do
-			case "${1}" in
-				-h|--help) usage; ;;
-				-v)
-					CONF_VERBOSE=true
-					shift
+		while getopts hvdi:-: opts; do
+			case ${opts,,} in
+				h) usage ;;
+				v) CONF_VERBOSE=true ;;
+				d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
+				i) process+=("${OPTARG}") ;;
+				-) arg="${OPTARG#*=}";
+					case ${OPTARG,,} in
+         				help) usage ;;
+						input=*) process+=("${arg}") ;;
+						verbose=*) CONF_VERBOSE=${arg,,} ;;
+						debug=*) CONF_DEBUG=${arg,,} ;;
+						threads=*) CONF_THREADS=${arg,,} ;;
+						languages=*) read -a CONF_LANGUAGES <<< "$(echo "${arg,,}" | sed 's/\ //g' | sed 's/,/\ /g')"; CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]} ;;
+						preset=*) CONF_PRESET=${arg,,} ;;
+						profile=*) CONF_PROFILE=${arg,,} ;;
+						level=*) CONF_LEVEL=${arg} ;;
+						crf=*) CONF_CRF=${arg} ;;
+						videobitrate=*) CONF_VIDEOBITRATE=${arg} ;;
+						dualaudio=*) CONF_DUALAUDIO=${arg,,} ;;
+						normalize=*) CONF_NORMALIZE=${arg,,} ;;
+						subtitles=*) CONF_SUBTITLES=${arg,,} ;;
+						format=*) CONF_FORMAT=${arg,,} ;;
+						extension=*) CONF_EXTENSION=${arg,,} ;;
+						delete=*) CONF_DELETE=${arg,,} ;;
+						resolution=*) CONF_RESOLUTION=${arg} ;;
+						*) usage ;;
+					esac
 				;;
-				-d)
-					CONF_DEBUG=true
-					CONF_VERBOSE=true
-					shift
-				;;
-				-i|--input)
-					process+=("${2}")
-					shift 2
-				;;
-				--verbose)
-					CONF_VERBOSE="${2,,}"
-					shift 2
-				;;
-				--debug)
-					CONF_DEBUG="${2,,}"
-					shift 2
-				;;
-				--threads)
-					CONF_THREADS="${2,,}"
-					shift 2
-				;;
-				--languages)
-					read -a CONF_LANGUAGES <<< "$(echo "${2,,}" | sed 's/\ //g' | sed 's/,/\ /g')"
-					CONF_DEFAULTLANGUAGE=${CONF_LANGUAGES[0]}
-					shift 2
-				;;
-				--preset)
-					CONF_PRESET="${2,,}"
-					shift 2
-				;;
-				--profile)
-					CONF_PROFILE="${2,,}"
-					shift 2
-				;;
-				--level)
-					CONF_LEVEL="${2,,}"
-					shift 2
-				;;
-				--crf)
-					CONF_CRF="${2,,}"
-					shift 2
-				;;
-				--videobitrate)
-					CONF_VIDEOBITRATE="${2,,}"
-					shift 2
-				;;
-				--dualaudio)
-					CONF_DUALAUDIO="${2,,}"
-					shift 2
-				;;
-				--normalize)
-					CONF_NORMALIZE="${2,,}"
-					shift 2
-				;;
-				--subtitles)
-					CONF_SUBTITLES="${2,,}"
-					shift 2
-				;;
-				--format)
-					CONF_FORMAT="${2,,}"
-					shift 2
-				;;
-				--extension)
-					CONF_EXTENSION="${2,,}"
-					shift 2
-				;;
-				--delete)
-					CONF_DELETE="${2,,}"
-					shift 2
-				;;
-				--resolution)
-					CONF_RESOLUTION="${2,,}"
-					shift 2
-				;;
-				--) shift; break ;;
-				*) usage; ;;
+				*) usage ;;
 			esac
 		done
 	else
@@ -1138,15 +1087,17 @@ main() {
 	fi
 	(( ${#process} == 0 )) && usage
 	verify
-	local success=false failure=false
+	local success=false failure=false skip=false
 	for ((i = 0; i < ${#process[@]}; i++)); do
 		if [[ -f "${process[${i}]}" ]]; then
 			process "${process[${i}]}"
 			case ${?} in
 				0) success=true; ;;
 				1) failure=true; ;;
+				3|4) skip=true; ;;
 				*) ;;
 			esac
+			clean
 		elif [[ -d "${process[${i}]}" ]]; then
 			local files
 			echo "Processing directory: ${process[${i}]}"
@@ -1156,8 +1107,10 @@ main() {
 				case ${?} in
 					0) success=true; ;;
 					1) failure=true; ;;
+					3|4) skip=true; ;;
 					*) ;;
 				esac
+				clean
 			done
 		else
 			echo "${process[${i}]} is not a valid file or directory."
@@ -1171,7 +1124,12 @@ main() {
 				echo "[NZB] MARK=BAD"
 			fi
 			exit ${ERROR}
+		elif ${skip}; then
+			exit ${NONE}
 		else
+			if (( MODE == 1 )) && ${NZBPO_BAD}; then
+				echo "[NZB] MARK=BAD"
+			fi
 			exit ${NONE}
 		fi
 	fi
