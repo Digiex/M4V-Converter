@@ -417,15 +417,17 @@ process() {
 								if ! ${aac}; then
 									aac=true
 									audiostreams+=("${audio[${i}]}")
+									dualaudio["${audiolang}"]="${aac}:${ac3}"
+									continue
 								fi
 							elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
 								if ! ${ac3}; then
 									ac3=true
 									audiostreams+=("${audio[${i}]}")
+									dualaudio["${audiolang}"]="${aac}:${ac3}"
+									continue
 								fi
 							fi
-							dualaudio["${audiolang}"]="${aac}:${ac3}"
-							continue
 						fi
 						local have=false
 						for ((s = 0; s < ${#audiostreams[@]}; s++)); do
