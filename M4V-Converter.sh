@@ -188,7 +188,7 @@ trap force INT TERM QUIT
 trap clean EXIT
 
 process() {
-	case "${1}" in
+	case "${1,,}" in
 		*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg)
 			echo "Processing file: ${1}"
 			lsof "${1}" 2>&1 | grep -q COMMAND &>/dev/null
@@ -333,17 +333,17 @@ process() {
 						continue
 					fi
 					if [[ "${CONF_LANGUAGES}" != "*" ]]; then
-						local allowed=false
+						local allow=false
 						for ((l = 0; l < ${#CONF_LANGUAGES[@]}; l++)); do
 							if [[ -z "${CONF_LANGUAGES[${l}]}" ]]; then
 								continue
 							fi
-							if [[ "${audiolang}" != "${CONF_LANGUAGES[${l}]}" ]]; then
-								continue
+							if [[ "${audiolang}" == "${CONF_LANGUAGES[${l}]}" ]]; then
+								allow=true
+								break
 							fi
-							allowed=true
 						done
-						if ! ${allowed}; then
+						if ! ${allow}; then
 							continue
 						fi
 					fi
@@ -359,15 +359,17 @@ process() {
 							if ! ${aac}; then
 								aac=true
 								audiostreams+=("${audio[${i}]}")
+								dualaudio["${audiolang}"]="${aac}:${ac3}"
+								continue
 							fi
 						elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
 							if ! ${ac3}; then
 								ac3=true
 								audiostreams+=("${audio[${i}]}")
+								dualaudio["${audiolang}"]="${aac}:${ac3}"
+								continue
 							fi
 						fi
-						dualaudio["${audiolang}"]="${aac}:${ac3}"
-						continue
 					fi
 					local have=false
 					for ((s = 0; s < ${#audiostreams[@]}; s++)); do
@@ -392,6 +394,15 @@ process() {
 				if (( ${#audiostreams} == 0 )); then
 					for ((i = 0; i < ${#audio[@]}; i++)); do
 						if [[ -z "${audio[${i}]}" ]]; then
+							continue
+						fi
+						local audiodata audiolang
+						audiodata=$(ffprobe "${1}" -show_streams -select_streams a:${i} 2>&1)
+						audiolang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
+							audiolang="${CONF_DEFAULTLANGUAGE}"
+						fi
+						if [[ "$(echo "${audiodata}" | grep -i 'TAG:' | tr '[:upper:]' '[:lower:]')" =~ commentary ]]; then
 							continue
 						fi
 						if ${CONF_DUALAUDIO}; then
