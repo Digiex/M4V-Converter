@@ -542,6 +542,9 @@ process() {
 						((x++))
 					done
 				done
+				if [[ ${#audio[@]} != ${#audiostreams[@]} ]]; then
+					skip=false
+				fi
 
 				if ${CONF_SUBTITLES}; then
 					local subtitlestreams=()
