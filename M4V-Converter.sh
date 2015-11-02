@@ -194,10 +194,8 @@ process() {
 			lsof "${1}" 2>&1 | grep -q COMMAND &>/dev/null
 			if [[ ${?} -ne 0 ]]; then
 				local command="ffmpeg -threads ${CONF_THREADS} -i \"${1}\""
-				#local directory="$(dirname "${1}")"
-				#local file="$(basename "${1}")"
-				local directory="${1%/*}"
-				local file="${1##*/}"
+				local directory="$(dirname "${1}")"
+				local file="$(basename "${1}")"
 				local newname="${file//${file##*.}/${CONF_EXTENSION,,}}"
 				local newfile="${directory}/${newname}"
 				local tmpfile="${newfile}.tmp"
@@ -358,57 +356,36 @@ process() {
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
 						if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
-							if ${aac}; then
-								continue
-							else
+							if ! ${aac}; then
 								aac=true
+								audiostreams+=("${audio[${i}]}")
 							fi
 						elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
-							if ${ac3}; then
-								continue
-							else
+							if ! ${ac3}; then
 								ac3=true
-							fi
-						else
-							local have=false
-							for ((s = 0; s < ${#audiostreams[@]}; s++)); do
-								if [[ -z "${audiostreams[${s}]}" ]]; then
-									continue
-								fi
-								local lang
-								lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
-								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-									lang="${CONF_DEFAULTLANGUAGE}"
-								fi
-								if [[ "${lang}" == "${audiolang}" ]]; then
-									have=true
-								fi
-							done
-							if ${have}; then
-								continue
+								audiostreams+=("${audio[${i}]}")
 							fi
 						fi
 						dualaudio["${audiolang}"]="${aac}:${ac3}"
-					else
-						local have=false
-						for ((s = 0; s < ${#audiostreams[@]}; s++)); do
-							if [[ -z "${audiostreams[${s}]}" ]]; then
-								continue
-							fi
-							local lang
-							lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
-							grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-							if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-								lang="${CONF_DEFAULTLANGUAGE}"
-							fi
-							if [[ "${lang}" == "${audiolang}" ]]; then
-								have=true
-							fi
-						done
-						if ${have}; then
+						continue
+					fi
+					local have=false
+					for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+						if [[ -z "${audiostreams[${s}]}" ]]; then
 							continue
 						fi
+						local lang
+						lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+						grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+							lang="${CONF_DEFAULTLANGUAGE}"
+						fi
+						if [[ "${lang}" == "${audiolang}" ]]; then
+							have=true
+						fi
+					done
+					if ${have}; then
+						continue
 					fi
 					audiostreams+=("${audio[${i}]}")
 				done
@@ -426,57 +403,36 @@ process() {
 							audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 							audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
 							if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
-								if ${aac}; then
-									continue
-								else
+								if ! ${aac}; then
 									aac=true
+									audiostreams+=("${audio[${i}]}")
 								fi
 							elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
-								if ${ac3}; then
-									continue
-								else
+								if ! ${ac3}; then
 									ac3=true
-								fi
-							else
-								local have=false
-								for ((s = 0; s < ${#audiostreams[@]}; s++)); do
-									if [[ -z "${audiostreams[${s}]}" ]]; then
-										continue
-									fi
-									local lang
-									lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
-									grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-									if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-										lang="${CONF_DEFAULTLANGUAGE}"
-									fi
-									if [[ "${lang}" == "${audiolang}" ]]; then
-										have=true
-									fi
-								done
-								if ${have}; then
-									continue
+									audiostreams+=("${audio[${i}]}")
 								fi
 							fi
 							dualaudio["${audiolang}"]="${aac}:${ac3}"
-						else
-							local have=false
-							for ((s = 0; s < ${#audiostreams[@]}; s++)); do
-								if [[ -z "${audiostreams[${s}]}" ]]; then
-									continue
-								fi
-								local lang
-								lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
-								grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-								if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-									lang="${CONF_DEFAULTLANGUAGE}"
-								fi
-								if [[ "${lang}" == "${audiolang}" ]]; then
-									have=true
-								fi
-							done
-							if ${have}; then
+							continue
+						fi
+						local have=false
+						for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+							if [[ -z "${audiostreams[${s}]}" ]]; then
 								continue
 							fi
+							local lang
+							lang=$(ffprobe "${1}" -show_streams -select_streams a:${s} 2>&1 | \
+							grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+							if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+								lang="${CONF_DEFAULTLANGUAGE}"
+							fi
+							if [[ "${lang}" == "${audiolang}" ]]; then
+								have=true
+							fi
+						done
+						if ${have}; then
+							continue
 						fi
 						audiostreams+=("${audio[${i}]}")
 					done
