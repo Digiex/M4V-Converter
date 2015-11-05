@@ -491,6 +491,7 @@ process() {
 										((x--))
 										command+=" -map ${audiomap} -c:a:${x} copy"
 										((x++))
+										skip=false
 									else
 										command+=" -map ${audiomap} -c:a:${x} copy"
 									fi
@@ -499,6 +500,7 @@ process() {
 										((x++))
 										command+=" -map ${audiomap} -c:a:${x} copy"
 										((x--))
+										skip=false
 									else
 										command+=" -map ${audiomap} -c:a:${x} copy"
 									fi
