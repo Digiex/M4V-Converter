@@ -486,7 +486,23 @@ process() {
 								ac3=${dualaudio[${audiolang}]#*:}
 							fi
 							if ${aac} && ${ac3}; then
-								command+=" -map ${audiomap} -c:a:${x} copy"
+								if [[ "${audiocodec}" == "aac" ]]; then
+									if (( x % 2 )); then
+										((x--))
+										command+=" -map ${audiomap} -c:a:${x} copy"
+										((x++))
+									else
+										command+=" -map ${audiomap} -c:a:${x} copy"
+									fi
+								elif [[ "${audiocodec}" == "ac3" ]]; then
+									if ! (( x % 2 )); then
+										((x++))
+										command+=" -map ${audiomap} -c:a:${x} copy"
+										((x--))
+									else
+										command+=" -map ${audiomap} -c:a:${x} copy"
+									fi
+								fi
 							else
 								if [[ "${audiocodec}" == "aac" ]]; then
 									if (( audiochannels > 2 )); then
