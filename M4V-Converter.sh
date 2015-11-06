@@ -5,7 +5,7 @@
 
 # M4V-Converter (LINUX & OS X)
 #
-# This script converts files on post process.
+# This script converts media to mp4 format.
 #
 # NOTE: This script requires FFMPEG, FFPROBE and Bash 4+.
 
@@ -703,7 +703,6 @@ process() {
 					rm "${1}"
 				fi
 				mv "${tmpfile}" "${newfile}"
-				echo "Conversion successful!"
 			else
 				echo "File was in use."
 			fi
@@ -1087,7 +1086,6 @@ main() {
 				3|4) skip=true; ;;
 				*) ;;
 			esac
-			clean
 		elif [[ -d "${process[${i}]}" ]]; then
 			local files
 			echo "Processing directory: ${process[${i}]}"
