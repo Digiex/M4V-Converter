@@ -38,13 +38,13 @@
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #Preset=medium
 
-# H.264 Profile (baseline, main, high).
+# H.264 Profile (baseline, main, high, *).
 # This defines the features / capabilities that the encoder can use.
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Profiles
 #Profile=main
 
-# H.264 Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2).
+# H.264 Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *).
 # This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Levels
@@ -351,6 +351,7 @@ case "${CONF_PROFILE}" in
 	baseline) ;;
 	main) ;;
 	high) ;;
+	"*") ;;
 	*) echo "Profile is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -367,6 +368,7 @@ case "${CONF_LEVEL}" in
 	5.0) ;;
 	5.1) ;;
 	5.2) ;;
+	"*") ;;
 	*) echo "Level is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -543,13 +545,17 @@ for input in "${process[@]}"; do
 			if [[ "${videocodec}" != "h264" ]]; then
 				convert=true
 			fi
-			videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-			if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
-				convert=true
+			if [[ "${CONF_PROFILE}" != "*" ]]; then 
+				videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+				if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
+					convert=true
+				fi
 			fi
-			videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
-			if (( videolevel != ${CONF_LEVEL//./} )); then
-				convert=true
+			if [[ "${CONF_LEVEL}" != "*" ]]; then
+				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
+				if (( videolevel != ${CONF_LEVEL//./} )); then
+					convert=true
+				fi
 			fi
 			limit=false
 			videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
