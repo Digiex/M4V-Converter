@@ -252,8 +252,9 @@ else
 		if [[ ! -z "${files[@]}" ]]; then
 			for file in "${files[@]}"; do
 				for ext in "${extensions[@]}"; do
-					if [[ "${file##*.}" == "${ext}" ]] || [[ "$(basename "${file}")" =~ ${ext} ]]; then
+					if [[ "${file##*.}" == "${ext}" ]]; then
 						rm "${file}"
+						break
 					fi
 				done
 			done
