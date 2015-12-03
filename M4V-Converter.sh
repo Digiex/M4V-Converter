@@ -106,7 +106,7 @@
 
 # Cleanup Files.
 # This will delete extra files with the above file extensions or pattern.
-#Cleanup=.nfo, .nzb, *sample*, *trailer*
+#Cleanup=.nfo, .nzb, sample, trailer
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
@@ -246,13 +246,13 @@ else
 			fi
 		fi
 	fi
-	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/\\.//g' | sed 's/,/\ /g')"
+	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
 	if [[ ! -z "${extensions[@]}" ]]; then
 		readarray -t files <<< "$(find "${NZBPP_DIRECTORY}" -type f)"
 		if [[ ! -z "${files[@]}" ]]; then
 			for file in "${files[@]}"; do
 				for ext in "${extensions[@]}"; do
-					if [[ "${file##*.}" == "${ext}" ]]; then
+					if [[ "${file##*.}" == "${ext//./}" ]] || [[ "$(basename "${file}")" == *"${ext}"* ]]; then
 						rm "${file}"
 						break
 					fi
