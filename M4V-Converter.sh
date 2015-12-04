@@ -272,6 +272,7 @@ else
 				for ext in "${extensions[@]}"; do
 					if [[ "${file##*.}" == "${ext//./}" ]]; then
 						rm "${file}"
+						break
 					fi
 				done
 			done
