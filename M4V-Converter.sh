@@ -29,29 +29,41 @@
 #
 # English (eng), French (fre), German (ger), Italian (ita), Spanish (spa), * (all).
 #
-# NOTE: This is used for audio and subtitles. The first listed is considered the default.
+# NOTE: This is used for audio and subtitles. The first listed is considered the default/preferred.
 #Languages=
 
-# H.264 Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
+# H.264 Preset (*).
 # This controls encoding speed to compression ratio.
+#
+# NOTE: Allowed: 'ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow'
+#
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #Preset=medium
 
-# H.264 Profile (baseline, main, high, *).
+# H.264 Profile (*).
 # This defines the features / capabilities that the encoder can use.
+#
+# NOTE: Allowed: 'baseline, main, high'
+#
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Profiles
 #Profile=main
 
-# H.264 Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *).
+# H.264 Level (*).
 # This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
+#
+# NOTE: Allowed: '3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2'
+#
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Levels
 #Level=4.1
 
-# H.264 Constant Rate Factor (0-51).
+# H.264 Constant Rate Factor (*).
 # This controls maximum compression efficiency with a single pass.
+#
+# NOTE: Allowed: '0 - 51'
+#
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #CRF=23
@@ -59,11 +71,17 @@
 # Video Resolution (*).
 # This will resize and convert the video if it exceeds this value.
 #
+# NOTE: Ex. 1280x720, 1280:720
+#
+#
 # NOTE: https://trac.ffmpeg.org/wiki/Scaling%20%28resizing%29%20with%20ffmpeg
 #Resolution=
 
 # Video Bitrate (KB).
 # Use this to limit video bitrate, if it exceeds this limit then video will be converted.
+#
+# NOTE: Ex. '6144' (6 Mbps)
+#
 #Video Bitrate=
 
 # Create Dual Audio Streams (true, false).
@@ -105,8 +123,8 @@
 #Cleanup Size=
 
 # Cleanup Files.
-# This will delete extra files with the above file extensions or pattern.
-#Cleanup=.nfo, .nzb, sample, trailer
+# This will delete extra files with the above file extensions
+#Cleanup=.nfo, .nzb
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
@@ -252,9 +270,8 @@ else
 		if [[ ! -z "${files[@]}" ]]; then
 			for file in "${files[@]}"; do
 				for ext in "${extensions[@]}"; do
-					if [[ "${file##*.}" == "${ext//./}" ]] || [[ "$(basename "${file}")" == *"${ext}"* ]]; then
+					if [[ "${file##*.}" == "${ext//./}" ]]; then
 						rm "${file}"
-						break
 					fi
 				done
 			done
@@ -341,6 +358,7 @@ case "${CONF_PRESET}" in
 	slow) ;;
 	slower) ;;
 	veryslow) ;;
+	"*") ;;
 	*) echo "Preset is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -375,9 +393,11 @@ esac
 CONF_CRF=${CONF_CRF:-${NZBPO_CRF:-${CRF}}}
 : "${CONF_CRF:=23}"
 CONF_CRF=${CONF_CRF,,}
-if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
-	echo "CRF is incorrectly configured"
-	exit ${CONFIG}
+if [[ "${CONF_CRF}" != "*" ]]; then
+	if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
+		echo "CRF is incorrectly configured"
+		exit ${CONFIG}
+	fi
 fi
 
 CONF_RESOLUTION=${CONF_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
@@ -473,7 +493,13 @@ for input in "${process[@]}"; do
 		echo "Processing file: ${file}"
 		case "${file,,}" in
 			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
-			*) echo "File is not convertable"; skipped=true && continue ;;
+			*)
+				if [[ "$(ffprobe "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
+					echo "File is not convertable" && continue
+				else
+					echo "File does not have the expected extension but is a media file. Attemtping..."
+				fi
+			;;
 		esac
 		lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null
 		if [[ ${?} -eq 0 ]]; then
@@ -509,7 +535,7 @@ for input in "${process[@]}"; do
 				continue
 			fi
 			videodata=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1)
-			if [[ $(echo "${videodata}" | grep -i "TAG:mimetype=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:mimetype=//g') == "image/jpeg" ]]; then
+			if [[ $(echo "${videodata}" | tr '[:upper:]' '[:lower:]' | grep -x '.*mimetype=.*' | sed 's/.*mimetype=//g') == image/* ]]; then
 				filtered+=("${video[${i}]}")
 				continue
 			fi
@@ -545,37 +571,43 @@ for input in "${process[@]}"; do
 			if [[ "${videocodec}" != "h264" ]]; then
 				convert=true
 			fi
+			profile=false
 			if [[ "${CONF_PROFILE}" != "*" ]]; then 
 				videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 				if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
 					convert=true
+					profile=true
 				fi
 			fi
+			level=false
 			if [[ "${CONF_LEVEL}" != "*" ]]; then
 				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
 				if (( videolevel != ${CONF_LEVEL//./} )); then
 					convert=true
+					level=true
 				fi
 			fi
 			limit=false
-			videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
-			if (( videobitrate == 0 )); then
-				globalbitrate=$(ffprobe "${file}" -show_format 2>&1 | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
-				if (( globalbitrate > 0 )); then
-					for ((a = 0; a < ${#audio[@]}; a++)); do
-						bitrate=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1 | \
-							grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
-						audiobitrate=$(( audiobitrate + bitrate ))
-					done
-					if (( audiobitrate > 0 ));  then
-						videobitrate=$(( globalbitrate - audiobitrate ))
+			if (( CONF_VIDEOBITRATE > 0 )); then
+				videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+				if (( videobitrate == 0 )); then
+					globalbitrate=$(ffprobe "${file}" -show_format 2>&1 | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+					if (( globalbitrate > 0 )); then
+						for ((a = 0; a < ${#audio[@]}; a++)); do
+							bitrate=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1 | \
+								grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+							audiobitrate=$(( audiobitrate + bitrate ))
+						done
+						if (( audiobitrate > 0 ));  then
+							videobitrate=$(( globalbitrate - audiobitrate ))
+						fi
 					fi
 				fi
-			fi
-			videobitrate=$(( videobitrate / 1024 ))
-			if (( CONF_VIDEOBITRATE > 0 )) && (( videobitrate > CONF_VIDEOBITRATE )); then
-				convert=true
-				limit=true
+				videobitrate=$(( videobitrate / 1024 ))
+				if (( videobitrate > CONF_VIDEOBITRATE )); then
+					convert=true
+					limit=true
+				fi
 			fi
 			resize=false
 			if [[ ! -z "${CONF_RESOLUTION}" ]]; then
@@ -607,15 +639,27 @@ for input in "${process[@]}"; do
 						if [[ -e "${vstatsfile}" ]]; then
 							rm "${vstatsfile}"
 						fi
-						command="${command//-threads ${CONF_THREADS}/-threads ${CONF_THREADS} -vstats_file \"${vstatsfile}\"}"
+						command+=" -vstats_file \"${vstatsfile}\""
 					fi
 				fi
-				command+=" -map ${videomap} -c:v libx264 -crf ${CONF_CRF} -preset ${CONF_PRESET} -profile:v ${CONF_PROFILE} -level ${CONF_LEVEL}"
+				command+=" -map ${videomap} -c:v libx264"
+				if ${resize}; then
+					command+=" -vf \"scale=${scale}:trunc(ow/a/2)*2\""
+				fi
+				if [[ "${CONF_PRESET}" != "*" ]]; then
+					command+=" -preset ${CONF_PRESET}"
+				fi
+				if ${profile}; then
+					command+=" -profile:v ${CONF_PROFILE}"
+				fi
+				if ${level}; then
+					command+=" -level ${CONF_LEVEL}"
+				fi
+				if [[ "${CONF_CRF}" != "*" ]]; then
+					command+=" -crf ${CONF_CRF}"
+				fi
 				if ${limit}; then
 					command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
-				fi
-				if ${resize}; then
-					command="${command//-c:v libx264/-c:v libx264 -vf \"scale=${scale}:trunc(ow/a/2)*2\"}"
 				fi
 				skip=false
 			else
@@ -925,6 +969,18 @@ for input in "${process[@]}"; do
 			done
 		done
 		if ! (( ${#audio[@]} == ${#audiostreams[@]} )); then
+			skip=false
+		fi
+		x=0
+		for ((i = 0; i < ${#audio[@]}; i++)); do
+			if [[ -z "${audio[${i}]}" ]]; then
+				continue
+			fi
+			if [[ "${audio[${i}]}" =~ default ]]; then
+			 	((x++))
+			fi
+		done
+		if (( x > 1 )); then
 			skip=false
 		fi
 		if ${CONF_SUBTITLES}; then
