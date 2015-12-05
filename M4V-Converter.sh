@@ -573,11 +573,13 @@ for input in "${process[@]}"; do
 				convert=true
 			fi
 			profile=false
-			if [[ "${CONF_PROFILE}" != "*" ]]; then 
+			if [[ "${CONF_PROFILE}" != "*" ]]; then
 				videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-				if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
-					convert=true
-					profile=true
+				if ! [[ "${videoprofile,,}" =~ "constrained" ]]; then
+					if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
+						convert=true
+						profile=true
+					fi
 				fi
 			fi
 			level=false
