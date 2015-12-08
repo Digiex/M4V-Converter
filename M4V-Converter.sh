@@ -24,7 +24,7 @@
 # This is how many threads FFMPEG will use for conversion.
 #Threads=auto
 
-# Preferred Languages.
+# Preferred Languages (*).
 # This is the language(s) you prefer.
 #
 # English (eng), French (fre), German (ger), Italian (ita), Spanish (spa), * (all).
@@ -510,7 +510,11 @@ for input in "${process[@]}"; do
 		command="ffmpeg -threads ${CONF_THREADS} -i \"${file}\""
 		directoryname="$(dirname "${file}")"
 		filename="$(basename "${file}")"
-		newname="${filename//${filename##*.}/${CONF_EXTENSION}}"
+		if [[ "${filename}" == "${filename##*.}" ]]; then
+			newname="${filename}.${CONF_EXTENSION}"
+		else
+			newname="${filename//${filename##*.}/${CONF_EXTENSION}}"
+		fi
 		newfile="${directoryname}/${newname}"
 		tmpfile="${newfile}.tmp"
 		data="$(ffprobe "${file}" 2>&1)"
@@ -638,7 +642,7 @@ for input in "${process[@]}"; do
 					sec=$(echo "${dur}" | cut -d":" -f3)
 					total=$(echo "(${hrs}*3600+${min}*60+${sec})*${fps}" | head -1 | bc | cut -d"." -f1)
 					if (( total > 0 )); then
-						vstatsfile="${file}.vstats"
+						vstatsfile="${newfile}.vstats"
 						if [[ -e "${vstatsfile}" ]]; then
 							rm "${vstatsfile}"
 						fi
