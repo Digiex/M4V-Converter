@@ -97,11 +97,11 @@
 # Copy Subtitles (true, false).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
 #
-# NOTE: Disable if you use Plex or such to download subtitles. This does NOT apply to forced subtitles. 
+# NOTE: Disable if you use Plex or such to download subtitles.
 #Subtitles=true
 
 # File Format (MP4, MOV).
-# MP4 is better supported universally. MOV is best for Apple devices and iTunes.
+# MP4 is better supported universally. MOV is best with Apple devices and iTunes.
 #Format=mp4
 
 # File Extension (MP4, M4V).
@@ -221,7 +221,7 @@ if [[ -z "${NZBOP_SCRIPTDIR}" ]]; then
 			i) process+=("${OPTARG}") ;;
 			c) CONF_FILE="${OPTARG}" ;;
 			-) arg="${OPTARG#*=}";
-				case ${OPTARG,,} in
+				case "${OPTARG,,}" in
        				help) usage ;;
 					input=*) process+=("${arg}") ;;
 					verbose=*) CONF_VERBOSE="${arg}" ;;
@@ -337,6 +337,7 @@ CONF_LANGUAGES="${CONF_LANGUAGES:-${NZBPO_LANGUAGES:-${LANGUAGES}}}"
 CONF_LANGUAGES="${CONF_LANGUAGES,,}"
 read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed 's/\ //g' | sed 's/,/\ /g')"
 CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
+: "${CONF_DEFAULTLANGUAGE:=*}"
 if [[ "${CONF_LANGUAGES}" != "*" ]]; then
 	for language in "${CONF_LANGUAGES[@]}"; do
 		if ! (( ${#language} == 3 )); then
@@ -540,16 +541,12 @@ for input in "${process[@]}"; do
 				continue
 			fi
 			videodata=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1)
-			if [[ $(echo "${videodata}" | tr '[:upper:]' '[:lower:]' | grep -x '.*mimetype=.*' | sed 's/.*mimetype=//g') == image/* ]]; then
+			if [[ $(echo "${videodata,,}" | grep -x '.*mimetype=.*' | sed 's/.*mimetype=//g') == image/* ]]; then
 				filtered+=("${video[${i}]}")
 				continue
 			fi
 		done
-		streams=$(( ${#video[@]} - ${#filtered[@]} ))
-		if (( streams > 1 )); then
-			echo "File has multiple video streams"
-			skipped=true && continue
-		fi
+		x=0
 		for ((i = 0; i < ${#video[@]}; i++)); do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
@@ -589,7 +586,7 @@ for input in "${process[@]}"; do
 			level=false
 			if [[ "${CONF_LEVEL}" != "*" ]]; then
 				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
-				if (( videolevel != ${CONF_LEVEL//./} )); then
+				if (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
 					convert=true
 					level=true
 				fi
@@ -611,7 +608,7 @@ for input in "${process[@]}"; do
 					fi
 				fi
 				videobitrate=$(( videobitrate / 1024 ))
-				if (( videobitrate > CONF_VIDEOBITRATE )); then
+				if (( videobitrate > CONF_VIDEOBITRATE )) || (( videobitrate == 0 )); then
 					convert=true
 					limit=true
 				fi
@@ -649,49 +646,50 @@ for input in "${process[@]}"; do
 						command+=" -vstats_file \"${vstatsfile}\""
 					fi
 				fi
-				command+=" -map ${videomap} -c:v libx264"
+				command+=" -map ${videomap} -c:v:${x} libx264"
 				if ${resize}; then
-					command+=" -vf \"scale=${scale}:trunc(ow/a/2)*2\""
+					command+=" -filter_complex \"[${videomap}]scale=${scale}:trunc(ow/a/2)*2\""
 				fi
 				if [[ "${CONF_PRESET}" != "*" ]]; then
-					command+=" -preset ${CONF_PRESET}"
+					command+=" -preset:${x} ${CONF_PRESET}"
 				fi
 				if ${profile}; then
-					command+=" -profile:v ${CONF_PROFILE}"
+					command+=" -profile:v:${x} ${CONF_PROFILE}"
 				fi
 				if ${level}; then
-					command+=" -level ${CONF_LEVEL}"
+					command+=" -level:${x} ${CONF_LEVEL}"
 				fi
 				if [[ "${CONF_CRF}" != "*" ]]; then
-					command+=" -crf ${CONF_CRF}"
+					command+=" -crf:${x} ${CONF_CRF}"
 				fi
 				if ${limit}; then
-					command+=" -maxrate ${CONF_VIDEOBITRATE}k -bufsize ${CONF_VIDEOBITRATE}k"
+					command+=" -maxrate:${x} ${CONF_VIDEOBITRATE}k -bufsize:${x} $(( CONF_VIDEOBITRATE * 2 ))k"
 				fi
 				skip=false
 			else
-				command+=" -map ${videomap} -c:v copy"
+				command+=" -map ${videomap} -c:v:${x} copy"
 			fi
+			videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
 			if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-				videolang=$(echo "${videodata}" | grep -i "TAG:LANGUAGE=" | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 				if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
-					command+=" -metadata:s:v \"language=${CONF_DEFAULTLANGUAGE}\""
+					videolang="${CONF_DEFAULTLANGUAGE}"
 					skip=false
 				fi
 			fi
+			command+=" -metadata:s:v:${x} \"language=${videolang}\""
+			((x++))
 		done
-		filtered=() audiostreams=() boost=false
-		declare -A dualaudio=()
+		filtered=()
 		for ((i = 0; i < ${#audio[@]}; i++)); do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
 			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-			if [[ "$(echo "${audiodata}" | grep -i 'TAG:' | tr '[:upper:]' '[:lower:]')" =~ commentary ]]; then
+			if [[ "$(echo "${audiodata,,}" | grep -i 'TAG:')" =~ commentary ]]; then
 				filtered+=("${audio[${i}]}")
 				continue
 			fi
-			audiolang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+			audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 			if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 				audiolang="${CONF_DEFAULTLANGUAGE}"
 			fi
@@ -712,6 +710,8 @@ for input in "${process[@]}"; do
 				fi
 			fi
 		done
+		audiostreams=() boost=false
+		declare -A dualaudio=()
 		for ((i = 0; i < ${#audio[@]}; i++)); do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
@@ -728,46 +728,47 @@ for input in "${process[@]}"; do
 					continue
 				fi
 			fi
+			if ! ${CONF_DUALAUDIO}; then
+				if (( ${#audiostreams[@]} == 1 )); then
+					continue
+				fi
+			fi
 			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-			audiolang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+			audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 			if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 				audiolang="${CONF_DEFAULTLANGUAGE}"
 			fi
 			audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 			audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+			audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 			if ${CONF_DUALAUDIO}; then
 				aac=false ac3=false
 				if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
 					aac=${dualaudio[${audiolang}]%%:*}
 					ac3=${dualaudio[${audiolang}]#*:}
 				fi
-				if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
+				if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 					if ! ${aac}; then
 						aac=true
 						audiostreams+=("${audio[${i}]}")
 						dualaudio["${audiolang}"]="${aac}:${ac3}"
-						continue
 					fi
-				elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
+					continue
+				elif [[ "${audiocodec}" == "ac3" ]] && (( "${audiochannels}" == 6 )); then
 					if ! ${ac3}; then
 						ac3=true
 						audiostreams+=("${audio[${i}]}")
 						dualaudio["${audiolang}"]="${aac}:${ac3}"
-						continue
 					fi
-				fi
-			else
-				if (( ${#audiostreams[@]} == 1 )); then
 					continue
-				fi
-				if [[ "${audiocodec}" != "aac" ]] && (( audiochannels != 2 )); then
-					aac=false
+				else
+					aac=false ac3=false
 					for ((a = 0; a < ${#audio[@]}; a++)); do
 						if [[ -z "${audio[${a}]}" ]]; then
 							continue
 						fi
 						audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1)
-						lang=$(echo "${audiodata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 							lang="${CONF_DEFAULTLANGUAGE}"
 						fi
@@ -775,8 +776,43 @@ for input in "${process[@]}"; do
 							continue
 						fi
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
-						if [[ "${audiocodec}" == "aac" ]] && (( audiochannels == 2 )); then
+						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
+							aac=true
+							break
+						elif [[ "${audiocodec}" == "ac3" ]] && (( audiochannels == 6 )); then
+							ac3=true
+							break
+						fi
+					done
+					if ${aac} || ${ac3}; then
+						continue
+					else
+						if (( ${#audiostreams[@]} == 1 )); then
+							continue
+						fi
+					fi
+				fi
+			else
+				if [[ "${audiocodec}" != "aac" ]] || [[ "${audioprofile}" != "LC" ]] || (( audiochannels != 2 )); then
+					aac=false
+					for ((a = 0; a < ${#audio[@]}; a++)); do
+						if [[ -z "${audio[${a}]}" ]]; then
+							continue
+						fi
+						audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1)
+						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+							lang="${CONF_DEFAULTLANGUAGE}"
+						fi
+						if [[ "${lang}" != "${audiolang}" ]]; then
+							continue
+						fi
+						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 							aac=true
 							break
 						fi
@@ -786,66 +822,124 @@ for input in "${process[@]}"; do
 					fi
 				fi
 			fi
-			have=false
-			for ((a = 0; a < ${#audio[@]}; a++)); do
-				if [[ -z "${audio[${a}]}" ]]; then
-					continue
-				fi
-				for stream in "${audiostreams[@]}"; do
-					if [[ -z "${stream}" ]]; then
-						continue
-					fi
-					if [[ "${audio[${a}]}" != "${stream}" ]]; then
-						continue
-					fi
-					lang=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1 | \
-						grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-					if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-						lang="${CONF_DEFAULTLANGUAGE}"
-					fi
-					if [[ "${lang}" == "${audiolang}" ]]; then
-						have=true
-						break
-					fi
-				done
-				if ${have}; then
-					break
-				fi
-			done
-			if ${have}; then
-				continue
-			fi
 			audiostreams+=("${audio[${i}]}")
 		done
-		x=0
-		for ((i = 0; i < ${#audio[@]}; i++)); do
-			if [[ -z "${audio[${i}]}" ]]; then
+		streams=()
+		for language in "${CONF_LANGUAGES[@]}"; do
+			if [[ -z "${language}" ]]; then
 				continue
 			fi
+			for stream in "${audiostreams[@]}"; do
+				if [[ -z "${stream}" ]]; then
+					continue
+				fi
+				for ((i = 0; i < ${#audio[@]}; i++)); do
+					if [[ -z "${audio[${i}]}" ]]; then
+						continue
+					fi
+					if [[ "${audio[${i}]}" != "${stream}" ]]; then
+						continue
+					fi
+					audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+					audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
+							audiolang="${CONF_DEFAULTLANGUAGE}"
+						fi
+					fi
+					if [[ "${audiolang}" == "${language}" ]]; then
+						streams+=("${stream}")
+					fi
+				done
+			done
+		done
+		if [[ ! -z "${streams[@]}" ]] && [[ "${audiostreams[@]}" != "${streams[@]}" ]]; then
+			audiostreams=("${streams[@]}")
+			skip=false
+		fi
+		if ${CONF_DUALAUDIO}; then
+			streams=()
+			declare -A swap=()
 			for ((s = 0; s < ${#audiostreams[@]}; s++)); do
 				if [[ -z "${audiostreams[${s}]}" ]]; then
+					continue
+				fi
+				for ((i = 0; i < ${#audio[@]}; i++)); do
+					if [[ -z "${audio[${i}]}" ]]; then
+						continue
+					fi
+					if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
+						continue
+					fi
+					audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+					audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
+							audiolang="${CONF_DEFAULTLANGUAGE}"
+						fi
+					fi
+					aac=false ac3=false
+					if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
+						aac=${dualaudio[${audiolang}]%%:*}
+						ac3=${dualaudio[${audiolang}]#*:}
+					fi
+					if ${aac} && ${ac3}; then
+						unset aac ac3
+						if [[ ! -z "${swap[${audiolang}]}" ]]; then
+							aac=${swap[${audiolang}]%%;*}
+							ac3=${swap[${audiolang}]#*;}
+						fi
+						if [[ -z "${aac}" ]] || [[ -z "${ac3}" ]]; then
+							audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+							if [[ "${audiocodec}" == "aac" ]]; then
+								aac="${audiostreams[${s}]}"
+							else
+								ac3="${audiostreams[${s}]}"
+							fi
+							swap[${audiolang}]="${aac};${ac3}"
+						fi
+						if [[ ! -z "${aac}" ]] && [[ ! -z "${ac3}" ]]; then
+							streams+=("${aac}")
+							streams+=("${ac3}")
+						fi
+					else
+						streams+=("${audiostreams[${s}]}")
+					fi
+				done
+			done
+			if [[ ! -z "${streams[@]}" ]] && [[ "${audiostreams[@]}" != "${streams[@]}" ]]; then
+				audiostreams=("${streams[@]}")
+				skip=false
+			fi
+		fi
+		x=0
+		for ((s = 0; s < ${#audiostreams[@]}; s++)); do
+			if [[ -z "${audiostreams[${s}]}" ]]; then
+				continue
+			fi
+			for ((i = 0; i < ${#audio[@]}; i++)); do
+				if [[ -z "${audio[${i}]}" ]]; then
 					continue
 				fi
 				if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
 					continue
 				fi
-				tag=false
-				audiomap=$(echo "${audiostreams[${s}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+				audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 				if (( ${#audiomap} > 3 )); then
 					audiomap=${audiomap%:*}
 				fi
-				audiocodec=$(echo "${audiostreams[${s}]}" | awk '{print($4)}')
-				if [[ "${audiocodec}" == *, ]]; then
-					audiocodec=${audiocodec%?}
+				audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+				audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+				if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
+						audiolang="${CONF_DEFAULTLANGUAGE}"
+						skip=false
+					fi
 				fi
-				audiochannels=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | \
-					grep -x 'channels=.*' | sed 's/channels=//g')
-				audiolang=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1 | \
-					grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-				if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
-					audiolang="${CONF_DEFAULTLANGUAGE}"
-					tag=true
-				fi
+				audiobitrate=$(echo "${audiodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 				if ${CONF_DUALAUDIO}; then
 					aac=false ac3=false
 					if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
@@ -853,125 +947,124 @@ for input in "${process[@]}"; do
 						ac3=${dualaudio[${audiolang}]#*:}
 					fi
 					if ${aac} && ${ac3}; then
-						if [[ "${audiocodec}" == "aac" ]]; then
-							if (( x % 2 )); then
-								resetmap="${audiomap}"
-								found=false
-								for ((a = 0; a < ${#audiostreams[@]}; a++)); do
-									if [[ -z "${audiostreams[${a}]}" ]]; then
-										continue
-									fi
-									audiomap=$(echo "${audiostreams[${a}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
-									if (( ${#audiomap} > 3 )); then
-										audiomap=${audiomap%:*}
-									fi
-									audiocodec=$(echo "${audiostreams[${a}]}" | awk '{print($4)}')
-									if [[ "${audiocodec}" == *, ]]; then
-										audiocodec=${audiocodec%?}
-									fi
-									if [[ "${audiocodec}" == "ac3" ]]; then
-										found=true
-										break
-									fi
-								done
-								if ! ${found}; then
-									audiomap="${resetmap}"
-								fi
-								skip=false
-							fi
-							command+=" -map ${audiomap} -c:a:${x} copy"
-						elif [[ "${audiocodec}" == "ac3" ]]; then
-							if ! (( x % 2 )); then
-								resetmap="${audiomap}"
-								found=false
-								for ((a = 0; a < ${#audiostreams[@]}; a++)); do
-									if [[ -z "${audiostreams[${a}]}" ]]; then
-										continue
-									fi
-									audiomap=$(echo "${audiostreams[${a}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
-									if (( ${#audiomap} > 3 )); then
-										audiomap=${audiomap%:*}
-									fi
-									audiocodec=$(echo "${audiostreams[${a}]}" | awk '{print($4)}')
-									if [[ "${audiocodec}" == *, ]]; then
-										audiocodec=${audiocodec%?}
-									fi
-									if [[ "${audiocodec}" == "aac" ]]; then
-										found=true
-										break
-									fi
-								done
-								if ! ${found}; then
-									audiomap="${resetmap}"
-								fi
-								skip=false
-							fi
-							command+=" -map ${audiomap} -c:a:${x} copy"
-						fi
+						command+=" -map ${audiomap} -c:a:${x} copy"
 					else
 						if [[ "${audiocodec}" == "aac" ]]; then
-							if (( audiochannels > 2 )); then
-								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:0 160k"
-								boost=true
-								if ${tag} && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-									command+=" -metadata:s:a:${x} \"language=${CONF_DEFAULTLANGUAGE}\""
+							if [[ "${audioprofile}" == "LC" ]]; then
+								if (( audiochannels > 2 )); then
+									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
+									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+										command+=" -ab:a:${x} 128k"
+									fi
+									boost=true
+									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									((x++))
+									command+=" -map ${audiomap} -c:a:${x} ac3"
+									if (( audiochannels > 6 )); then
+										command+=" -ac:a:${x} 6"
+									fi
+									skip=false
+								else
+									command+=" -map ${audiomap} -c:a:${x} copy"
 								fi
-								((x++))
-								command+=" -map ${audiomap} -c:a:${x} ac3"
-								skip=false
 							else
-								command+=" -map ${audiomap} -c:a:${x} copy"
+								if (( audiochannels > 2 )); then
+									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
+									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+										command+=" -ab:a:${x} 128k"
+									fi
+									boost=true
+									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									((x++))
+									command+=" -map ${audiomap} -c:a:${x} ac3"
+									if (( audiochannels > 6 )); then
+										command+=" -ac:a:${x} 6"
+									fi
+								else
+									command+=" -map ${audiomap} -c:a:${x} aac"
+								fi
+								skip=false
 							fi
 						elif [[ "${audiocodec}" == "ac3" ]]; then
 							if (( audiochannels > 2 )); then
-								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:0 160k"
-								boost=true
-								if ${tag} && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-									command+=" -metadata:s:a:${x} \"language=${CONF_DEFAULTLANGUAGE}\""
+								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
+								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ab:a:${x} 128k"
 								fi
+								boost=true
+								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
-								command+=" -map ${audiomap} -c:a:${x} copy"
+								if (( audiochannels > 6 )); then
+									command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
+								else
+									command+=" -map ${audiomap} -c:a:${x} copy"
+								fi
 							else
 								command+=" -map ${audiomap} -c:a:${x} aac"
+								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ab:a:${x} 128k"
+								fi
 							fi
 							skip=false
 						else
 							if (( audiochannels > 2 )); then
-								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:0 160k"
-								boost=true
-								if ${tag} && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-									command+=" -metadata:s:a:${x} \"language=${CONF_DEFAULTLANGUAGE}\""
+								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
+								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ab:a:${x} 128k"
 								fi
+								boost=true
+								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
 								command+=" -map ${audiomap} -c:a:${x} ac3"
+								if (( audiochannels > 6 )); then
+									command+=" -ac:a:${x} 6"
+								fi
 							else
 								command+=" -map ${audiomap} -c:a:${x} aac"
+								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ab:a:${x} 128k"
+								fi
 							fi
 							skip=false
 						fi
 					fi
 				else
 					if [[ "${audiocodec}" == "aac" ]]; then
-						if (( audiochannels > 2 )); then
-							command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2 -ab:a:${x} 160k"
+						if [[ "${audioprofile}" == "LC" ]]; then
+							if (( audiochannels > 2 )); then
+								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
+								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ab:a:${x} 128k"
+								fi
+								boost=true
+								skip=false
+							else
+								command+=" -map ${audiomap} -c:a:${x} copy"
+							fi
+						else
+							command+=" -map ${audiomap} -c:a:${x} aac"
+							if (( audiochannels > 2 )); then
+								command+=" -ac:a:${x} 2"
+							fi
+							if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+								command+=" -ab:a:${x} 128k"
+							fi
 							boost=true
 							skip=false
-						else
-							command+=" -map ${audiomap} -c:a:${x} copy"
 						fi
 					else
 						command+=" -map ${audiomap} -c:a:${x} aac"
 						if (( audiochannels > 2 )); then
-							command+=" -ac:a:${x} 2 -ab:a:${x} 160k"
-							boost=true
+							command+=" -ac:a:${x} 2"
 						fi
+						if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+							command+=" -ab:a:${x} 128k"
+						fi
+						boost=true
 						skip=false
 					fi
 				fi
-				if ${tag} && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-					command+=" -metadata:s:a:${x} \"language=${CONF_DEFAULTLANGUAGE}\""
-					skip=false
-				fi
+				command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 				((x++))
 			done
 		done
@@ -983,7 +1076,9 @@ for input in "${process[@]}"; do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
-			if [[ "${audio[${i}]}" =~ default ]]; then
+			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+			default=$(echo "${audiodata}" | grep -x 'DISPOSITION:default=.*' | sed 's/DISPOSITION:default=//g')
+			if (( default == 1 )); then
 			 	((x++))
 			fi
 		done
@@ -991,97 +1086,167 @@ for input in "${process[@]}"; do
 			skip=false
 		fi
 		if ${CONF_SUBTITLES}; then
+			filtered=()
+			for ((i = 0; i < ${#subtitle[@]}; i++)); do
+				if [[ -z "${subtitle[${i}]}" ]]; then
+					continue
+				fi
+				subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
+					subtitlelang="${CONF_DEFAULTLANGUAGE}"
+				fi
+				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed 's/DISPOSITION:forced=//g')
+				if [[ "${subtitledata,,}" =~ tag:.*forced ]] || (( forced == 1 )); then
+					filtered+=("${subtitle[${i}]}")
+					continue
+				fi
+				subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+				if [[ "${subtitlecodec}" == pgssub ]]; then
+					filtered+=("${subtitle[${i}]}")
+					continue
+				fi
+				if [[ "${CONF_LANGUAGES}" != "*" ]]; then
+					allow=false
+					for language in "${CONF_LANGUAGES[@]}"; do
+						if [[ -z "${language}" ]]; then
+							continue
+						fi
+						if [[ "${subtitlelang}" == "${language}" ]]; then
+							allow=true
+							break
+						fi
+					done
+					if ! ${allow}; then
+						filtered+=("${subtitle[${i}]}")
+						continue
+					fi
+				fi
+			done
 			subtitlestreams=()
 			for ((i = 0; i < ${#subtitle[@]}; i++)); do
 				if [[ -z "${subtitle[${i}]}" ]]; then
 					continue
 				fi
-				if [[ "${CONF_LANGUAGES}" != "*" ]]; then
-					subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
-					subtitlelang=$(echo "${subtitledata}" | grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-					if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
-						subtitlelang="${CONF_DEFAULTLANGUAGE}"
+				allow=true
+				for filter in "${filtered[@]}"; do
+					if [[ "${filter}" == "${subtitle[${i}]}" ]]; then
+						allow=false
+						break
 					fi
-					if [[ "${subtitle[${i}]}" =~ hdmv_pgs_subtitle ]]; then
-						continue
-					fi
-					have=false
-					for ((s = 0; s < ${#subtitlestreams[@]}; s++)); do
-						if [[ -z "${subtitlestreams[${s}]}" ]]; then
-							continue
-						fi
-						lang=$(ffprobe "${file}" -show_streams -select_streams s:${s} 2>&1 | \
-							grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-							lang="${CONF_DEFAULTLANGUAGE}"
-						fi
-						if [[ "${lang}" == "${subtitlelang}" ]]; then
-							have=true
-						fi
-					done
-					if ${have}; then
-						continue
-					fi
-					if [[  "${subtitlelang}" == "${CONF_DEFAULTLANGUAGE}" ]] && [[ ${subtitle[${i}],,} =~ forced ]] || [[ "${subtitlelang}" == "${CONF_DEFAULTLANGUAGE}" ]] && [[ $(echo "${subtitledata}" | grep -i 'TAG:TITLE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:title=//g') =~ forced ]]; then
-						subtitlestreams+=("${subtitle[${i}]}")
-						continue
-					fi
-					for ((l = 0; l < ${#CONF_LANGUAGES[@]}; l++)); do
-						if [[ -z "${CONF_LANGUAGES[${l}]}" ]]; then
-							continue
-						fi
-						if [[ "${subtitlelang}" == "${CONF_LANGUAGES[${l}]}" ]]; then
-							subtitlestreams+=("${subtitle[${i}]}")
-						fi
-					done
-				else
-					subtitlestreams+=("${subtitle[${i}]}")
-				fi
-			done
-			for ((i = 0; i < ${#subtitle[@]}; i++)); do
-				if [[ -z "${subtitle[${i}]}" ]]; then
+				done
+				if ! ${allow}; then
 					continue
 				fi
+				subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
+					subtitlelang="${CONF_DEFAULTLANGUAGE}"
+				fi
+				have=false
 				for ((s = 0; s < ${#subtitlestreams[@]}; s++)); do
 					if [[ -z "${subtitlestreams[${s}]}" ]]; then
+						continue
+					fi
+					lang=$(ffprobe "${file}" -show_streams -select_streams s:${s} 2>&1 | \
+						grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
+					if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+						lang="${CONF_DEFAULTLANGUAGE}"
+					fi
+					if [[ "${lang}" == "${subtitlelang}" ]]; then
+						have=true
+					fi
+				done
+				if ${have}; then
+					continue
+				fi
+				subtitlestreams+=("${subtitle[${i}]}")
+			done
+			streams=()
+			for language in "${CONF_LANGUAGES[@]}"; do
+				if [[ -z "${language}" ]]; then
+					continue
+				fi
+				for stream in "${subtitlestreams[@]}"; do
+					if [[ -z "${stream}" ]]; then
+						continue
+					fi
+					for ((i = 0; i < ${#subtitle[@]}; i++)); do
+						if [[ -z "${subtitle[${i}]}" ]]; then
+							continue
+						fi
+						if [[ "${subtitle[${i}]}" != "${stream}" ]]; then
+							continue
+						fi
+						subtitledata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+						subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+						if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+							if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
+								subtitlelang="${CONF_DEFAULTLANGUAGE}"
+							fi
+						fi
+						if [[ "${subtitlelang}" == "${language}" ]]; then
+							streams+=("${stream}")
+						fi
+					done
+				done
+			done
+			if [[ ! -z "${streams[@]}" ]] && [[ "${subtitlestreams[@]}" != "${streams[@]}" ]]; then
+				subtitlestreams=("${streams[@]}")
+				skip=false
+			fi
+			x=0
+			for ((s = 0; s < ${#subtitlestreams[@]}; s++)); do
+				if [[ -z "${subtitlestreams[${s}]}" ]]; then
+					continue
+				fi
+				for ((i = 0; i < ${#subtitle[@]}; i++)); do
+					if [[ -z "${subtitle[${i}]}" ]]; then
 						continue
 					fi
 					if [[ "${subtitle[${i}]}" != "${subtitlestreams[${s}]}" ]]; then
 						continue
 					fi
-					subtitlemap=$(echo "${subtitlestreams[${s}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+					subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 					if (( ${#subtitlemap} > 3 )); then
 						subtitlemap=${subtitlemap%:*}
 					fi
-					subtitlecodec=$(echo "${subtitlestreams[${s}]}" | awk '{print($4)}')
-					if [[ "${subtitlecodec}" == *, ]]; then
-						subtitlecodec=${subtitlecodec%?}
-					fi
+					subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 					if [[ "${subtitlecodec}" == "mov_text" ]]; then
-						command+=" -map ${subtitlemap} -c:s:${s} copy"
+						command+=" -map ${subtitlemap} -c:s:${x} copy"
 					else
-						command+=" -map ${subtitlemap} -c:s:${s} mov_text"
+						command+=" -map ${subtitlemap} -c:s:${x} mov_text"
 						skip=false
 					fi
+					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-						subtitlelang=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1 | \
-							grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
 						if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
-							command+=" -metadata:s:s:${s} \"language=${CONF_DEFAULTLANGUAGE}\""
+							subtitlelang="${CONF_DEFAULTLANGUAGE}"
 							skip=false
 						fi
 					fi
+					command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
 				done
 			done
-			if [[ "${command}" =~ -c:s ]]; then
+			if [[ "${command}" =~ mov_text ]]; then
 				command="${command//-i/-fix_sub_duration\ -i}"
 			fi
 		else
-			if [[ ! -z "${subtitle}" ]] && (( ${#subtitle[@]} > 0 )); then
+			if [[ ! -z "${subtitle[@]}" ]] && (( ${#subtitle[@]} > 0 )); then
 				command+=" -sn"
+				skip=false
 			fi
 		fi
-		command+=" -f ${CONF_FORMAT} -movflags +faststart -strict experimental -y \"${tmpfile}\""
+		title=$(ffprobe "${file}" -show_format -show_streams 2>&1 | grep -x 'TAG:title=.*' | sed 's/TAG:title=//g')
+		if [[ ! -z "${title}" ]]; then
+			skip=false
+		fi
+		chapters=$(echo "${data}" | grep -x '.* Chapter #.*: start .*, end .*')
+		if [[ ! -z "${chapters}" ]]; then
+			skip=false
+		fi
+		command+=" -map_metadata -1 -map_chapters -1 -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
 		if ${skip}; then
 			echo "File does not need to be converted"
 			skipped=true && continue
@@ -1191,7 +1356,7 @@ for input in "${process[@]}"; do
 				fi
 				command+=" -map ${subtitlemap} -c:s:${i} copy"
 			done
-			command+=" -f ${CONF_FORMAT} -movflags +faststart -strict experimental -y \"${tmpfile}\""
+			command+=" -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict experimental -y \"${tmpfile}\""
 			if ${boost}; then
 				mv "${tmpfile}" "${boostedfile}"
 				TMPFILES+=("${boostedfile}")
