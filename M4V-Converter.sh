@@ -631,13 +631,10 @@ for input in "${process[@]}"; do
 				fi
 			fi
 			if ${convert}; then
-				if hash bc 2>/dev/null && ${CONF_VERBOSE}; then
+				if ${CONF_VERBOSE}; then
 					fps=$(echo "${data}" | sed -n "s/.*, \(.*\) tbr.*/\1/p")
-					dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p")
-					hrs=$(echo "${dur}" | cut -d":" -f1)
-					min=$(echo "${dur}" | cut -d":" -f2)
-					sec=$(echo "${dur}" | cut -d":" -f3)
-					total=$(echo "(${hrs}*3600+${min}*60+${sec})*${fps}" | head -1 | bc | cut -d"." -f1)
+					dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
+					total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
 					if (( total > 0 )); then
 						vstatsfile="${newfile}.vstats"
 						if [[ -e "${vstatsfile}" ]]; then
@@ -1262,9 +1259,9 @@ for input in "${process[@]}"; do
 		TMPFILES+=("${tmpfile}")
 		eval "${command} &" &>/dev/null
 		PID=${!}
+		currentframe=0 percentage=0 oldpercentage=0 elapsed=0 rate=0 eta=0
 		if (( total > 0 )); then
 			TMPFILES+=("${vstatsfile}") totalframes="${total}" start=$(date +%s)
-			currentframe=0 percentage=0 oldpercentage=0
 			while ps -p ${PID} &>/dev/null; do
 				if [[ -e "${vstatsfile}" ]]; then
 					vstats=$(awk '{gsub(/frame=/, "")}/./{line=$1-1} END{print line}' "${vstatsfile}")
