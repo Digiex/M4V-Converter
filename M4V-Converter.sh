@@ -1389,7 +1389,7 @@ else
 		mark ${FAILURE}
 	else
 		if ! ${skipped}; then
-			mark ${SKIPPED}
+			mark ${FAILURE}
 		fi
 	fi
 fi
