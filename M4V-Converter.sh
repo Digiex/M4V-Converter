@@ -251,17 +251,13 @@ else
 	if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
 		exit ${SKIPPED}
 	fi
-	samplesize=${NZBPO_CLEANUP_SIZE:-0}
+	samplesize="${NZBPO_CLEANUP_SIZE:=0}"
 	if (( samplesize > 0 )); then
 		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)"
 		if [[ ! -z "${samples[@]}" ]]; then
-			nzbsize=$(( $(du -s "${NZBPP_DIRECTORY}" | awk '{print($1)}') * 1024 ))
-			samplesize=$(( samplesize * 1024 * 1024 ))
-			if (( nzbsize > samplesize )); then
-				for file in "${samples[@]}"; do
-					rm "${file}"
-				done
-			fi
+			for file in "${samples[@]}"; do
+				rm "${file}"
+			done
 		fi
 	fi
 	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
