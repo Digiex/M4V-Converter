@@ -598,13 +598,11 @@ for input in "${process[@]}"; do
 								grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
 							audiobitrate=$(( audiobitrate + bitrate ))
 						done
-						if (( audiobitrate > 0 ));  then
-							videobitrate=$(( globalbitrate - audiobitrate ))
-						fi
+						videobitrate=$(( globalbitrate - audiobitrate ))
 					fi
 				fi
 				videobitrate=$(( videobitrate / 1024 ))
-				if (( videobitrate > CONF_VIDEOBITRATE )) || (( videobitrate == 0 )); then
+				if (( videobitrate > CONF_VIDEOBITRATE )); then
 					convert=true
 					limit=true
 				fi
