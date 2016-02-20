@@ -96,8 +96,6 @@
 
 # Copy Subtitles (true, false).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
-#
-# NOTE: Disable if you use Plex or such to download subtitles.
 #Subtitles=true
 
 # File Format (MP4, MOV).
@@ -1221,7 +1219,7 @@ for input in "${process[@]}"; do
 				done
 			done
 			if [[ "${command}" =~ mov_text ]]; then
-				command="${command//-i/-fix_sub_duration\ -i}"
+				command="${command//-i ${file}/-fix_sub_duration -i ${file}}"
 			fi
 		else
 			if [[ ! -z "${subtitle[@]}" ]] && (( ${#subtitle[@]} > 0 )); then
