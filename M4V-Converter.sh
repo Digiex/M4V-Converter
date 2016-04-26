@@ -71,7 +71,7 @@
 # Video Resolution (*).
 # This will resize and convert the video if it exceeds this value.
 #
-# NOTE: Ex. 1280x720, 1280:720
+# NOTE: Ex. 720p, 1280x720, 1280:720
 #
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Scaling%20%28resizing%29%20with%20ffmpeg
@@ -399,6 +399,12 @@ fi
 CONF_RESOLUTION=${CONF_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
 CONF_RESOLUTION=${CONF_RESOLUTION,,}
 if [[ ! -z "${CONF_RESOLUTION}" ]]; then
+	case "${CONF_RESOLUTION,,}" in
+		480p) CONF_RESOLUTION=640x480 ;;
+		720p) CONF_RESOLUTION=1280x720 ;; 
+		1080p) CONF_RESOLUTION=1920x1080 ;; 
+		2160p) CONF_RESOLUTION=3840x2160 ;;
+	esac
 	if [[ ! "${CONF_RESOLUTION}" =~ [x|:] ]] || [[ ! "${CONF_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
 		echo "Resolution is incorrectly configured"
 		exit ${CONFIG}
