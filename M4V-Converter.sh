@@ -1091,7 +1091,7 @@ for input in "${process[@]}"; do
 					continue
 				fi
 				subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-				if [[ "${subtitlecodec}" == pgssub ]]; then
+				if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]]; then
 					filtered+=("${subtitle[${i}]}")
 					continue
 				fi
