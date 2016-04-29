@@ -1,9 +1,14 @@
 #!/bin/bash
 
-sudo apt-get update
-sudo apt-get -y --force-yes install autoconf automake build-essential libass-dev libfreetype6-dev libgpac-dev \
-	libsdl1.2-dev libtheora-dev libtool libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
-	libxcb-xfixes0-dev pkg-config texi2html zlib1g-dev cmake mercurial nasm
+if [[ $(whoami) != "root" ]]; then
+  echo "You must be root to run this script."
+  exit 1
+fi
+
+apt-get update
+apt-get -y install autoconf automake build-essential libass-dev libfreetype6-dev \
+  libtheora-dev libtool libvorbis-dev pkg-config texinfo zlib1g-dev
+
 mkdir ~/ffmpeg_sources
 
 cd ~/ffmpeg_sources
@@ -14,7 +19,7 @@ cd yasm-1.3.0
 make
 make install
 make distclean
-	
+
 cd ~/ffmpeg_sources
 wget http://download.videolan.org/pub/x264/snapshots/last_x264.tar.bz2
 tar xjvf last_x264.tar.bz2
@@ -24,6 +29,7 @@ PATH="$HOME/bin:$PATH" make
 make install
 make distclean
 
+sudo apt-get -y install cmake mercurial
 cd ~/ffmpeg_sources
 hg clone https://bitbucket.org/multicoreware/x265
 cd ~/ffmpeg_sources/x265/build/linux
@@ -42,6 +48,7 @@ make
 make install
 make distclean
 
+sudo apt-get -y install nasm
 cd ~/ffmpeg_sources
 wget http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz
 tar xzvf lame-3.99.5.tar.gz
@@ -58,21 +65,26 @@ cd opus-1.1
 ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 make
 make install
-make distclean
+make clean
 
 cd ~/ffmpeg_sources
-wget http://storage.googleapis.com/downloads.webmproject.org/releases/webm/libvpx-1.4.0.tar.bz2
-tar xjvf libvpx-1.4.0.tar.bz2
-cd libvpx-1.4.0
+wget http://storage.googleapis.com/downloads.webmproject.org/releases/webm/libvpx-1.5.0.tar.bz2
+tar xjvf libvpx-1.5.0.tar.bz2
+cd libvpx-1.5.0
 PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --disable-examples --disable-unit-tests
 PATH="$HOME/bin:$PATH" make
 make install
 make clean
 
 cd ~/ffmpeg_sources
-wget http://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2
-tar xjvf ffmpeg-snapshot.tar.bz2
-cd ffmpeg
+wget http://ffmpeg.org/releases/ffmpeg-3.0.2.tar.bz2
+tar xjvf ffmpeg-3.0.2.tar.bz2
+cd ffmpeg-3.0.2
+
+# Fixes multiple audio streams being default
+wget https://gist.githubusercontent.com/outlyer/4a88f1adb7f895b93fd9/raw/d9fd474cd1c1477f1bdf31a492662d9013b0793e/ffmpeg-3.0-defaultstreams.patch
+patch libavformat/movenc.c < ffmpeg-3.0-defaultstreams.patch
+
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
   --prefix="$HOME/ffmpeg_build" \
   --pkg-config-flags="--static" \
@@ -102,5 +114,3 @@ cp "$HOME"/ffmpeg_build/bin/* /usr/local/bin/
 rm -rf "$HOME"/bin
 rm -rf "$HOME"/ffmpeg_build
 rm -rf "$HOME"/ffmpeg_sources
-
-echo "Finished!"
