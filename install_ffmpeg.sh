@@ -29,7 +29,7 @@ PATH="$HOME/bin:$PATH" make
 make install
 make distclean
 
-sudo apt-get -y install cmake mercurial
+apt-get -y install cmake mercurial
 cd ~/ffmpeg_sources
 hg clone https://bitbucket.org/multicoreware/x265
 cd ~/ffmpeg_sources/x265/build/linux
@@ -48,7 +48,7 @@ make
 make install
 make distclean
 
-sudo apt-get -y install nasm
+apt-get -y install nasm
 cd ~/ffmpeg_sources
 wget http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz
 tar xzvf lame-3.99.5.tar.gz
