@@ -192,7 +192,7 @@ usage() {
 
 	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
-    exit ${FAILURE}
+	exit ${FAILURE}
 }
 
 force() {
@@ -511,7 +511,7 @@ progress() {
 	while ps -p "${PID}" &>/dev/null; do
 		sleep 2
 		if [[ -e "${STATSFILE}" ]]; then
-			FRAME=$(tac "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed 's/[^0-9]//g')
+			FRAME=$(tail -n 11 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
 			if (( FRAME > CURRENTFRAME )); then
 				CURRENTFRAME=${FRAME}
 				PERCENTAGE=$(( 100 * CURRENTFRAME / TOTALFRAMES ))
@@ -652,7 +652,7 @@ for input in "${process[@]}"; do
 			fi
 			level=false
 			if [[ "${CONF_LEVEL}" != "*" ]]; then
-				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/[^0-9]//g')
+				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed -E 's/[^0-9]//g')
 				if (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
 					convert=true
 					level=true
@@ -687,7 +687,7 @@ for input in "${process[@]}"; do
 					scale=${height}
 				fi
 				if [[ ! -z "${scale}" ]]; then
-					videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed 's/[^0-9]//g')
+					videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed -E 's/[^0-9]//g')
 					if (( videowidth > scale )); then
 						convert=true
 						resize=true
@@ -804,7 +804,7 @@ for input in "${process[@]}"; do
 				audiolang="${CONF_DEFAULTLANGUAGE}"
 			fi
 			audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-			audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
+			audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
 			audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 			if ${CONF_DUALAUDIO}; then
 				aac=false ac3=false
@@ -842,7 +842,7 @@ for input in "${process[@]}"; do
 						fi
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
 						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 							aac=true
 							break
@@ -876,7 +876,7 @@ for input in "${process[@]}"; do
 						fi
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
 						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 							aac=true
 							break
@@ -996,7 +996,7 @@ for input in "${process[@]}"; do
 				fi
 				audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
+				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
 				audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
@@ -1159,7 +1159,7 @@ for input in "${process[@]}"; do
 				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
 				fi
-				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed 's/[^0-9]//g')
+				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed -E 's/[^0-9]//g')
 				if [[ "${subtitledata,,}" =~ tag:.*forced ]] || (( forced == 1 )); then
 					filtered+=("${subtitle[${i}]}")
 					continue
