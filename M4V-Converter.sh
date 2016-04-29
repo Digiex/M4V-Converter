@@ -92,7 +92,7 @@
 
 # Normalize Audio (true, false).
 # This will normalize audio if needed due to downmixing 5.1 to 2.0.
-#Normalize=true
+#Normalize=false
 
 # Copy Subtitles (true, false).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
@@ -127,18 +127,35 @@
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
 
-if [[ -z "${NZBOP_SCRIPTDIR}" ]]; then
-	SUCCESS=0
-	FAILURE=1
-	SKIPPED=2
-	DEPEND=3
-	CONFIG=4
-else
+NZBGET=false
+SABNZBD=false
+
+SUCCESS=0
+FAILURE=1
+SKIPPED=2
+DEPEND=3
+CONFIG=4
+
+if [[ ! -z "${NZBOP_SCRIPTDIR}" ]]; then
 	SUCCESS=93
 	FAILURE=94
 	SKIPPED=95
 	DEPEND=94
 	CONFIG=94
+	NZBGET=true
+else
+	if (( ${#} == 7 )) || (( ${#} == 8 )); then
+		if [[ -e "${1}" ]] && [[ -d "${1}" ]]; then
+			if [[ "${7}" =~ ^-?[0-9]+$ ]] && (( ${7} > -1 || ${7} <= 3 )); then
+				SUCCESS=0
+				FAILURE=1
+				SKIPPED=0
+				DEPEND=2
+				CONFIG=3
+				SABNZBD=true
+			fi
+		fi
+	fi
 fi
 
 usage() {
@@ -210,7 +227,44 @@ if ! hash ffprobe 2>/dev/null; then
 	exit ${DEPEND}
 fi
 
-if [[ -z "${NZBOP_SCRIPTDIR}" ]]; then
+if ${NZBGET}; then
+	if [[ -z "${NZBPP_TOTALSTATUS}" ]]; then
+		echo "Sorry, you do not have NZBGET version 13.0 or later."
+		exit ${DEPEND}
+	fi
+	if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
+		exit ${SKIPPED}
+	fi
+	samplesize=${NZBPO_CLEANUP_SIZE:-0}
+	if (( samplesize > 0 )); then
+		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)"
+		if [[ ! -z "${samples[@]}" ]]; then
+			for file in "${samples[@]}"; do
+				rm -f "${file}"
+			done
+		fi
+	fi
+	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
+	if [[ ! -z "${extensions[@]}" ]]; then
+		readarray -t files <<< "$(find "${NZBPP_DIRECTORY}" -type f)"
+		if [[ ! -z "${files[@]}" ]]; then
+			for file in "${files[@]}"; do
+				for ext in "${extensions[@]}"; do
+					if [[ "${file##*.}" == "${ext//./}" ]]; then
+						rm -f "${file}"
+						break
+					fi
+				done
+			done
+		fi
+	fi
+	process+=("${NZBPP_DIRECTORY}")
+elif ${SABNZBD}; then
+	if ! (( ${7} == 0 )); then
+		exit ${SKIPPED}
+	fi
+	process+=("${1}")
+else
 	while getopts hvdi:c:-: opts; do
 		case ${opts,,} in
 			h) usage ;;
@@ -245,34 +299,6 @@ if [[ -z "${NZBOP_SCRIPTDIR}" ]]; then
 			*) usage ;;
 		esac
 	done
-else
-	if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
-		exit ${SKIPPED}
-	fi
-	samplesize="${NZBPO_CLEANUP_SIZE:=0}"
-	if (( samplesize > 0 )); then
-		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)"
-		if [[ ! -z "${samples[@]}" ]]; then
-			for file in "${samples[@]}"; do
-				rm "${file}"
-			done
-		fi
-	fi
-	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
-	if [[ ! -z "${extensions[@]}" ]]; then
-		readarray -t files <<< "$(find "${NZBPP_DIRECTORY}" -type f)"
-		if [[ ! -z "${files[@]}" ]]; then
-			for file in "${files[@]}"; do
-				for ext in "${extensions[@]}"; do
-					if [[ "${file##*.}" == "${ext//./}" ]]; then
-						rm "${file}"
-						break
-					fi
-				done
-			done
-		fi
-	fi
-	process+=("${NZBPP_DIRECTORY}")
 fi
 
 if [[ ! -z "${CONF_FILE}" ]]; then
@@ -429,7 +455,7 @@ case "${CONF_DUALAUDIO}" in
 esac
 
 CONF_NORMALIZE=${CONF_NORMALIZE:-${NZBPO_NORMALIZE:-${NORMALIZE}}}
-: "${CONF_NORMALIZE:=true}"
+: "${CONF_NORMALIZE:=false}"
 CONF_NORMALIZE=${CONF_NORMALIZE,,}
 case "${CONF_NORMALIZE}" in
 	true) ;;
@@ -474,6 +500,44 @@ esac
 if (( ${#process[@]} == 0 )); then
 	usage
 fi
+
+progress() {
+	START=$(date +%s) PROGRESSED=false CURRENTFRAME=0 PERCENTAGE=0 RATE=0 ETA=0 ELAPSED=0
+	local TOTALFRAMES=${2} FRAME=0 OLDPERCENTAGE=0
+	case ${1} in
+		1) local TYPE="Converting" ;;
+		2) local TYPE="Boosting" ;;
+	esac
+	while ps -p "${PID}" &>/dev/null; do
+		sleep 2
+		if [[ -e "${STATSFILE}" ]]; then
+			FRAME=$(tac "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed 's/[^0-9]//g')
+			if (( FRAME > CURRENTFRAME )); then
+				CURRENTFRAME=${FRAME}
+				PERCENTAGE=$(( 100 * CURRENTFRAME / TOTALFRAMES ))
+			fi
+			if (( PERCENTAGE > OLDPERCENTAGE )); then
+				OLDPERCENTAGE=${PERCENTAGE}
+				ELAPSED=$(( $(date +%s) - START ))
+				RATE=$(( TOTALFRAMES / ELAPSED ))
+				ETA=$(awk "BEGIN{print int((${ELAPSED} / ${CURRENTFRAME}) * (${TOTALFRAMES} - ${CURRENTFRAME}))}")
+				case "${OSTYPE}" in
+					linux-gnu)
+						ETA=$(date -d @"${ETA}" -u +%H:%M:%S 2>&1)
+						ELAPSED=$(date -d @"${ELAPSED}" -u +%H:%M:%S 2>&1)
+					;;
+					darwin*)
+						ETA=$(date -r "${ETA}" -u +%H:%M:%S 2>&1)
+						ELAPSED=$(date -r "${ELAPSED}" -u +%H:%M:%S 2>&1)
+					;;
+				esac
+				echo "${TYPE}... ${PERCENTAGE}% ETA: ${ETA}"
+				PROGRESSED=true
+			fi
+		fi
+	done
+}
+
 success=false failure=false skipped=false
 for input in "${process[@]}"; do
 	if [[ -z "${input}" ]]; then
@@ -518,6 +582,9 @@ for input in "${process[@]}"; do
 		fi
 		newfile="${directoryname}/${newname}"
 		tmpfile="${newfile}.tmp"
+		if [[ -e "${tmpfile}" ]]; then
+			rm -f "${tmpfile}"
+		fi
 		data="$(ffprobe "${file}" 2>&1)"
 		video="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 		if [[ -z "${video}" ]]; then
@@ -540,7 +607,7 @@ for input in "${process[@]}"; do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
 			fi
-			videodata=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1)
+			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			if [[ $(echo "${videodata,,}" | grep -x '.*mimetype=.*' | sed 's/.*mimetype=//g') == image/* ]]; then
 				filtered+=("${video[${i}]}")
 				continue
@@ -564,7 +631,7 @@ for input in "${process[@]}"; do
 				fi
 			fi
 			convert=false
-			videodata=$(ffprobe "${file}" -show_streams -select_streams v:${i} 2>&1)
+			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 			if (( ${#videomap} > 3 )); then
 				videomap=${videomap%:*}
@@ -585,7 +652,7 @@ for input in "${process[@]}"; do
 			fi
 			level=false
 			if [[ "${CONF_LEVEL}" != "*" ]]; then
-				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/level=//g')
+				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed 's/[^0-9]//g')
 				if (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
 					convert=true
 					level=true
@@ -593,13 +660,12 @@ for input in "${process[@]}"; do
 			fi
 			limit=false
 			if (( CONF_VIDEOBITRATE > 0 )); then
-				videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+				videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed -E 's/[^0-9]//g')
 				if (( videobitrate == 0 )); then
-					globalbitrate=$(ffprobe "${file}" -show_format 2>&1 | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+					globalbitrate=$(ffprobe "${file}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
 					if (( globalbitrate > 0 )); then
 						for ((a = 0; a < ${#audio[@]}; a++)); do
-							bitrate=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1 | \
-								grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+							bitrate=$(ffprobe "${file}" -v quiet -select_streams a:${a} -show_entries stream=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
 							audiobitrate=$(( audiobitrate + bitrate ))
 						done
 						videobitrate=$(( globalbitrate - audiobitrate ))
@@ -621,26 +687,30 @@ for input in "${process[@]}"; do
 					scale=${height}
 				fi
 				if [[ ! -z "${scale}" ]]; then
-					videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed 's/width=//g')
+					videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed 's/[^0-9]//g')
 					if (( videowidth > scale )); then
 						convert=true
 						resize=true
 					fi	
 				fi
 			fi
-			if ${convert}; then
-				if ${CONF_VERBOSE}; then
-					fps=$(echo "${data}" | sed -n "s/.*, \(.*\) tbr.*/\1/p")
+			if ${CONF_VERBOSE}; then
+				total=$(echo "${videodata}" | grep -x 'nb_frames=.*' | sed -E 's/[^0-9]//g')
+				if [[ -z "${total}" ]]; then
+					fps=$(echo "${data}" | sed -n "s/.*, \(.*\) fps.*/\1/p")
 					dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
 					total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
-					if (( total > 0 )); then
-						vstatsfile="${newfile}.vstats"
-						if [[ -e "${vstatsfile}" ]]; then
-							rm "${vstatsfile}"
-						fi
-						command+=" -vstats_file \"${vstatsfile}\""
-					fi
 				fi
+				if (( total > 0 )); then
+					STATSFILE="${newfile}.stats"
+					if [[ -e "${STATSFILE}" ]]; then
+						rm -f "${STATSFILE}"
+					fi
+					TMPFILES+=("${STATSFILE}")
+					command+=" -progress \"${STATSFILE}\""
+				fi
+			fi
+			if ${convert}; then
 				command+=" -map ${videomap} -c:v:${x} libx264"
 				if ${resize}; then
 					command+=" -filter_complex \"[${videomap}]scale=${scale}:trunc(ow/a/2)*2\""
@@ -679,7 +749,7 @@ for input in "${process[@]}"; do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
-			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+			audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 			if [[ "$(echo "${audiodata,,}" | grep -i 'TAG:')" =~ commentary ]]; then
 				filtered+=("${audio[${i}]}")
 				continue
@@ -728,13 +798,13 @@ for input in "${process[@]}"; do
 					continue
 				fi
 			fi
-			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+			audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 			audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 			if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 				audiolang="${CONF_DEFAULTLANGUAGE}"
 			fi
 			audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-			audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+			audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
 			audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 			if ${CONF_DUALAUDIO}; then
 				aac=false ac3=false
@@ -762,7 +832,7 @@ for input in "${process[@]}"; do
 						if [[ -z "${audio[${a}]}" ]]; then
 							continue
 						fi
-						audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1)
+						audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
 						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 							lang="${CONF_DEFAULTLANGUAGE}"
@@ -772,7 +842,7 @@ for input in "${process[@]}"; do
 						fi
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
 						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 							aac=true
 							break
@@ -796,7 +866,7 @@ for input in "${process[@]}"; do
 						if [[ -z "${audio[${a}]}" ]]; then
 							continue
 						fi
-						audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${a} 2>&1)
+						audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
 						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 							lang="${CONF_DEFAULTLANGUAGE}"
@@ -806,7 +876,7 @@ for input in "${process[@]}"; do
 						fi
 						audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 						audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+						audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
 						if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
 							aac=true
 							break
@@ -835,14 +905,13 @@ for input in "${process[@]}"; do
 					if [[ "${audio[${i}]}" != "${stream}" ]]; then
 						continue
 					fi
-					audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-					audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+					audiolang=$(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
+						if [[ -z "${audiolang}" ]] || [[ "${audiolang,,}" == "und" ]] || [[ "${audiolang,,}" == "unk" ]]; then
 							audiolang="${CONF_DEFAULTLANGUAGE}"
 						fi
 					fi
-					if [[ "${audiolang}" == "${language}" ]]; then
+					if [[ "${audiolang,,}" == "${language}" ]]; then
 						streams+=("${stream}")
 					fi
 				done
@@ -866,7 +935,7 @@ for input in "${process[@]}"; do
 					if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
 						continue
 					fi
-					audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+					audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 					audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
@@ -908,6 +977,7 @@ for input in "${process[@]}"; do
 			fi
 		fi
 		x=0
+		BOOST=()
 		for ((s = 0; s < ${#audiostreams[@]}; s++)); do
 			if [[ -z "${audiostreams[${s}]}" ]]; then
 				continue
@@ -919,14 +989,14 @@ for input in "${process[@]}"; do
 				if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
 					continue
 				fi
-				audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
+				audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 				if (( ${#audiomap} > 3 )); then
 					audiomap=${audiomap%:*}
 				fi
 				audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
-				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/channels=//g')
+				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed 's/[^0-9]//g')
 				audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
@@ -934,7 +1004,7 @@ for input in "${process[@]}"; do
 						skip=false
 					fi
 				fi
-				audiobitrate=$(echo "${audiodata}" | grep -x 'bit_rate=.*' | sed 's/bit_rate=//g' | sed 's/[^0-9]*//g')
+				audiobitrate=$(echo "${audiodata}" | grep -x 'bit_rate=.*' | sed -E 's/[^0-9]//g')
 				if ${CONF_DUALAUDIO}; then
 					aac=false ac3=false
 					if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
@@ -951,7 +1021,7 @@ for input in "${process[@]}"; do
 									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									boost=true
+									BOOST+=("${x}")
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -968,7 +1038,7 @@ for input in "${process[@]}"; do
 									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									boost=true
+									BOOST+=("${x}")
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -986,7 +1056,7 @@ for input in "${process[@]}"; do
 								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								boost=true
+								BOOST+=("${x}")
 								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
 								if (( audiochannels > 6 )); then
@@ -1007,7 +1077,7 @@ for input in "${process[@]}"; do
 								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								boost=true
+								BOOST+=("${x}")
 								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
 								command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1031,7 +1101,7 @@ for input in "${process[@]}"; do
 								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								boost=true
+								BOOST+=("${x}")
 								skip=false
 							else
 								command+=" -map ${audiomap} -c:a:${x} copy"
@@ -1039,23 +1109,23 @@ for input in "${process[@]}"; do
 						else
 							command+=" -map ${audiomap} -c:a:${x} aac"
 							if (( audiochannels > 2 )); then
+								BOOST+=("${x}")
 								command+=" -ac:a:${x} 2"
 							fi
 							if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 								command+=" -ab:a:${x} 128k"
 							fi
-							boost=true
 							skip=false
 						fi
 					else
 						command+=" -map ${audiomap} -c:a:${x} aac"
 						if (( audiochannels > 2 )); then
+							BOOST+=("${x}")
 							command+=" -ac:a:${x} 2"
 						fi
 						if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 							command+=" -ab:a:${x} 128k"
 						fi
-						boost=true
 						skip=false
 					fi
 				fi
@@ -1071,9 +1141,7 @@ for input in "${process[@]}"; do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
-			audiodata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-			default=$(echo "${audiodata}" | grep -x 'DISPOSITION:default=.*' | sed 's/DISPOSITION:default=//g')
-			if (( default == 1 )); then
+			if (( $(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_disposition=default -of default=nokey=1:noprint_wrappers=1) == 1 )); then
 			 	((x++))
 			fi
 		done
@@ -1086,12 +1154,12 @@ for input in "${process[@]}"; do
 				if [[ -z "${subtitle[${i}]}" ]]; then
 					continue
 				fi
-				subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+				subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
 				fi
-				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed 's/DISPOSITION:forced=//g')
+				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed 's/[^0-9]//g')
 				if [[ "${subtitledata,,}" =~ tag:.*forced ]] || (( forced == 1 )); then
 					filtered+=("${subtitle[${i}]}")
 					continue
@@ -1133,7 +1201,7 @@ for input in "${process[@]}"; do
 				if ! ${allow}; then
 					continue
 				fi
-				subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+				subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
@@ -1143,12 +1211,11 @@ for input in "${process[@]}"; do
 					if [[ -z "${subtitlestreams[${s}]}" ]]; then
 						continue
 					fi
-					lang=$(ffprobe "${file}" -show_streams -select_streams s:${s} 2>&1 | \
-						grep -i 'TAG:LANGUAGE=' | tr '[:upper:]' '[:lower:]' | sed 's/tag:language=//g')
-					if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
+					lang=$(ffprobe "${file}" -v quiet -select_streams s:${s} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
+					if [[ -z "${lang}" ]] || [[ "${lang,,}" == "und" ]] || [[ "${lang,,}" == "unk" ]]; then
 						lang="${CONF_DEFAULTLANGUAGE}"
 					fi
-					if [[ "${lang}" == "${subtitlelang}" ]]; then
+					if [[ "${lang,,}" == "${subtitlelang}" ]]; then
 						have=true
 					fi
 				done
@@ -1173,14 +1240,13 @@ for input in "${process[@]}"; do
 						if [[ "${subtitle[${i}]}" != "${stream}" ]]; then
 							continue
 						fi
-						subtitledata=$(ffprobe "${file}" -show_streams -select_streams a:${i} 2>&1)
-						subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
+						subtitlelang=$(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 						if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
-							if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
+							if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang,,}" == "und" ]] || [[ "${subtitlelang,,}" == "unk" ]]; then
 								subtitlelang="${CONF_DEFAULTLANGUAGE}"
 							fi
 						fi
-						if [[ "${subtitlelang}" == "${language}" ]]; then
+						if [[ "${subtitlelang,,}" == "${language}" ]]; then
 							streams+=("${stream}")
 						fi
 					done
@@ -1202,7 +1268,7 @@ for input in "${process[@]}"; do
 					if [[ "${subtitle[${i}]}" != "${subtitlestreams[${s}]}" ]]; then
 						continue
 					fi
-					subtitledata=$(ffprobe "${file}" -show_streams -select_streams s:${i} 2>&1)
+					subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
 					if (( ${#subtitlemap} > 3 )); then
 						subtitlemap=${subtitlemap%:*}
@@ -1233,11 +1299,11 @@ for input in "${process[@]}"; do
 				skip=false
 			fi
 		fi
-		title=$(ffprobe "${file}" -show_format -show_streams 2>&1 | grep -x 'TAG:title=.*' | sed 's/TAG:title=//g')
+		title=$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=noprint_wrappers=1)
 		if [[ ! -z "${title}" ]]; then
 			skip=false
 		fi
-		chapters=$(echo "${data}" | grep -x '.* Chapter #.*: start .*, end .*')
+		chapters=$(ffprobe "${file}" -v quiet -show_chapters)
 		if [[ ! -z "${chapters}" ]]; then
 			skip=false
 		fi
@@ -1257,37 +1323,7 @@ for input in "${process[@]}"; do
 		TMPFILES+=("${tmpfile}")
 		eval "${command} &" &>/dev/null
 		PID=${!}
-		currentframe=0 percentage=0 oldpercentage=0 elapsed=0 rate=0 eta=0
-		if (( total > 0 )); then
-			TMPFILES+=("${vstatsfile}") totalframes="${total}" start=$(date +%s)
-			while ps -p ${PID} &>/dev/null; do
-				if [[ -e "${vstatsfile}" ]]; then
-					vstats=$(awk '{gsub(/frame=/, "")}/./{line=$1-1} END{print line}' "${vstatsfile}")
-					if (( vstats > currentframe )); then
-						currentframe=${vstats}
-						percentage=$(( 100 * currentframe / totalframes ))
-					fi
-					if (( percentage > oldpercentage )); then
-						oldpercentage=${percentage}
-						elapsed=$(( $(date +%s) - start ))
-						eta=$(awk "BEGIN{print int((${elapsed} / ${currentframe}) * (${totalframes} - ${currentframe}))}")
-						case "${OSTYPE}" in
-							linux-gnu) eta=$(date -d @"${eta}" -u +%H:%M:%S 2>&1) ;;
-							darwin*) eta=$(date -r "${eta}" -u +%H:%M:%S 2>&1) ;;
-						esac
-						echo "Converting... ${percentage}% ETA: ${eta}"
-					fi
-				fi
-				sleep 2
-			done
-			if (( elapsed > 0 )); then
-				rate=$(( totalframes / elapsed ))
-				case "${OSTYPE}" in
-					linux-gnu) elapsed=$(date -d @"${elapsed}" -u +%H:%M:%S 2>&1) ;;
-					darwin*) elapsed=$(date -r "${elapsed}" -u +%H:%M:%S 2>&1) ;;
-				esac
-			fi
-		fi
+		progress 1 "${total}"
 		wait ${PID} &>/dev/null
 		if [[ ${?} -ne 0 ]]; then
 			echo "Result: failure"
@@ -1295,10 +1331,10 @@ for input in "${process[@]}"; do
 		fi
 		success=true
 		echo "Result: success"
-		if (( percentage >= 99 )); then
-			echo "Time taken: ${elapsed} at an average rate of ${rate}fps"
+		if ${PROGRESSED}; then
+			echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 		fi
-		if ${CONF_NORMALIZE} && ${boost}; then
+		if ${CONF_NORMALIZE} && [[ ! -z ${BOOST[@]} ]]; then
 			echo "Checking audio levels..."
 			boostedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" boost=false
 			command="ffmpeg -threads ${CONF_THREADS} -i \"${boostedfile}\""
@@ -1311,6 +1347,20 @@ for input in "${process[@]}"; do
 				if (( ${#videomap} > 3 )); then
 					videomap=${videomap%:*}
 				fi
+				if ${CONF_VERBOSE}; then
+					total=$(ffprobe "${tmpfile}" -v quiet -select_streams v:${i} -show_entries stream=nb_frames -of default=nokey=1:noprint_wrappers=1)
+					if [[ -z "${total}" ]]; then
+						fps=$(echo "${data}" | sed -n "s/.*, \(.*\) fps.*/\1/p")
+						dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
+						total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
+					fi
+					if (( total > 0 )); then
+						if [[ -e "${STATSFILE}" ]]; then
+							rm -f "${STATSFILE}"
+						fi
+						command+=" -progress \"${STATSFILE}\""
+					fi
+				fi
 				command+=" -map ${videomap} -c:v:${i} copy"
 			done
 			readarray -t audio <<< "$(echo "${data}" | grep 'Stream.*Audio:' | sed 's/.*Stream/Stream/g')"
@@ -1318,27 +1368,29 @@ for input in "${process[@]}"; do
 				if [[ -z "${audio[${i}]}" ]]; then
 					continue
 				fi
-				audiocodec=$(echo "${audio[${i}]}" | awk '{print($4)}')
-				if [[ "${audiocodec}" == *, ]]; then
-					audiocodec=${audiocodec%?}
-				fi
-				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
-				if (( ${#audiomap} > 3 )); then
-					audiomap=${audiomap%:*}
-				fi
-				if [[ "${audiocodec}" != "aac" ]]; then
-					command+=" -map ${audiomap} -c:a:${i} copy"
-					continue
-				fi
-				dB=$(ffmpeg -i "${tmpfile}" -map "${audiomap}" -filter:a:${i} "volumedetect" -f null /dev/null 2>&1 | \
-					grep 'max_volume:' | sed 's/.*]\ //g' | sed 's/max_volume:\ //g' | sed 's/\ dB//g')
-				if (( ${#dB} > 1 )); then
-					dB=${dB%.*}
-				fi
-				if (( dB > 1 )); then
-					command+=" -map ${audiomap} -c:a:${i} aac -filter:a:${i} \"volume=+${dB}dB\""
-					boost=true
-				fi
+				for stream in "${BOOST[@]}"; do
+					if [[ -z "${stream}" ]]; then
+						continue
+					fi
+					audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+					if (( ${#audiomap} > 3 )); then
+						audiomap=${audiomap%:*}
+					fi
+					if [[ "${audio[${i}]}" != "${audio[${stream}]}" ]]; then
+						command+=" -map ${audiomap} -c:a:${i} copy"
+						continue
+					fi
+					audiocodec=$(echo "${audio[${i}]}" | awk '{print($4)}')
+					if [[ "${audiocodec}" == *, ]]; then
+						audiocodec=${audiocodec%?}
+					fi
+					dB=$(ffmpeg -i "${tmpfile}" -map "${audiomap}" -filter:a:${i} volumedetect -f null /dev/null 2>&1 | \
+						grep 'max_volume:' | sed -E 's/\[.*\:|[^-\.0-9]//g')
+					if [[ ! -z "${dB}" ]] && (( ${dB%.*} < 0 )); then
+						command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB//-/+}dB\""
+						boost=true
+					fi
+				done
 			done
 			readarray -t subtitle <<< "$(echo "${data}" | grep 'Stream.*Subtitle:' | sed 's/.*Stream/Stream/g')"
 			for ((i = 0; i < ${#subtitle[@]}; i++)); do
@@ -1351,26 +1403,30 @@ for input in "${process[@]}"; do
 				fi
 				command+=" -map ${subtitlemap} -c:s:${i} copy"
 			done
-			command+=" -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict experimental -y \"${tmpfile}\""
+			command+=" -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
 			if ${boost}; then
 				mv "${tmpfile}" "${boostedfile}"
 				TMPFILES+=("${boostedfile}")
 				if ${CONF_VERBOSE}; then
 					echo "VERBOSE: ${command}"
 				fi
-				echo "Boosting audio..."
+				echo "Boosting..."
 				eval "${command} &" &>/dev/null
 				PID=${!}
+				progress 2 "${total}"
 				wait ${PID} &>/dev/null
 				if [[ ${?} -eq 0 ]]; then
 					echo "Result: success"
 				else
 					echo "Result: failure"
 				fi
+				if ${PROGRESSED}; then
+					echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
+				fi
 			fi
 		fi
 		if ${CONF_DELETE}; then
-			rm "${file}"
+			rm -f "${file}"
 		fi
 		mv "${tmpfile}" "${newfile}"
 		clean
@@ -1378,7 +1434,7 @@ for input in "${process[@]}"; do
 done
 
 mark() {
-	if [[ ! -z "${NZBOP_SCRIPTDIR}" ]] && ${NZBPO_BAD}; then
+	if ${NZBGET} && ${NZBPO_BAD}; then
 		echo "[NZB] MARK=BAD"
 	fi
 	exit "${1}"
