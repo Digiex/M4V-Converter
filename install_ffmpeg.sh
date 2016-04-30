@@ -82,7 +82,7 @@ tar xjvf ffmpeg-3.0.2.tar.bz2
 cd ffmpeg-3.0.2
 
 # Fixes multiple audio streams being default
-wget https://gist.githubusercontent.com/outlyer/4a88f1adb7f895b93fd9/raw/d9fd474cd1c1477f1bdf31a492662d9013b0793e/ffmpeg-3.0-defaultstreams.patch
+wget https://gist.githubusercontent.com/outlyer/4a88f1adb7f895b93fd9/raw/8e1a71929475c6cb2bada49a096bcc6a260e1e09/ffmpeg-3.0-defaultstreams.patch
 patch libavformat/movenc.c < ffmpeg-3.0-defaultstreams.patch
 
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
