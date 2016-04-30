@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ##############################################################################
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
@@ -501,6 +501,13 @@ if (( ${#process[@]} == 0 )); then
 	usage
 fi
 
+format() {
+	case "${OSTYPE}" in
+		linux-gnu) date -d @"${1}" -u +%H:%M:%S ;;
+		darwin*) date -r "${1}" -u +%H:%M:%S ;;
+	esac
+}
+
 progress() {
 	START=$(date +%s) PROGRESSED=false CURRENTFRAME=0 PERCENTAGE=0 RATE=0 ETA=0 ELAPSED=0
 	local TOTALFRAMES=${2} FRAME=0 OLDPERCENTAGE=0
@@ -521,21 +528,14 @@ progress() {
 				ELAPSED=$(( $(date +%s) - START ))
 				RATE=$(( TOTALFRAMES / ELAPSED ))
 				ETA=$(awk "BEGIN{print int((${ELAPSED} / ${CURRENTFRAME}) * (${TOTALFRAMES} - ${CURRENTFRAME}))}")
-				case "${OSTYPE}" in
-					linux-gnu)
-						ETA=$(date -d @"${ETA}" -u +%H:%M:%S 2>&1)
-						ELAPSED=$(date -d @"${ELAPSED}" -u +%H:%M:%S 2>&1)
-					;;
-					darwin*)
-						ETA=$(date -r "${ETA}" -u +%H:%M:%S 2>&1)
-						ELAPSED=$(date -r "${ELAPSED}" -u +%H:%M:%S 2>&1)
-					;;
-				esac
-				echo "${TYPE}... ${PERCENTAGE}% ETA: ${ETA}"
+				echo "${TYPE}... ${PERCENTAGE}% ETA: $(format "${ETA}")"
 				PROGRESSED=true
 			fi
 		fi
 	done
+	if ${PROGRESSED}; then
+		ELAPSED=$(format "${ELAPSED}")
+	fi
 }
 
 success=false failure=false skipped=false
