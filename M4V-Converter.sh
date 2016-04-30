@@ -1240,7 +1240,7 @@ for input in "${process[@]}"; do
 						if [[ "${subtitle[${i}]}" != "${stream}" ]]; then
 							continue
 						fi
-						subtitlelang=$(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
+						subtitlelang=$(ffprobe "${file}" -v quiet -select_streams s:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 						if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 							if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang,,}" == "und" ]] || [[ "${subtitlelang,,}" == "unk" ]]; then
 								subtitlelang="${CONF_DEFAULTLANGUAGE}"
