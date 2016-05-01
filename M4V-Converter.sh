@@ -168,16 +168,14 @@ usage() {
 
 	OPTIONS:
 	--------
-	-h  --help    Show this message
-	-v            Verbose Mode
-	-d            Debug Mode
-	-i  --input   Input file or directory
-	-c  --config  Config file
+	-h  --help      Show this message
+	-v  --verbose   Verbose Mode
+	-d  --debug     Debug Mode
+	-i  --input     Input file or directory
+	-c  --config    Config file
 
 	ADVANCED OPTIONS:
 	-----------------
-	--verbose
-	--debug
 	--threads
 	--languages
 	--preset
@@ -219,17 +217,17 @@ if (( BASH_VERSINFO < 4 )); then
 	exit ${DEPEND}
 fi
 if ! hash ffmpeg 2>/dev/null; then
-	echo "Sorry, you do not have FFMPEG"
+	echo "Sorry, you do not have FFmpeg"
 	exit ${DEPEND}
 fi
 if ! hash ffprobe 2>/dev/null; then
-	echo "Sorry, you do not have FFPROBE"
+	echo "Sorry, you do not have FFprobe"
 	exit ${DEPEND}
 fi
 
 if ${NZBGET}; then
 	if [[ -z "${NZBPP_TOTALSTATUS}" ]]; then
-		echo "Sorry, you do not have NZBGET version 13.0 or later."
+		echo "Sorry, you do not have NZBGet version 13.0 or later."
 		exit ${DEPEND}
 	fi
 	if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
@@ -258,24 +256,24 @@ if ${NZBGET}; then
 			done
 		fi
 	fi
-	process+=("${NZBPP_DIRECTORY}")
+	PROCESS+=("${NZBPP_DIRECTORY}")
 elif ${SABNZBD}; then
 	if ! (( ${7} == 0 )); then
 		exit ${SKIPPED}
 	fi
-	process+=("${1}")
+	PROCESS+=("${1}")
 else
 	while getopts hvdi:c:-: opts; do
 		case ${opts,,} in
 			h) usage ;;
 			v) CONF_VERBOSE=true ;;
 			d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
-			i) process+=("${OPTARG}") ;;
+			i) PROCESS+=("${OPTARG}") ;;
 			c) CONF_FILE="${OPTARG}" ;;
 			-) arg="${OPTARG#*=}";
 				case "${OPTARG,,}" in
        				help) usage ;;
-					input=*) process+=("${arg}") ;;
+					input=*) PROCESS+=("${arg}") ;;
 					verbose=*) CONF_VERBOSE="${arg}" ;;
 					debug=*) CONF_DEBUG="${arg}" ;;
 					threads=*) CONF_THREADS="${arg}" ;;
@@ -497,7 +495,7 @@ case "${CONF_DELETE}" in
 	*) echo "Delete is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
-if (( ${#process[@]} == 0 )); then
+if (( ${#PROCESS[@]} == 0 )); then
 	usage
 fi
 
@@ -539,7 +537,7 @@ progress() {
 }
 
 success=false failure=false skipped=false
-for input in "${process[@]}"; do
+for input in "${PROCESS[@]}"; do
 	if [[ -z "${input}" ]]; then
 		continue
 	fi
@@ -1299,12 +1297,13 @@ for input in "${process[@]}"; do
 				skip=false
 			fi
 		fi
-		title=$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=noprint_wrappers=1)
-		if [[ ! -z "${title}" ]]; then
+		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=noprint_wrappers=1)" ]]; then
 			skip=false
 		fi
-		chapters=$(ffprobe "${file}" -v quiet -show_chapters)
-		if [[ ! -z "${chapters}" ]]; then
+		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_chapters)" ]]; then
+			skip=false
+		fi
+		if [[ "$(ffprobe "${file}" -v quiet -show_entries format=format_name -of default=nokey=1:noprint_wrappers=1)" != "mov,mp4,m4a,3gp,3g2,mj2" ]]; then
 			skip=false
 		fi
 		command+=" -map_metadata -1 -map_chapters -1 -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
