@@ -27,43 +27,41 @@
 # Preferred Languages (*).
 # This is the language(s) you prefer.
 #
-# English (eng), French (fre), German (ger), Italian (ita), Spanish (spa), * (all).
-#
+# NOTE: English (eng), French (fre), German (ger), Italian (ita), Spanish (spa), * (all).
 # NOTE: This is used for audio and subtitles. The first listed is considered the default/preferred.
 #Languages=
 
-# H.264 Preset (*).
+# Video Encoder (H.264, H.265).
+# This changes which encoder to use.
+#
+# NOTE: H.264 offers siginificantly more compatbility with devices.
+# NOTE: H.265 offers 50-75% more compression efficiency.
+#Encoder=H.264
+
+# Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This controls encoding speed to compression ratio.
-#
-# NOTE: Allowed: 'ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow'
-#
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #Preset=medium
 
-# H.264 Profile (*).
+# Video Profile (*).
 # This defines the features / capabilities that the encoder can use.
 #
-# NOTE: Allowed: 'baseline, main, high'
-#
+# NOTE: baseline, main, high
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Profiles
 #Profile=main
 
-# H.264 Level (*).
+# Video Level (*).
 # This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
 #
-# NOTE: Allowed: '3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2'
-#
+# NOTE: 3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2
 #
 # NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Levels
 #Level=4.1
 
-# H.264 Constant Rate Factor (*).
+# Video Constant Rate Factor (0-51).
 # This controls maximum compression efficiency with a single pass.
-#
-# NOTE: Allowed: '0 - 51'
-#
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
 #CRF=23
@@ -73,7 +71,6 @@
 #
 # NOTE: Ex. 720p, 1280x720, 1280:720
 #
-#
 # NOTE: https://trac.ffmpeg.org/wiki/Scaling%20%28resizing%29%20with%20ffmpeg
 #Resolution=
 
@@ -81,7 +78,6 @@
 # Use this to limit video bitrate, if it exceeds this limit then video will be converted.
 #
 # NOTE: Ex. '6144' (6 Mbps)
-#
 #Video Bitrate=
 
 # Create Dual Audio Streams (true, false).
@@ -115,6 +111,18 @@
 #
 # NOTE: Helps to prevent fake releases.
 #Bad=true
+
+# File Permissions (*).
+# This will set file permissions in either decimal (493) or octal (leading zero: 0755).
+#
+# NOTE: http://permissions-calculator.org/
+#File=
+
+# Folder Permissions (*).
+# This will set folder permissions in either decimal (493) or octal (leading zero: 0755).
+#
+# NOTE: http://permissions-calculator.org/
+#Folder=
 
 # Cleanup Size (MB).
 # Any file less than the specified size is deleted.
@@ -178,6 +186,7 @@ usage() {
 	-----------------
 	--threads
 	--languages
+	--encoder
 	--preset
 	--crf
 	--resolution
@@ -187,6 +196,8 @@ usage() {
 	--format
 	--extension
 	--delete
+	--file
+	--folder
 
 	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
@@ -269,7 +280,7 @@ else
 			v) CONF_VERBOSE=true ;;
 			d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
 			i) PROCESS+=("${OPTARG}") ;;
-			c) CONF_FILE="${OPTARG}" ;;
+			c) CONFIG_FILE="${OPTARG}" ;;
 			-) arg="${OPTARG#*=}";
 				case "${OPTARG,,}" in
        				help) usage ;;
@@ -290,7 +301,10 @@ else
 					format=*) CONF_FORMAT="${arg}" ;;
 					extension=*) CONF_EXTENSION="${arg}" ;;
 					delete=*) CONF_DELETE="${arg}" ;;
-					config=*) CONF_FILE="${arg}" ;;
+					config=*) CONFIG_FILE="${arg}" ;;
+					encoder=*) CONF_ENCODER="${arg}" ;;
+					file=*) CONF_FILE="${arg}" ;;
+					folder=*) CONF_FOLDER="${arg}" ;;
 					*) usage ;;
 				esac
 			;;
@@ -299,26 +313,29 @@ else
 	done
 fi
 
-if [[ ! -z "${CONF_FILE}" ]]; then
-	if [[ ! -f "${CONF_FILE}" ]]; then
-		echo "Config is incorrectly configured."
+path() {
+	local SOURCE="${1}" DIRECTORY
+	while [ -h "${SOURCE}" ]; do
+		DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+		SOURCE="$(readlink "${SOURCE}")"
+		[[ "${SOURCE}" != /* ]] && SOURCE="${DIRECTORY}/${SOURCE}"
+	done
+	DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+	echo "${DIRECTORY}"
+}
+
+if [[ ! -z "${CONFIG_FILE}" ]]; then
+	if [[ ! -f "${CONFIG_FILE}" ]]; then
+		echo "Config file is incorrectly configured."
 		exit ${CONFIG}
 	fi
-	source "${CONF_FILE}"
+	source "${CONFIG_FILE}"
 else
-	source="${BASH_SOURCE[0]}"
-	while [ -h "${source}" ]; do
-		dir="$(cd -P "$( dirname "${source}" )" && pwd)"
-		source="$(readlink "${source}")"
-		if [[ "${source}" != /* ]]; then
-			source="${dir}/${source}"
-		fi
-	done
-	dir="$(cd -P "$( dirname "${source}" )" && pwd)"
-	file="$(basename "${0}")"
-	conf="${dir}/${file//${file##*.}/conf}"
-	if [[ -e "${conf}" ]]; then
-		source "${conf}"
+	SOURCE_DIRECTORY=$(path "${BASH_SOURCE[0]}")
+	SOURCE_FILE=$(basename "${0}")
+	CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
+	if [[ -e "${CONFIG_FILE}" ]]; then
+		source "${CONFIG_FILE}"
 	fi
 fi
 
@@ -365,6 +382,15 @@ if [[ "${CONF_LANGUAGES}" != "*" ]]; then
 	done
 fi
 
+CONF_ENCODER=${CONF_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
+: "${CONF_ENCODER:=H.264}"
+CONF_ENCODER=${CONF_ENCODER^^}
+case "${CONF_ENCODER}" in
+	H.264) CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264" ;;
+	H.265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
+	*) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
 CONF_PRESET=${CONF_PRESET:-${NZBPO_PRESET:-${PRESET}}}
 : "${CONF_PRESET:=medium}"
 CONF_PRESET=${CONF_PRESET,,}
@@ -378,7 +404,6 @@ case "${CONF_PRESET}" in
 	slow) ;;
 	slower) ;;
 	veryslow) ;;
-	"*") ;;
 	*) echo "Preset is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -411,13 +436,14 @@ case "${CONF_LEVEL}" in
 esac
 
 CONF_CRF=${CONF_CRF:-${NZBPO_CRF:-${CRF}}}
-: "${CONF_CRF:=23}"
+case "${CONF_ENCODER_NAME}" in
+	h264) : "${CONF_CRF:=23}" ;;
+	hevc) : "${CONF_CRF:=28}" ;;
+esac
 CONF_CRF=${CONF_CRF,,}
-if [[ "${CONF_CRF}" != "*" ]]; then
-	if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
-		echo "CRF is incorrectly configured"
-		exit ${CONFIG}
-	fi
+if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_CRF}" > 51 )); then
+	echo "CRF is incorrectly configured"
+	exit ${CONFIG}
 fi
 
 CONF_RESOLUTION=${CONF_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
@@ -495,6 +521,36 @@ case "${CONF_DELETE}" in
 	*) echo "Delete is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
+CONF_FILE=${CONF_FILE:-${NZBPO_FILE:-${FILE}}}
+if [[ ! -z "${CONF_FILE}" ]]; then 
+	if [[ ! "${CONF_FILE}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FILE} > 4 || ${#CONF_FILE} < 3 )); then
+		echo "File is incorretly configured"
+		exit ${CONFIG}
+	else
+		for ((i = 0; i < ${#CONF_FILE}; i++)); do
+			if (( ${CONF_FILE:${i}:1} < 0 || ${CONF_FILE:${i}:1} > 7 )); then
+				echo "File is incorretly configured"
+				exit ${CONFIG}
+			fi
+		done
+	fi
+fi
+
+CONF_FOLDER=${CONF_FOLDER:-${NZBPO_FOLDER:-${FOLDER}}}
+if [[ ! -z "${CONF_FOLDER}" ]]; then 
+	if [[ ! "${CONF_FOLDER}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FOLDER} > 4 || ${#CONF_FOLDER} < 3 )); then
+		echo "Folder is incorretly configured"
+		exit ${CONFIG}
+	else
+		for ((i = 0; i < ${#CONF_FOLDER}; i++)); do
+			if (( ${CONF_FOLDER:${i}:1} < 0 || ${CONF_FOLDER:${i}:1} > 7 )); then
+				echo "Folder is incorretly configured"
+				exit ${CONFIG}
+			fi
+		done
+	fi
+fi
+
 if (( ${#PROCESS[@]} == 0 )); then
 	usage
 fi
@@ -554,6 +610,9 @@ for input in "${PROCESS[@]}"; do
 			continue
 		fi
 		skip=true
+		DIRECTORY=$(path "${file}")
+		FILE_NAME="$(basename "${file}")"
+		file="${DIRECTORY}/${FILE_NAME}"
 		echo "Processing file: ${file}"
 		case "${file,,}" in
 			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
@@ -570,19 +629,17 @@ for input in "${PROCESS[@]}"; do
 			echo "File is in use"
 			skipped=true && continue
 		fi
-		command="ffmpeg -threads ${CONF_THREADS} -i \"${file}\""
-		directoryname="$(dirname "${file}")"
-		filename="$(basename "${file}")"
-		if [[ "${filename}" == "${filename##*.}" ]]; then
-			newname="${filename}.${CONF_EXTENSION}"
+		if [[ "${FILE_NAME}" == "${FILE_NAME##*.}" ]]; then
+			newname="${FILE_NAME}.${CONF_EXTENSION}"
 		else
-			newname="${filename//${filename##*.}/${CONF_EXTENSION}}"
+			newname="${FILE_NAME//${FILE_NAME##*.}/${CONF_EXTENSION}}"
 		fi
-		newfile="${directoryname}/${newname}"
+		newfile="${DIRECTORY}/${newname}"
 		tmpfile="${newfile}.tmp"
 		if [[ -e "${tmpfile}" ]]; then
 			rm -f "${tmpfile}"
 		fi
+		command="ffmpeg -threads ${CONF_THREADS} -i \"${file}\""
 		data="$(ffprobe "${file}" 2>&1)"
 		video="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 		if [[ -z "${video}" ]]; then
@@ -635,11 +692,11 @@ for input in "${PROCESS[@]}"; do
 				videomap=${videomap%:*}
 			fi
 			videocodec=$(echo "${videodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-			if [[ "${videocodec}" != "h264" ]]; then
+			if [[ "${videocodec}" != "${CONF_ENCODER_NAME}" ]]; then
 				convert=true
 			fi
 			profile=false
-			if [[ "${CONF_PROFILE}" != "*" ]]; then
+			if [[ "${CONF_PROFILE}" != "*" ]] && [[ "${CONF_ENCODER_NAME}" == "h264" ]]; then
 				videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 				if ! [[ "${videoprofile,,}" =~ "constrained" ]]; then
 					if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
@@ -649,7 +706,7 @@ for input in "${PROCESS[@]}"; do
 				fi
 			fi
 			level=false
-			if [[ "${CONF_LEVEL}" != "*" ]]; then
+			if [[ "${CONF_LEVEL}" != "*" ]] && [[ "${CONF_ENCODER_NAME}" == "h264" ]]; then
 				videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed -E 's/[^0-9]//g')
 				if (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
 					convert=true
@@ -709,22 +766,18 @@ for input in "${PROCESS[@]}"; do
 				fi
 			fi
 			if ${convert}; then
-				command+=" -map ${videomap} -c:v:${x} libx264"
+				command+=" -map ${videomap} -c:v:${x} ${CONF_ENCODER}"
 				if ${resize}; then
 					command+=" -filter_complex \"[${videomap}]scale=${scale}:trunc(ow/a/2)*2\""
 				fi
-				if [[ "${CONF_PRESET}" != "*" ]]; then
-					command+=" -preset:${x} ${CONF_PRESET}"
-				fi
+				command+=" -preset:${x} ${CONF_PRESET}"
 				if ${profile}; then
 					command+=" -profile:v:${x} ${CONF_PROFILE}"
 				fi
 				if ${level}; then
 					command+=" -level:${x} ${CONF_LEVEL}"
 				fi
-				if [[ "${CONF_CRF}" != "*" ]]; then
-					command+=" -crf:${x} ${CONF_CRF}"
-				fi
+				command+=" -crf:${x} ${CONF_CRF}"
 				if ${limit}; then
 					command+=" -maxrate:${x} ${CONF_VIDEOBITRATE}k -bufsize:${x} $(( CONF_VIDEOBITRATE * 2 ))k"
 				fi
@@ -1163,7 +1216,7 @@ for input in "${PROCESS[@]}"; do
 					continue
 				fi
 				subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-				if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]]; then
+				if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]]; then
 					filtered+=("${subtitle[${i}]}")
 					continue
 				fi
@@ -1333,7 +1386,7 @@ for input in "${PROCESS[@]}"; do
 		if ${PROGRESSED}; then
 			echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 		fi
-		if ${CONF_NORMALIZE} && [[ ! -z ${BOOST[@]} ]]; then
+		if ${CONF_NORMALIZE} && [[ ! -z "${BOOST[@]}" ]]; then
 			echo "Checking audio levels..."
 			boostedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" boost=false
 			command="ffmpeg -threads ${CONF_THREADS} -i \"${boostedfile}\""
@@ -1428,6 +1481,12 @@ for input in "${PROCESS[@]}"; do
 			rm -f "${file}"
 		fi
 		mv "${tmpfile}" "${newfile}"
+		if [[ ! -z "${CONF_FILE}" ]]; then
+			chmod "${CONF_FILE}" "${newfile}"
+		fi
+		if [[ ! -z "${CONF_FOLDER}" ]]; then
+			chmod "${CONF_FOLDER}" "${DIRECTORY}"
+		fi
 		clean
 	done
 done
