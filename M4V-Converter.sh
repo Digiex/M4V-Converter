@@ -662,9 +662,12 @@ for input in "${PROCESS[@]}"; do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
 			fi
-			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
-			if [[ $(echo "${videodata,,}" | grep -x '.*mimetype=.*' | sed 's/.*mimetype=//g') == image/* ]]; then
+			if [[ $(ffprobe "${file}" -v quiet -select_streams v:${i} -show_entries stream_tags=mimetype -of default=nokey=1:noprint_wrappers=1) == image/* ]]; then
 				filtered+=("${video[${i}]}")
+				continue
+			fi
+			if (( $(ffprobe "${file}" -v quiet -select_streams v:${i} -show_entries stream_disposition=attached_pic -of default=nokey=1:noprint_wrappers=1) == 1 )); then
+			 	filtered+=("${video[${i}]}")
 				continue
 			fi
 		done
@@ -1350,7 +1353,7 @@ for input in "${PROCESS[@]}"; do
 				skip=false
 			fi
 		fi
-		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=noprint_wrappers=1)" ]]; then
+		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=nokey=1:noprint_wrappers=1)" ]]; then
 			skip=false
 		fi
 		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_chapters)" ]]; then
