@@ -662,10 +662,6 @@ for input in "${PROCESS[@]}"; do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
 			fi
-			if [[ $(ffprobe "${file}" -v quiet -select_streams v:${i} -show_entries stream_tags=mimetype -of default=nokey=1:noprint_wrappers=1) == image/* ]]; then
-				filtered+=("${video[${i}]}")
-				continue
-			fi
 			if (( $(ffprobe "${file}" -v quiet -select_streams v:${i} -show_entries stream_disposition=attached_pic -of default=nokey=1:noprint_wrappers=1) == 1 )); then
 			 	filtered+=("${video[${i}]}")
 				continue
