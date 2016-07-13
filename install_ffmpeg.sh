@@ -1,5 +1,10 @@
 #!/bin/bash
 
+#
+# ONLY TESTED ON UBUNTU SERVER 16.04 LTS
+# USE AT YOUR OWN RISK
+#
+
 if [[ $(whoami) != "root" ]]; then
   echo "You must be root to run this script."
   exit 1
@@ -7,7 +12,7 @@ fi
 
 apt-get update
 apt-get -y install autoconf automake build-essential libass-dev libfreetype6-dev \
-  libtheora-dev libtool libvorbis-dev pkg-config texinfo zlib1g-dev
+  libtheora-dev libvorbis-dev libtool pkg-config texinfo zlib1g-dev
 
 mkdir ~/ffmpeg_sources
 
@@ -59,9 +64,9 @@ make install
 make distclean
 
 cd ~/ffmpeg_sources
-wget http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz
-tar xzvf opus-1.1.tar.gz
-cd opus-1.1
+wget http://downloads.xiph.org/releases/opus/opus-1.1.2.tar.gz
+tar xzvf opus-1.1.2.tar.gz
+cd opus-1.1.2
 ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 make
 make install
@@ -77,13 +82,16 @@ make install
 make clean
 
 cd ~/ffmpeg_sources
-wget http://ffmpeg.org/releases/ffmpeg-3.0.2.tar.bz2
-tar xjvf ffmpeg-3.0.2.tar.bz2
-cd ffmpeg-3.0.2
+wget http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.bz2
+tar xjvf ffmpeg-3.1.1.tar.bz2
+cd ffmpeg-3.1.1
 
 # Fixes multiple audio streams being default
-wget https://gist.githubusercontent.com/outlyer/4a88f1adb7f895b93fd9/raw/8e1a71929475c6cb2bada49a096bcc6a260e1e09/ffmpeg-3.0-defaultstreams.patch
-patch libavformat/movenc.c < ffmpeg-3.0-defaultstreams.patch
+# http://trac.ffmpeg.org/ticket/3622
+# https://gist.github.com/outlyer/4a88f1adb7f895b93fd9
+# https://gist.github.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8
+wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/214b8ba8258e1207185017a0354706f553038716/ffmpeg-3.1-defaultstreams.patch
+patch libavformat/movenc.c < ffmpeg-3.1-defaultstreams.patch
 
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
   --prefix="$HOME/ffmpeg_build" \
