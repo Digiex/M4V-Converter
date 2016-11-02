@@ -20,7 +20,7 @@
 # When enabled this script does nothing.
 #Debug=false
 
-# Number of Threads (1-8).
+# Number of Threads (*).
 # This is how many threads FFMPEG will use for conversion.
 #Threads=auto
 
@@ -80,19 +80,35 @@
 # NOTE: Ex. '6144' (6 Mbps)
 #Video Bitrate=
 
+# Force Video Transcode (true, false).
+# Use this to force the video to transcode, overriding all other checks.
+#Force Video=false
+
 # Create Dual Audio Streams (true, false).
 # This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
 #
 # NOTE: AAC will be the default for better compatability with more devices.
 #Dual Audio=false
 
+# Force Audio Transcode (true, false).
+# Use this to force the audio to transcode, overriding all other checks.
+#Force Audio=false
+
 # Normalize Audio (true, false).
 # This will normalize audio if needed due to downmixing 5.1 to 2.0.
 #Normalize=false
 
+# Force Normalize (true, false).
+# This will force check audio levels for all supported audio streams.
+#Force Normalize=false
+
 # Copy Subtitles (true, false).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
 #Subtitles=true
+
+# Force Subtitle Transcode (true, false).
+# Use this to force the subtitles to transcode, overriding all other checks.
+#Force Subtitle=false
 
 # File Format (MP4, MOV).
 # MP4 is better supported universally. MOV is best with Apple devices and iTunes.
@@ -116,20 +132,20 @@
 # This will set file permissions in either decimal (493) or octal (leading zero: 0755).
 #
 # NOTE: http://permissions-calculator.org/
-#File=
+#File Permission=
 
 # Folder Permissions (*).
 # This will set folder permissions in either decimal (493) or octal (leading zero: 0755).
 #
 # NOTE: http://permissions-calculator.org/
-#Folder=
+#Folder Permission=
 
 # Cleanup Size (MB).
 # Any file less than the specified size is deleted.
 #Cleanup Size=
 
 # Cleanup Files.
-# This will delete extra files with the above file extensions
+# This will delete extra files with the specified file extensions
 #Cleanup=.nfo, .nzb
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
@@ -190,14 +206,19 @@ usage() {
 	--preset
 	--crf
 	--resolution
-	--videobitrate
-	--dualaudio
+	--video-bitrate
+	--force-video
+	--dual-audio
+	--force-audio
+	--normalize
+	--force-normalize
 	--subtitles
+	--force-subtitles
 	--format
 	--extension
 	--delete
-	--file
-	--folder
+	--file-permission
+	--folder-permission
 
 	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
@@ -274,7 +295,7 @@ elif ${SABNZBD}; then
 	fi
 	PROCESS+=("${1}")
 else
-	while getopts hvdi:c:-: opts; do
+	while getopts hvdi:o:c:-: opts; do
 		case ${opts,,} in
 			h) usage ;;
 			v) CONF_VERBOSE=true ;;
@@ -285,26 +306,30 @@ else
 				case "${OPTARG,,}" in
        				help) usage ;;
 					input=*) PROCESS+=("${arg}") ;;
+					config=*) CONFIG_FILE="${arg}" ;;
 					verbose=*) CONF_VERBOSE="${arg}" ;;
 					debug=*) CONF_DEBUG="${arg}" ;;
 					threads=*) CONF_THREADS="${arg}" ;;
 					languages=*) CONF_LANGUAGES="${arg}" ;;
+					encoder=*) CONF_ENCODER="${arg}" ;;
 					preset=*) CONF_PRESET="${arg}" ;;
 					profile=*) CONF_PROFILE="${arg}" ;;
 					level=*) CONF_LEVEL="${arg}" ;;
 					crf=*) CONF_CRF="${arg}" ;;
 					resolution=*) CONF_RESOLUTION="${arg}" ;;
-					videobitrate=*) CONF_VIDEOBITRATE="${arg}" ;;
-					dualaudio=*) CONF_DUALAUDIO="${arg}" ;;
+					video-bitrate=*) CONF_VIDEOBITRATE="${arg}" ;;
+					force-video=*) CONF_FORCE_VIDEO="${arg}" ;;
+					dual-audio=*) CONF_DUALAUDIO="${arg}" ;;
+					force-audio=*) CONF_FORCE_AUDIO="${arg}" ;;
 					normalize=*) CONF_NORMALIZE="${arg}" ;;
+					force-normalize=*) CONF_FORCE_NORMALIZE="${arg}" ;;
 					subtitles=*) CONF_SUBTITLES="${arg}" ;;
+					force-subtitles=*) CONF_FORCE_SUBTITLES="${arg}" ;;
 					format=*) CONF_FORMAT="${arg}" ;;
 					extension=*) CONF_EXTENSION="${arg}" ;;
 					delete=*) CONF_DELETE="${arg}" ;;
-					config=*) CONFIG_FILE="${arg}" ;;
-					encoder=*) CONF_ENCODER="${arg}" ;;
-					file=*) CONF_FILE="${arg}" ;;
-					folder=*) CONF_FOLDER="${arg}" ;;
+					file-permission=*) CONF_FILE="${arg}" ;;
+					folder-permission=*) CONF_FOLDER="${arg}" ;;
 					*) usage ;;
 				esac
 			;;
@@ -361,7 +386,11 @@ CONF_THREADS=${CONF_THREADS:-${NZBPO_THREADS:-${THREADS}}}
 : "${CONF_THREADS:=auto}"
 CONF_THREADS=${CONF_THREADS,,}
 if [[ "${CONF_THREADS}" != "auto" ]]; then
-	if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > 8 )); then
+	case "${OSTYPE}" in
+		linux-gnu) MAX_CORES="$(nproc)" ;;
+		darwin*) MAX_CORES="$(sysctl -n hw.ncpu)" ;;
+	esac
+	if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > MAX_CORES )); then
 		echo "Threads is incorrectly configured"
 		exit ${CONFIG}
 	fi
@@ -461,7 +490,7 @@ if [[ ! -z "${CONF_RESOLUTION}" ]]; then
 	fi
 fi
 
-CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEOBITRATE}}}
+CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEO_BITRATE}}}
 : "${CONF_VIDEOBITRATE:=0}"
 CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE,,}
 if [[ ! "${CONF_VIDEOBITRATE}" =~ ^-?[0-9]+$ ]]; then
@@ -469,13 +498,31 @@ if [[ ! "${CONF_VIDEOBITRATE}" =~ ^-?[0-9]+$ ]]; then
 	exit ${CONFIG}
 fi
 
-CONF_DUALAUDIO=${CONF_DUALAUDIO:-${NZBPO_DUAL_AUDIO:-${DUALAUDIO}}}
+CONF_FORCE_VIDEO=${CONF_FORCE_VIDEO:-${NZBPO_FORCE_VIDEO:-${FORCE_VIDEO}}}
+: "${CONF_FORCE_VIDEO:=false}"
+CONF_FORCE_VIDEO=${CONF_FORCE_VIDEO,,}
+case "${CONF_FORCE_VIDEO}" in
+	true) ;;
+	false) ;;
+	*) echo "Force Video is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_DUALAUDIO=${CONF_DUALAUDIO:-${NZBPO_DUAL_AUDIO:-${DUAL_AUDIO}}}
 : "${CONF_DUALAUDIO:=false}"
 CONF_DUALAUDIO=${CONF_DUALAUDIO,,}
 case "${CONF_DUALAUDIO}" in
 	true) ;;
 	false) ;;
 	*) echo "Dual Audio is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_AUDIO=${CONF_FORCE_AUDIO:-${NZBPO_FORCE_AUDIO:-${FORCE_AUDIO}}}
+: "${CONF_FORCE_AUDIO:=false}"
+CONF_FORCE_AUDIO=${CONF_FORCE_AUDIO,,}
+case "${CONF_FORCE_AUDIO}" in
+	true) ;;
+	false) ;;
+	*) echo "Force Audio is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
 CONF_NORMALIZE=${CONF_NORMALIZE:-${NZBPO_NORMALIZE:-${NORMALIZE}}}
@@ -487,6 +534,15 @@ case "${CONF_NORMALIZE}" in
 	*) echo "Normalize is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
+CONF_FORCE_NORMALIZE=${CONF_FORCE_NORMALIZE:-${NZBPO_FORCE_NORMALIZE:-${FORCE_NORMALIZE}}}
+: "${CONF_FORCE_NORMALIZE:=false}"
+CONF_FORCE_NORMALIZE=${CONF_FORCE_NORMALIZE,,}
+case "${CONF_FORCE_NORMALIZE}" in
+	true) ;;
+	false) ;;
+	*) echo "Force Normalize is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
 CONF_SUBTITLES=${CONF_SUBTITLES:-${NZBPO_SUBTITLES:-${SUBTITLES}}}
 : "${CONF_SUBTITLES:=true}"
 CONF_SUBTITLES=${CONF_SUBTITLES,,}
@@ -494,6 +550,15 @@ case "${CONF_SUBTITLES}" in
 	true) ;;
 	false) ;;
 	*) echo "Subtitles is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_SUBTITLES=${CONF_FORCE_SUBTITLES:-${NZBPO_FORCE_SUBTITLES:-${FORCE_SUBTITLES}}}
+: "${CONF_FORCE_SUBTITLES:=false}"
+CONF_FORCE_SUBTITLES=${CONF_FORCE_SUBTITLES,,}
+case "${CONF_FORCE_SUBTITLES}" in
+	true) ;;
+	false) ;;
+	*) echo "Force Subtitles is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
 CONF_FORMAT=${CONF_FORMAT:-${NZBPO_FORMAT:-${FORMAT}}}
@@ -521,7 +586,7 @@ case "${CONF_DELETE}" in
 	*) echo "Delete is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
-CONF_FILE=${CONF_FILE:-${NZBPO_FILE:-${FILE}}}
+CONF_FILE=${CONF_FILE:-${NZBPO_FILE_PERMISSION:-${FILE_PERMISSION}}}
 if [[ ! -z "${CONF_FILE}" ]]; then 
 	if [[ ! "${CONF_FILE}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FILE} > 4 || ${#CONF_FILE} < 3 )); then
 		echo "File is incorretly configured"
@@ -536,7 +601,7 @@ if [[ ! -z "${CONF_FILE}" ]]; then
 	fi
 fi
 
-CONF_FOLDER=${CONF_FOLDER:-${NZBPO_FOLDER:-${FOLDER}}}
+CONF_FOLDER=${CONF_FOLDER:-${NZBPO_FOLDER_PERMISSION:-${FOLDER_PERMISSION}}}
 if [[ ! -z "${CONF_FOLDER}" ]]; then 
 	if [[ ! "${CONF_FOLDER}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FOLDER} > 4 || ${#CONF_FOLDER} < 3 )); then
 		echo "Folder is incorretly configured"
@@ -555,7 +620,7 @@ if (( ${#PROCESS[@]} == 0 )); then
 	usage
 fi
 
-format() {
+formatDate() {
 	case "${OSTYPE}" in
 		linux-gnu) date -d @"${1}" -u +%H:%M:%S ;;
 		darwin*) date -r "${1}" -u +%H:%M:%S ;;
@@ -567,7 +632,7 @@ progress() {
 	local TOTALFRAMES=${2} FRAME=0 OLDPERCENTAGE=0
 	case ${1} in
 		1) local TYPE="Converting" ;;
-		2) local TYPE="Boosting" ;;
+		2) local TYPE="Normalizing" ;;
 	esac
 	while ps -p "${PID}" &>/dev/null; do
 		sleep 2
@@ -582,13 +647,13 @@ progress() {
 				ELAPSED=$(( $(date +%s) - START ))
 				RATE=$(( TOTALFRAMES / ELAPSED ))
 				ETA=$(awk "BEGIN{print int((${ELAPSED} / ${CURRENTFRAME}) * (${TOTALFRAMES} - ${CURRENTFRAME}))}")
-				echo "${TYPE}... ${PERCENTAGE}% ETA: $(format "${ETA}")"
+				echo "${TYPE}... ${PERCENTAGE}% ETA: $(formatDate "${ETA}")"
 				PROGRESSED=true
 			fi
 		fi
 	done
 	if ${PROGRESSED}; then
-		ELAPSED=$(format "${ELAPSED}")
+		ELAPSED=$(formatDate "${ELAPSED}")
 	fi
 }
 
@@ -686,7 +751,7 @@ for input in "${PROCESS[@]}"; do
 			fi
 			convert=false
 			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
-			videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+			videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 			if (( ${#videomap} > 3 )); then
 				videomap=${videomap%:*}
 			fi
@@ -764,6 +829,9 @@ for input in "${PROCESS[@]}"; do
 					command+=" -progress \"${STATSFILE}\""
 				fi
 			fi
+			if ${CONF_FORCE_VIDEO}; then
+				convert=true
+			fi
 			if ${convert}; then
 				command+=" -map ${videomap} -c:v:${x} ${CONF_ENCODER}"
 				if ${resize}; then
@@ -825,7 +893,7 @@ for input in "${PROCESS[@]}"; do
 				fi
 			fi
 		done
-		audiostreams=() boost=false
+		audiostreams=()
 		declare -A dualaudio=()
 		for ((i = 0; i < ${#audio[@]}; i++)); do
 			if [[ -z "${audio[${i}]}" ]]; then
@@ -1027,7 +1095,7 @@ for input in "${PROCESS[@]}"; do
 			fi
 		fi
 		x=0
-		BOOST=()
+		NORMALIZE=()
 		for ((s = 0; s < ${#audiostreams[@]}; s++)); do
 			if [[ -z "${audiostreams[${s}]}" ]]; then
 				continue
@@ -1040,7 +1108,7 @@ for input in "${PROCESS[@]}"; do
 					continue
 				fi
 				audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
-				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 				if (( ${#audiomap} > 3 )); then
 					audiomap=${audiomap%:*}
 				fi
@@ -1062,16 +1130,40 @@ for input in "${PROCESS[@]}"; do
 						ac3=${dualaudio[${audiolang}]#*:}
 					fi
 					if ${aac} && ${ac3}; then
-						command+=" -map ${audiomap} -c:a:${x} copy"
+						if ${CONF_FORCE_AUDIO}; then
+							if [[ "${audiocodec}" == "aac" ]]; then
+								command+=" -map ${audiomap} -c:a:${x} aac"
+								if (( audiochannels > 2 )); then
+									command+=" -ac:a:${x} 2"
+									if (( audiobitrate > 128000 )); then
+										command+=" -ab:a:${x} 128k"
+									fi
+								fi
+								skip=false
+							elif [[ "${audiocodec}" == "ac3" ]]; then
+								command+=" -map ${audiomap} -c:a:${x} ac3"
+								if (( audiochannels > 6 )); then
+									command+=" -ac:a:${x} 6"
+								fi
+								skip=false
+							fi
+						else
+							command+=" -map ${audiomap} -c:a:${x} copy"
+							if [[ "${audiocodec}" == "aac" ]]; then
+								if ${CONF_FORCE_NORMALIZE}; then
+									NORMALIZE+=("${x}")
+								fi
+							fi
+						fi
 					else
 						if [[ "${audiocodec}" == "aac" ]]; then
 							if [[ "${audioprofile}" == "LC" ]]; then
-								if (( audiochannels > 2 )); then
+								if (( audiochannels > 2 )) || ${CONF_FORCE_AUDIO}; then
 									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
-									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									NORMALIZE+=("${x}")
+									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									BOOST+=("${x}")
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1081,14 +1173,18 @@ for input in "${PROCESS[@]}"; do
 									skip=false
 								else
 									command+=" -map ${audiomap} -c:a:${x} copy"
+									if ${CONF_FORCE_NORMALIZE}; then
+										NORMALIZE+=("${x}")
+									fi
 								fi
 							else
+								command+=" -map ${audiomap} -c:a:${x} aac"
 								if (( audiochannels > 2 )); then
-									command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
-									if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+									command+=" -ac:a:${x} 2"
+									NORMALIZE+=("${x}")
+									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									BOOST+=("${x}")
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1096,38 +1192,47 @@ for input in "${PROCESS[@]}"; do
 										command+=" -ac:a:${x} 6"
 									fi
 								else
-									command+=" -map ${audiomap} -c:a:${x} aac"
+									if (( audiobitrate > 128000 )); then
+										command+=" -ab:a:${x} 128k"
+									fi
+									if ${CONF_FORCE_NORMALIZE}; then
+										NORMALIZE+=("${x}")
+									fi
 								fi
 								skip=false
 							fi
 						elif [[ "${audiocodec}" == "ac3" ]]; then
+							command+=" -map ${audiomap} -c:a:${x} aac"
 							if (( audiochannels > 2 )); then
-								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
-								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+								command+=" -ac:a:${x} 2"
+								NORMALIZE+=("${x}")
+								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								BOOST+=("${x}")
 								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
-								if (( audiochannels > 6 )); then
+								if (( audiochannels > 6 )) || ${CONF_FORCE_AUDIO}; then
 									command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
 								else
 									command+=" -map ${audiomap} -c:a:${x} copy"
 								fi
 							else
-								command+=" -map ${audiomap} -c:a:${x} aac"
-								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
+								fi
+								if ${CONF_FORCE_NORMALIZE}; then
+									NORMALIZE+=("${x}")
 								fi
 							fi
 							skip=false
 						else
+							command+=" -map ${audiomap} -c:a:${x} aac"
 							if (( audiochannels > 2 )); then
-								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
-								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+								command+=" -ac:a:${x} 2"
+								NORMALIZE+=("${x}")
+								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								BOOST+=("${x}")
 								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								((x++))
 								command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1135,9 +1240,11 @@ for input in "${PROCESS[@]}"; do
 									command+=" -ac:a:${x} 6"
 								fi
 							else
-								command+=" -map ${audiomap} -c:a:${x} aac"
-								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
+								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
+								fi
+								if ${CONF_FORCE_NORMALIZE}; then
+									NORMALIZE+=("${x}")
 								fi
 							fi
 							skip=false
@@ -1146,12 +1253,12 @@ for input in "${PROCESS[@]}"; do
 				else
 					if [[ "${audiocodec}" == "aac" ]]; then
 						if [[ "${audioprofile}" == "LC" ]]; then
-							if (( audiochannels > 2 )); then
+							if (( audiochannels > 2 )) || ${CONF_FORCE_AUDIO}; then
 								command+=" -map ${audiomap} -c:a:${x} aac -ac:a:${x} 2"
 								if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								BOOST+=("${x}")
+								NORMALIZE+=("${x}")
 								skip=false
 							else
 								command+=" -map ${audiomap} -c:a:${x} copy"
@@ -1159,22 +1266,28 @@ for input in "${PROCESS[@]}"; do
 						else
 							command+=" -map ${audiomap} -c:a:${x} aac"
 							if (( audiochannels > 2 )); then
-								BOOST+=("${x}")
+								NORMALIZE+=("${x}")
 								command+=" -ac:a:${x} 2"
 							fi
 							if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 								command+=" -ab:a:${x} 128k"
+							fi
+							if ${CONF_FORCE_NORMALIZE}; then
+								NORMALIZE+=("${x}")
 							fi
 							skip=false
 						fi
 					else
 						command+=" -map ${audiomap} -c:a:${x} aac"
 						if (( audiochannels > 2 )); then
-							BOOST+=("${x}")
+							NORMALIZE+=("${x}")
 							command+=" -ac:a:${x} 2"
 						fi
 						if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
 							command+=" -ab:a:${x} 128k"
+						fi
+						if ${CONF_FORCE_NORMALIZE}; then
+							NORMALIZE+=("${x}")
 						fi
 						skip=false
 					fi
@@ -1215,7 +1328,7 @@ for input in "${PROCESS[@]}"; do
 					continue
 				fi
 				subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-				if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]]; then
+				if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]] || [[ "${subtitlecodec}" == dvbsub ]]; then
 					filtered+=("${subtitle[${i}]}")
 					continue
 				fi
@@ -1319,16 +1432,16 @@ for input in "${PROCESS[@]}"; do
 						continue
 					fi
 					subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
-					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 					if (( ${#subtitlemap} > 3 )); then
 						subtitlemap=${subtitlemap%:*}
 					fi
 					subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-					if [[ "${subtitlecodec}" == "mov_text" ]]; then
-						command+=" -map ${subtitlemap} -c:s:${x} copy"
-					else
+					if ${CONF_FORCE_SUBTITLES} || [[ "${subtitlecodec}" != "mov_text" ]]; then
 						command+=" -map ${subtitlemap} -c:s:${x} mov_text"
 						skip=false
+					else
+						command+=" -map ${subtitlemap} -c:s:${x} copy"
 					fi
 					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
@@ -1385,16 +1498,16 @@ for input in "${PROCESS[@]}"; do
 		if ${PROGRESSED}; then
 			echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 		fi
-		if ${CONF_NORMALIZE} && [[ ! -z "${BOOST[@]}" ]]; then
+		if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[@]}" ]]; then
 			echo "Checking audio levels..."
-			boostedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" boost=false
-			command="ffmpeg -threads ${CONF_THREADS} -i \"${boostedfile}\""
+			normalizedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" normalize=false
+			command="ffmpeg -threads ${CONF_THREADS} -i \"${normalizedfile}\""
 			readarray -t video <<< "$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 			for ((i = 0; i < ${#video[@]}; i++)); do
 				if [[ -z "${video[${i}]}" ]]; then
 					continue
 				fi
-				videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+				videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 				if (( ${#videomap} > 3 )); then
 					videomap=${videomap%:*}
 				fi
@@ -1419,11 +1532,11 @@ for input in "${PROCESS[@]}"; do
 				if [[ -z "${audio[${i}]}" ]]; then
 					continue
 				fi
-				for stream in "${BOOST[@]}"; do
+				for stream in "${NORMALIZE[@]}"; do
 					if [[ -z "${stream}" ]]; then
 						continue
 					fi
-					audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+					audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 					if (( ${#audiomap} > 3 )); then
 						audiomap=${audiomap%:*}
 					fi
@@ -1439,7 +1552,7 @@ for input in "${PROCESS[@]}"; do
 						grep 'max_volume:' | sed -E 's/\[.*\:|[^-\.0-9]//g')
 					if [[ ! -z "${dB}" ]] && (( ${dB%.*} < 0 )); then
 						command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB//-/+}dB\""
-						boost=true
+						normalize=true
 					fi
 				done
 			done
@@ -1448,20 +1561,20 @@ for input in "${PROCESS[@]}"; do
 				if [[ -z "${subtitle[${i}]}" ]]; then
 					continue
 				fi
-				subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*//g')
+				subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 				if (( ${#subtitlemap} > 3 )); then
 					subtitlemap=${subtitlemap%:*}
 				fi
 				command+=" -map ${subtitlemap} -c:s:${i} copy"
 			done
 			command+=" -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
-			if ${boost}; then
-				mv "${tmpfile}" "${boostedfile}"
-				TMPFILES+=("${boostedfile}")
+			if ${normalize}; then
+				mv "${tmpfile}" "${normalizedfile}"
+				TMPFILES+=("${normalizedfile}")
 				if ${CONF_VERBOSE}; then
 					echo "VERBOSE: ${command}"
 				fi
-				echo "Boosting..."
+				echo "Normalizing..."
 				eval "${command} &" &>/dev/null
 				PID=${!}
 				progress 2 "${total}"
