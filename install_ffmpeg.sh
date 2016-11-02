@@ -82,16 +82,16 @@ make install
 make clean
 
 cd ~/ffmpeg_sources
-wget http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.bz2
-tar xjvf ffmpeg-3.1.1.tar.bz2
-cd ffmpeg-3.1.1
+wget http://www.ffmpeg.org/releases/ffmpeg-3.2.tar.bz2
+tar xjvf ffmpeg-3.2.tar.bz2
+cd ffmpeg-3.2
 
 # Fixes multiple audio streams being default
 # http://trac.ffmpeg.org/ticket/3622
 # https://gist.github.com/outlyer/4a88f1adb7f895b93fd9
 # https://gist.github.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8
-wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/214b8ba8258e1207185017a0354706f553038716/ffmpeg-3.1-defaultstreams.patch
-patch libavformat/movenc.c < ffmpeg-3.1-defaultstreams.patch
+wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/55c75ba04ffb9e5cd93477b34617f35cede25f03/ffmpeg-3.2-defaultstreams.patch
+patch libavformat/movenc.c < ffmpeg-3.2-defaultstreams.patch
 
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
   --prefix="$HOME/ffmpeg_build" \
