@@ -102,7 +102,7 @@
 # This will force check audio levels for all supported audio streams.
 #Force Normalize=false
 
-# Copy Subtitles (true, false).
+# Copy Subtitles (true, false, extract).
 # This will copy/convert subtitles of your matching language(s) into the converted file.
 #Subtitles=true
 
@@ -196,6 +196,7 @@ usage() {
 	-v  --verbose   Verbose Mode
 	-d  --debug     Debug Mode
 	-i  --input     Input file or directory
+	-o  --output    Output directory
 	-c  --config    Config file
 
 	ADVANCED OPTIONS:
@@ -301,11 +302,13 @@ else
 			v) CONF_VERBOSE=true ;;
 			d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
 			i) PROCESS+=("${OPTARG}") ;;
+			o) CONF_OUTPUT="${OPTARG}" ;;
 			c) CONFIG_FILE="${OPTARG}" ;;
 			-) arg="${OPTARG#*=}";
 				case "${OPTARG,,}" in
        				help) usage ;;
 					input=*) PROCESS+=("${arg}") ;;
+					output=*) CONF_OUTPUT="${arg}" ;;
 					config=*) CONFIG_FILE="${arg}" ;;
 					verbose=*) CONF_VERBOSE="${arg}" ;;
 					debug=*) CONF_DEBUG="${arg}" ;;
@@ -361,6 +364,14 @@ else
 	CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
 	if [[ -e "${CONFIG_FILE}" ]]; then
 		source "${CONFIG_FILE}"
+	fi
+fi
+
+if [[ ! -z "${CONF_OUTPUT}" ]]; then
+	CONF_OUTPUT="${CONF_OUTPUT%/}"
+	if [[ ! -d "${CONF_OUTPUT}" ]]; then
+		echo "Output is incorrectly configured"
+		exit ${CONFIG}
 	fi
 fi
 
@@ -549,6 +560,7 @@ CONF_SUBTITLES=${CONF_SUBTITLES,,}
 case "${CONF_SUBTITLES}" in
 	true) ;;
 	false) ;;
+	extract) ;;
 	*) echo "Subtitles is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -699,6 +711,7 @@ for input in "${PROCESS[@]}"; do
 		else
 			newname="${FILE_NAME//${FILE_NAME##*.}/${CONF_EXTENSION}}"
 		fi
+		DIRECTORY="${CONF_OUTPUT:-${DIRECTORY}}"
 		newfile="${DIRECTORY}/${newname}"
 		tmpfile="${newfile}.tmp"
 		if [[ -e "${tmpfile}" ]]; then
@@ -813,6 +826,12 @@ for input in "${PROCESS[@]}"; do
 					fi	
 				fi
 			fi
+			pixel=false
+			videopixel=$(echo "${videodata}" | grep -x 'pix_fmt=.*' | sed 's/pix_fmt=//g')
+			if [[ "${videopixel}" != "yuv420p" ]]; then
+				convert=true
+				pixel=true
+			fi
 			if ${CONF_VERBOSE}; then
 				total=$(echo "${videodata}" | grep -x 'nb_frames=.*' | sed -E 's/[^0-9]//g')
 				if [[ -z "${total}" ]]; then
@@ -840,6 +859,9 @@ for input in "${PROCESS[@]}"; do
 				command+=" -preset:${x} ${CONF_PRESET}"
 				if ${profile}; then
 					command+=" -profile:v:${x} ${CONF_PROFILE}"
+				fi
+				if ${pixel}; then
+					command+=" -pix_fmt:${x} yuv420p"
 				fi
 				if ${level}; then
 					command+=" -level:${x} ${CONF_LEVEL}"
@@ -1311,7 +1333,7 @@ for input in "${PROCESS[@]}"; do
 		if (( x > 1 )); then
 			skip=false
 		fi
-		if ${CONF_SUBTITLES}; then
+		if [[ ${CONF_SUBTITLES} == "extract" ]] || ${CONF_SUBTITLES}; then
 			filtered=()
 			for ((i = 0; i < ${#subtitle[@]}; i++)); do
 				if [[ -z "${subtitle[${i}]}" ]]; then
@@ -1323,7 +1345,7 @@ for input in "${PROCESS[@]}"; do
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
 				fi
 				forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed -E 's/[^0-9]//g')
-				if [[ "${subtitledata,,}" =~ tag:.*forced ]] || (( forced == 1 )); then
+				if [[ ! -z "$(echo "${subtitledata}" | grep -i 'TAG:.*forced')" ]] || (( forced == 1 )); then
 					filtered+=("${subtitle[${i}]}")
 					continue
 				fi
@@ -1436,21 +1458,49 @@ for input in "${PROCESS[@]}"; do
 					if (( ${#subtitlemap} > 3 )); then
 						subtitlemap=${subtitlemap%:*}
 					fi
-					subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-					if ${CONF_FORCE_SUBTITLES} || [[ "${subtitlecodec}" != "mov_text" ]]; then
-						command+=" -map ${subtitlemap} -c:s:${x} mov_text"
-						skip=false
-					else
-						command+=" -map ${subtitlemap} -c:s:${x} copy"
-					fi
 					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 							subtitlelang="${CONF_DEFAULTLANGUAGE}"
-							skip=false
+							if [[ "${CONF_SUBTITLES}" != "extract" ]]; then
+								skip=false
+							fi
 						fi
 					fi
-					command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
+					if [[ "${CONF_SUBTITLES}" == "extract" ]]; then
+						SRTFILE="${DIRECTORY}/${FILE_NAME%.*}.${subtitlelang}.srt"
+						if [[ -e "${SRTFILE}" ]]; then
+							echo "Unable to extract (${subtitlelang}) subtitle, file already exists"
+						else
+							EXTRACT_COMMAND="ffmpeg -i \"${file}\" -vn -an -c:s:${i} srt \"${SRTFILE}\""
+							if ${CONF_VERBOSE}; then
+								echo "VERBOSE: ${EXTRACT_COMMAND}"
+							fi
+							if ${CONF_DEBUG}; then
+								continue
+							fi
+							echo "Extracting..."
+							TMPFILES+=("${SRTFILE}")
+							eval "${EXTRACT_COMMAND} &" &>/dev/null
+							PID=${!}
+							wait ${PID} &>/dev/null
+							if [[ ${?} -ne 0 ]]; then
+								echo "Result: failure"
+							else
+								echo "Result: success"
+								TMPFILES=("${TMPFILES[@]//${SRTFILE}/}")
+							fi
+						fi
+					else
+						subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
+						if [[ "${subtitlecodec}" != "mov_text" ]] || ${CONF_FORCE_SUBTITLES}; then
+							command+=" -map ${subtitlemap} -c:s:${x} mov_text"
+							skip=false
+						else
+							command+=" -map ${subtitlemap} -c:s:${x} copy"
+						fi
+						command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
+					fi
 				done
 			done
 			if [[ "${command}" =~ mov_text ]]; then
