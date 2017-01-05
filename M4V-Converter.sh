@@ -201,6 +201,9 @@ usage() {
 
 	ADVANCED OPTIONS:
 	-----------------
+
+	https://github.com/Digiex/M4V-Converter/blob/master/default.conf
+
 	--threads
 	--languages
 	--encoder
@@ -226,6 +229,32 @@ usage() {
 	exit ${FAILURE}
 }
 
+if [[ "${OSTYPE}" == darwin* ]]; then
+	if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
+		PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		if ${NZBGET}; then
+			bash "${0}"
+		elif ${SABNZBD}; then
+			bash "${0}" "${@}"
+		fi
+		wait
+		exit ${?}
+	fi
+fi
+
+if (( BASH_VERSINFO < 4 )); then
+	echo "Sorry, you do not have Bash 4+"
+	exit ${DEPEND}
+fi
+if ! hash ffmpeg 2>/dev/null; then
+	echo "Sorry, you do not have FFmpeg"
+	exit ${DEPEND}
+fi
+if ! hash ffprobe 2>/dev/null; then
+	echo "Sorry, you do not have FFprobe"
+	exit ${DEPEND}
+fi
+
 force() {
 	if (( PID > 0 )) && ps -p "${PID}" &>/dev/null; then
 		disown "${PID}"
@@ -244,19 +273,6 @@ clean() {
 
 trap force HUP INT TERM QUIT
 trap clean EXIT
-
-if (( BASH_VERSINFO < 4 )); then
-	echo "Sorry, you do not have Bash 4+"
-	exit ${DEPEND}
-fi
-if ! hash ffmpeg 2>/dev/null; then
-	echo "Sorry, you do not have FFmpeg"
-	exit ${DEPEND}
-fi
-if ! hash ffprobe 2>/dev/null; then
-	echo "Sorry, you do not have FFprobe"
-	exit ${DEPEND}
-fi
 
 if ${NZBGET}; then
 	if [[ -z "${NZBPP_TOTALSTATUS}" ]]; then
@@ -1639,6 +1655,7 @@ for input in "${PROCESS[@]}"; do
 				fi
 			fi
 		fi
+		echo "Conversion efficiency at $(( 100 * $(du -b "${file}" 2>&1 | awk '{print($1)}') / $(du -b "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
 		if ${CONF_DELETE}; then
 			rm -f "${file}"
 		fi
