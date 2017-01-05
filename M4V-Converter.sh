@@ -232,11 +232,7 @@ usage() {
 if [[ "${OSTYPE}" == darwin* ]]; then
 	if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
 		PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-		if ${NZBGET}; then
-			bash "${0}"
-		elif ${SABNZBD}; then
-			bash "${0}" "${@}"
-		fi
+		bash "${0}" "${@}"
 		wait
 		exit ${?}
 	fi
