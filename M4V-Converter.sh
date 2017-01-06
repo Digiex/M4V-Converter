@@ -1651,7 +1651,7 @@ for input in "${PROCESS[@]}"; do
 				fi
 			fi
 		fi
-		echo "Conversion efficiency at $(( 100 * $(du -b "${file}" 2>&1 | awk '{print($1)}') / $(du -b "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
+		echo "Conversion efficiency at $(( 100 * $(wc -c "${file}" 2>&1 | awk '{print($1)}') / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
 		if ${CONF_DELETE}; then
 			rm -f "${file}"
 		fi
