@@ -233,7 +233,6 @@ if [[ "${OSTYPE}" == darwin* ]]; then
 	if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
 		PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 		bash "${0}" "${@}"
-		wait
 		exit ${?}
 	fi
 fi
