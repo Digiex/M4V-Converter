@@ -3,11 +3,11 @@
 ##############################################################################
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 
-# M4V-Converter (LINUX & OS X)
+# M4V-Converter (Linux/macOS)
 #
-# This script converts media to mp4 format.
+# This script converts media to a universal mp4 format.
 #
-# NOTE: This script requires FFMPEG, FFPROBE and Bash 4+.
+# NOTE: This script requires FFmpeg, FFprobe and Bash 4.
 
 ##############################################################################
 ### OPTIONS                                                                ###
