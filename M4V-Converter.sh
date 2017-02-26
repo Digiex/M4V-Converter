@@ -186,9 +186,9 @@ usage() {
 	cat <<-EOF
 	USAGE: ${0} parameters
 
-	This script is designed to convert media
+	This script converts media to a universal mp4 format.
 
-	NOTE: This script requires FFMPEG, FFPROBE and BASH 4+
+	NOTE: This script requires FFmpeg, FFprobe and Bash 4
 
 	OPTIONS:
 	--------
@@ -231,14 +231,14 @@ usage() {
 
 if [[ "${OSTYPE}" == darwin* ]]; then
 	if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
-		PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		PATH=/usr/local/bin:${PATH}
 		bash "${0}" "${@}"
 		exit ${?}
 	fi
 fi
 
 if (( BASH_VERSINFO < 4 )); then
-	echo "Sorry, you do not have Bash 4+"
+	echo "Sorry, you do not have Bash 4"
 	exit ${DEPEND}
 fi
 if ! hash ffmpeg 2>/dev/null; then
@@ -680,35 +680,47 @@ progress() {
 	fi
 }
 
-success=false failure=false skipped=false
-for input in "${PROCESS[@]}"; do
-	if [[ -z "${input}" ]]; then
+VALID=() success=false failure=false skipped=false
+for process in "${PROCESS[@]}"; do
+	if [[ -z "${process}" ]]; then
 		continue
 	fi
-	if [[ ! -e "${input}" ]] || [[ "${input}" == / ]]; then
-		echo "${input} is not a valid file or directory"
+	if [[ ! -e "${process}" ]] || [[ "${process}" == / ]]; then
+		echo "${process} is not a valid file or directory"
 		continue
 	fi
-	if [[ -d "${input}" ]]; then
-		echo "Processing directory: ${input}"
+	VALID+=("${process}")
+done
+
+CURRENTDIRECTORY=0
+for valid in "${VALID[@]}"; do
+	if [[ -z "${valid}" ]]; then
+		continue
 	fi
-	readarray -t files <<< "$(find "${input}" -type f)"
+	((CURRENTDIRECTORY++))
+	if [[ -d "${valid}" ]]; then
+		echo "Processing directory[${CURRENTDIRECTORY} of ${#VALID[@]}]: ${valid}"
+	fi
+	readarray -t files <<< "$(find "${valid}" -type f)"
+	CURRENTFILE=0
 	for file in "${files[@]}"; do
 		if [[ -z "${file}" ]]; then
 			continue
 		fi
+		((CURRENTFILE++))
 		skip=true
 		DIRECTORY=$(path "${file}")
 		FILE_NAME="$(basename "${file}")"
 		file="${DIRECTORY}/${FILE_NAME}"
-		echo "Processing file: ${file}"
+		echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
 		case "${file,,}" in
 			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
+			*.srt) continue ;;
 			*)
 				if [[ "$(ffprobe "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
 					echo "File is not convertable" && continue
 				else
-					echo "File does not have the expected extension but is a media file. Attemtping..."
+					echo "File does not have the expected extension, attemtping..."
 				fi
 			;;
 		esac
