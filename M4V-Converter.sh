@@ -724,8 +724,7 @@ for valid in "${VALID[@]}"; do
 				fi
 			;;
 		esac
-		lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null
-		if [[ ${?} -eq 0 ]]; then
+		if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
 			echo "File is in use"
 			skipped=true && continue
 		fi
@@ -1623,8 +1622,13 @@ for valid in "${VALID[@]}"; do
 					fi
 					dB=$(ffmpeg -i "${tmpfile}" -map "${audiomap}" -filter:a:${i} volumedetect -f null /dev/null 2>&1 | \
 						grep 'max_volume:' | sed -E 's/\[.*\:|[^-\.0-9]//g')
-					if [[ ! -z "${dB}" ]] && (( ${dB%.*} < 0 )); then
-						command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB//-/+}dB\""
+					if [[ ! -z "${dB}" ]] && ! (( ${dB%.*} == 0 )); then
+						if (( ${dB%.*} < 0 )); then
+							dB=${dB//-/}
+						elif (( ${dB%.*} > 0 )); then
+							dB=-${dB}
+						fi
+						command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB}dB\""
 						normalize=true
 					fi
 				done
@@ -1658,7 +1662,7 @@ for valid in "${VALID[@]}"; do
 					echo "Result: failure"
 				fi
 				if ${PROGRESSED}; then
-					echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
+					echo "Time taken: ${ELAPSED}"
 				fi
 			fi
 		fi

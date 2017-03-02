@@ -14,9 +14,4 @@ Tested using Ubuntu Server 16.04 LTS, Debian 8.6.0, Linux Mint 18.1, Fedora Serv
 Dependencies
 ------------
 
-Requires FFMPEG, FFPROBE and Bash 4+
-
-Usage
------
-
-You can run this script in many different ways but the best way is via NZBGet post-process.
+Requires FFmpeg, FFprobe and Bash 4
