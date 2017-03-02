@@ -896,14 +896,16 @@ for valid in "${VALID[@]}"; do
 			else
 				command+=" -map ${videomap} -c:v:${x} copy"
 			fi
-			videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
-			if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+			if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+				videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
 				if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
 					videolang="${CONF_DEFAULTLANGUAGE}"
 					skip=false
 				fi
+				if [[ "${videolang}" != "" ]]; then
+					command+=" -metadata:s:v:${x} \"language=${videolang}\""
+				fi
 			fi
-			command+=" -metadata:s:v:${x} \"language=${videolang}\""
 			((x++))
 		done
 		filtered=()
@@ -1160,7 +1162,7 @@ for valid in "${VALID[@]}"; do
 				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
 				audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
-				if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+				if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 					if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 						audiolang="${CONF_DEFAULTLANGUAGE}"
 						skip=false
@@ -1208,7 +1210,9 @@ for valid in "${VALID[@]}"; do
 									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									if [[ "${audiolang}" != "" ]]; then
+										command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									fi
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
 									if (( audiochannels > 6 )); then
@@ -1229,7 +1233,9 @@ for valid in "${VALID[@]}"; do
 									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									if [[ "${audiolang}" != "" ]]; then
+										command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+									fi
 									((x++))
 									command+=" -map ${audiomap} -c:a:${x} ac3"
 									if (( audiochannels > 6 )); then
@@ -1253,7 +1259,9 @@ for valid in "${VALID[@]}"; do
 								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+								if [[ "${audiolang}" != "" ]]; then
+									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+								fi
 								((x++))
 								if (( audiochannels > 6 )) || ${CONF_FORCE_AUDIO}; then
 									command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
@@ -1277,7 +1285,9 @@ for valid in "${VALID[@]}"; do
 								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+								if [[ "${audiolang}" != "" ]]; then
+									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+								fi
 								((x++))
 								command+=" -map ${audiomap} -c:a:${x} ac3"
 								if (( audiochannels > 6 )); then
@@ -1336,7 +1346,9 @@ for valid in "${VALID[@]}"; do
 						skip=false
 					fi
 				fi
-				command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+				if [[ "${audiolang}" != "" ]]; then
+					command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+				fi
 				((x++))
 			done
 		done
@@ -1481,7 +1493,7 @@ for valid in "${VALID[@]}"; do
 						subtitlemap=${subtitlemap%:*}
 					fi
 					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
-					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+					if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 							subtitlelang="${CONF_DEFAULTLANGUAGE}"
 							if [[ "${CONF_SUBTITLES}" != "extract" ]]; then
@@ -1521,7 +1533,9 @@ for valid in "${VALID[@]}"; do
 						else
 							command+=" -map ${subtitlemap} -c:s:${x} copy"
 						fi
-						command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
+						if [[ "${subtitlelang}" != "" ]]; then
+							command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
+						fi
 					fi
 				done
 			done
