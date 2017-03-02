@@ -902,7 +902,7 @@ for valid in "${VALID[@]}"; do
 					videolang="${CONF_DEFAULTLANGUAGE}"
 					skip=false
 				fi
-				if [[ "${videolang}" != "" ]]; then
+				if ! [[ -z "${videolang}" ]]; then
 					command+=" -metadata:s:v:${x} \"language=${videolang}\""
 				fi
 			fi
@@ -1210,7 +1210,7 @@ for valid in "${VALID[@]}"; do
 									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									if [[ "${audiolang}" != "" ]]; then
+									if ! [[ -z "${audiolang}" ]]; then
 										command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									fi
 									((x++))
@@ -1233,7 +1233,7 @@ for valid in "${VALID[@]}"; do
 									if (( audiobitrate > 128000 )); then
 										command+=" -ab:a:${x} 128k"
 									fi
-									if [[ "${audiolang}" != "" ]]; then
+									if ! [[ -z "${audiolang}" ]]; then
 										command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 									fi
 									((x++))
@@ -1259,7 +1259,7 @@ for valid in "${VALID[@]}"; do
 								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								if [[ "${audiolang}" != "" ]]; then
+								if ! [[ -z "${audiolang}" ]]; then
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								fi
 								((x++))
@@ -1285,7 +1285,7 @@ for valid in "${VALID[@]}"; do
 								if (( audiobitrate > 128000 )); then
 									command+=" -ab:a:${x} 128k"
 								fi
-								if [[ "${audiolang}" != "" ]]; then
+								if ! [[ -z "${audiolang}" ]]; then
 									command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 								fi
 								((x++))
@@ -1346,7 +1346,7 @@ for valid in "${VALID[@]}"; do
 						skip=false
 					fi
 				fi
-				if [[ "${audiolang}" != "" ]]; then
+				if ! [[ -z "${audiolang}" ]]; then
 					command+=" -metadata:s:a:${x} \"language=${audiolang}\""
 				fi
 				((x++))
@@ -1533,7 +1533,7 @@ for valid in "${VALID[@]}"; do
 						else
 							command+=" -map ${subtitlemap} -c:s:${x} copy"
 						fi
-						if [[ "${subtitlelang}" != "" ]]; then
+						if ! [[ -z "${subtitlelang}" ]]; then
 							command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
 						fi
 					fi
