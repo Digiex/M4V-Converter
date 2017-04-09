@@ -167,19 +167,13 @@ if [[ ! -z "${NZBOP_SCRIPTDIR}" ]]; then
 	DEPEND=94
 	CONFIG=94
 	NZBGET=true
-else
-	if (( ${#} == 7 )) || (( ${#} == 8 )); then
-		if [[ -e "${1}" ]] && [[ -d "${1}" ]]; then
-			if [[ "${7}" =~ ^-?[0-9]+$ ]] && (( ${7} > -1 || ${7} <= 3 )); then
-				SUCCESS=0
-				FAILURE=1
-				SKIPPED=0
-				DEPEND=2
-				CONFIG=3
-				SABNZBD=true
-			fi
-		fi
-	fi
+elif [[ ! -z "${SAB_VERSION}" ]]; then
+	SUCCESS=0
+	FAILURE=1
+	SKIPPED=0
+	DEPEND=2
+	CONFIG=3
+	SABNZBD=true
 fi
 
 usage() {
@@ -302,10 +296,10 @@ if ${NZBGET}; then
 	fi
 	PROCESS+=("${NZBPP_DIRECTORY}")
 elif ${SABNZBD}; then
-	if ! (( ${7} == 0 )); then
+	if ! (( ${SAB_PP_STATUS} == 0 )); then
 		exit ${SKIPPED}
 	fi
-	PROCESS+=("${1}")
+	PROCESS+=("${SAB_COMPLETE_DIR}")
 else
 	while getopts hvdi:o:c:-: opts; do
 		case ${opts,,} in
