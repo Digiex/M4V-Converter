@@ -163,7 +163,7 @@ installMac() {
 	brew update
 	brew upgrade
 	brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm ffmpeg
-	curl -s https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/a3571e6cc3c051dd449cff89244b5bbd40b0c183/ffmpeg.rb > ffmpeg.rb
+	curl -s https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/648d5742abfc7d22d4fc7eba8b2d1d7fe0433e66/ffmpeg.rb > ffmpeg.rb
 	mv ffmpeg.rb /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/ffmpeg.rb
 	brew reinstall ffmpeg --with-tools --with-fdk-aac --with-freetype --with-fontconfig --with-libass --with-libvorbis --with-libvpx --with-opus --with-x265
 	brew cleanup ffmpeg
