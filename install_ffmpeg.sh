@@ -127,8 +127,8 @@ installLinux() {
 	# http://trac.ffmpeg.org/ticket/3622
 	# https://gist.github.com/outlyer/4a88f1adb7f895b93fd9
 	# https://gist.github.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8
-	wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/55c75ba04ffb9e5cd93477b34617f35cede25f03/ffmpeg-3.2-defaultstreams.patch
-	patch libavformat/movenc.c < ffmpeg-3.2-defaultstreams.patch
+	wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/a3571e6cc3c051dd449cff89244b5bbd40b0c183/ffmpeg-3.4-defaultstreams.patch
+	patch libavformat/movenc.c < ffmpeg-3.4-defaultstreams.patch
 
 	PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --pkg-config-flags="--static" --extra-cflags="-I$HOME/ffmpeg_build/include" --extra-ldflags="-L$HOME/ffmpeg_build/lib" --bindir="$HOME/bin" \
 		--enable-gpl \
@@ -160,11 +160,14 @@ installMac() {
 		echo "You must install Homebrew from http://brew.sh/ for this script to assist in installing ffmpeg"
 		exit 10
 	fi
-	curl -s https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/55c75ba04ffb9e5cd93477b34617f35cede25f03/ffmpeg.rb > ffmpeg.rb
+	brew update
+	brew upgrade
+	brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm ffmpeg
+	curl -s https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/a3571e6cc3c051dd449cff89244b5bbd40b0c183/ffmpeg.rb > ffmpeg.rb
 	mv ffmpeg.rb /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/ffmpeg.rb
-	brew reinstall ffmpeg --enable-gpl --enable-libass --enable-libfdk-aac --enable-libfreetype --enable-libmp3lame --enable-libopus --enable-libtheora --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265 --enable-nonfree
+	brew reinstall ffmpeg --with-tools --with-fdk-aac --with-freetype --with-fontconfig --with-libass --with-libvorbis --with-libvpx --with-opus --with-x265
+	brew cleanup ffmpeg
 }
-
 manager() {
 	if hash apt-get 2>/dev/null; then
 		apt-get "${@}"
