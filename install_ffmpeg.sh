@@ -9,8 +9,8 @@ installLinux() {
 	distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
 
 	case "${distro}" in
-		ubuntu|debian|linuxmint) depends="autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial nasm texinfo zlib1g-dev" ;;
-		fedora|centos) depends="autoconf automake cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial nasm patch pkgconfig wget zlib-devel" ;;
+		ubuntu|debian|linuxmint) depends="autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev" ;;
+		fedora|centos) depends="autoconf automake cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial patch pkgconfig wget zlib-devel" ;;
 		*) echo "This Linux distribution is unsupported"; exit 2 ;;
 	esac
 
@@ -20,10 +20,19 @@ installLinux() {
 	mkdir ~/ffmpeg_sources
 
 	cd ~/ffmpeg_sources
+	wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.01/nasm-2.13.01.tar.bz2
+	tar xjvf nasm-2.13.01.tar.bz2
+	cd nasm-2.13.01
+	./autogen.sh
+	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
+	make
+	make install
+	echo
+
+	cd ~/ffmpeg_sources
 	wget -O yasm-1.3.0.tar.gz https://github.com/yasm/yasm/archive/v1.3.0.tar.gz
 	tar xzvf yasm-1.3.0.tar.gz
 	cd yasm-1.3.0
-	autoreconf -fiv
 	./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
 	make
 	make install
@@ -119,9 +128,9 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://www.ffmpeg.org/releases/ffmpeg-3.2.tar.gz
-	tar xzvf ffmpeg-3.2.tar.gz
-	cd ffmpeg-3.2
+	wget http://www.ffmpeg.org/releases/ffmpeg-3.4.tar.gz
+	tar xzvf ffmpeg-3.4.tar.gz
+	cd ffmpeg-3.4
 
 	# Fixes multiple audio streams being default
 	# http://trac.ffmpeg.org/ticket/3622
