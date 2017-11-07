@@ -20,6 +20,10 @@
 # When enabled this script does nothing.
 #Debug=false
 
+# Background Mode (true, false).
+# Automatically pauses transcoding if a processes (determined below) is found running.
+#Background=false
+
 # Number of Threads (*).
 # This is how many threads FFMPEG will use for conversion.
 #Threads=auto
@@ -145,8 +149,12 @@
 #Cleanup Size=
 
 # Cleanup Files.
-# This will delete extra files with the specified file extensions
+# This will delete extra files with the specified file extensions.
 #Cleanup=.nfo, .nzb
+
+# Background Processes.
+# These are the processes background mode will look for and auto-pause any active transcoding if found.
+#Processes=ffmpeg
 
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
@@ -164,8 +172,8 @@ if [[ ! -z "${NZBOP_SCRIPTDIR}" ]]; then
 	SUCCESS=93
 	FAILURE=94
 	SKIPPED=95
-	DEPEND=94
-	CONFIG=94
+	DEPEND=95
+	CONFIG=95
 	NZBGET=true
 elif [[ ! -z "${SAB_VERSION}" ]]; then
 	SUCCESS=0
@@ -186,12 +194,13 @@ usage() {
 
 	OPTIONS:
 	--------
-	-h  --help      Show this message
-	-v  --verbose   Verbose Mode
-	-d  --debug     Debug Mode
-	-i  --input     Input file or directory
-	-o  --output    Output directory
-	-c  --config    Config file
+	-h  --help 		Show this message
+	-v  --verbose 		Verbose Mode
+	-d  --debug 		Debug Mode
+	-i  --input 		Input file or directory
+	-o  --Output 		Output directory
+	-c  --config 		Config file
+	-b  --background 	Auto pauses if processes are running
 
 	ADVANCED OPTIONS:
 	-----------------
@@ -217,10 +226,11 @@ usage() {
 	--delete
 	--file-permission
 	--folder-permission
+	--processes
 
 	EXAMPLE: ${0} -v -i ~/video.mkv
 	EOF
-	exit ${FAILURE}
+	exit ${CONFIG}
 }
 
 if [[ "${OSTYPE}" == darwin* ]]; then
@@ -245,11 +255,11 @@ if ! hash ffprobe 2>/dev/null; then
 fi
 
 force() {
-	if (( PID > 0 )) && ps -p "${PID}" &>/dev/null; then
-		disown "${PID}"
-		kill -KILL "${PID}" &>/dev/null
+	if (( CONVERTER > 0 )) && ps -p "${CONVERTER}" &>/dev/null; then
+		disown "${CONVERTER}"
+		kill -KILL "${CONVERTER}" &>/dev/null
 	fi
-	exit ${FAILURE}
+	exit ${SKIPPED}
 }
 
 clean() {
@@ -274,16 +284,16 @@ if ${NZBGET}; then
 	samplesize=${NZBPO_CLEANUP_SIZE:-0}
 	if (( samplesize > 0 )); then
 		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)"
-		if [[ ! -z "${samples[@]}" ]]; then
+		if [[ ! -z "${samples[*]}" ]]; then
 			for file in "${samples[@]}"; do
 				rm -f "${file}"
 			done
 		fi
 	fi
 	read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
-	if [[ ! -z "${extensions[@]}" ]]; then
+	if [[ ! -z "${extensions[*]}" ]]; then
 		readarray -t files <<< "$(find "${NZBPP_DIRECTORY}" -type f)"
-		if [[ ! -z "${files[@]}" ]]; then
+		if [[ ! -z "${files[*]}" ]]; then
 			for file in "${files[@]}"; do
 				for ext in "${extensions[@]}"; do
 					if [[ "${file##*.}" == "${ext//./}" ]]; then
@@ -296,12 +306,12 @@ if ${NZBGET}; then
 	fi
 	PROCESS+=("${NZBPP_DIRECTORY}")
 elif ${SABNZBD}; then
-	if ! (( ${SAB_PP_STATUS} == 0 )); then
+	if ! (( SAB_PP_STATUS == 0 )); then
 		exit ${SKIPPED}
 	fi
 	PROCESS+=("${SAB_COMPLETE_DIR}")
 else
-	while getopts hvdi:o:c:-: opts; do
+	while getopts hvdi:o:c:b-: opts; do
 		case ${opts,,} in
 			h) usage ;;
 			v) CONF_VERBOSE=true ;;
@@ -309,6 +319,7 @@ else
 			i) PROCESS+=("${OPTARG}") ;;
 			o) CONF_OUTPUT="${OPTARG}" ;;
 			c) CONFIG_FILE="${OPTARG}" ;;
+			b) CONF_BACKGROUND=true ;;
 			-) arg="${OPTARG#*=}";
 				case "${OPTARG,,}" in
        				help) usage ;;
@@ -338,6 +349,8 @@ else
 					delete=*) CONF_DELETE="${arg}" ;;
 					file-permission=*) CONF_FILE="${arg}" ;;
 					folder-permission=*) CONF_FOLDER="${arg}" ;;
+					background=*) CONF_BACKGROUND="${arg}" ;;
+					processes=*) CONF_PROCESSES="${arg}" ;;
 					*) usage ;;
 				esac
 			;;
@@ -633,9 +646,71 @@ if [[ ! -z "${CONF_FOLDER}" ]]; then
 	fi
 fi
 
+CONF_BACKGROUND=${CONF_BACKGROUND:-${NZBPO_BACKGROUND:-${BACKGROUND}}}
+: "${CONF_BACKGROUND:=false}"
+CONF_BACKGROUND=${CONF_BACKGROUND,,}
+case "${CONF_BACKGROUND}" in
+	true) ;;
+	false) ;;
+	*) echo "Background is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
+: "${CONF_PROCESSES:=ffmpeg}"
+read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/\ //g' | sed 's/,/\ /g')"
+if [[ ! "${CONF_PROCESSES}" =~ "ffmpeg" ]]; then
+	CONF_PROCESSES+=("ffmpeg")
+fi
+
 if (( ${#PROCESS[@]} == 0 )); then
 	usage
 fi
+
+background() {
+	if ! ${CONF_BACKGROUND}; then
+		exit 0
+	fi
+	echo "Running in background mode..."
+	while ps -p "${CONVERTER}" &>/dev/null; do
+		local STATE=false
+		for PROCESS in "${CONF_PROCESSES[@]}"; do
+			if [[ -z "${PROCESS}" ]]; then
+				continue
+			fi
+			readarray -t PIDS <<< "$(pgrep ^"${PROCESS}")"
+			for PID in "${PIDS[@]}"; do
+				if [[ -z "${PID}" ]]; then
+					continue
+				fi
+				if [[ "${PID}" == "${CONVERTER}" ]]; then
+					continue
+				fi
+				PROCESS="${PROCESS}"
+				PID="${PID}"
+				STATE=true
+				break
+			done
+			if ${STATE}; then
+				break
+			fi
+		done
+		if ${STATE}; then
+			if [[ "$(ps -o s= -p "${CONVERTER}")" == "R" ]]; then 
+				echo "Detected running process ${PROCESS}; pid=${PID}"
+				echo "Pausing..."
+				kill -STOP "${CONVERTER}"
+			else
+				STATE=false
+			fi
+		else
+			if [[ "$(ps -o s= -p "${CONVERTER}")" == "T" ]]; then 
+				echo "Resuming..."
+				kill -CONT "${CONVERTER}"
+			fi
+		fi
+		sleep 10
+	done
+}
 
 formatDate() {
 	case "${OSTYPE}" in
@@ -651,7 +726,7 @@ progress() {
 		1) local TYPE="Converting" ;;
 		2) local TYPE="Normalizing" ;;
 	esac
-	while ps -p "${PID}" &>/dev/null; do
+	while ps -p "${CONVERTER}" &>/dev/null; do
 		sleep 2
 		if [[ -e "${STATSFILE}" ]]; then
 			FRAME=$(tail -n 11 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
@@ -781,9 +856,6 @@ for valid in "${VALID[@]}"; do
 			convert=false
 			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-			if (( ${#videomap} > 3 )); then
-				videomap=${videomap%:*}
-			fi
 			videocodec=$(echo "${videodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 			if [[ "${videocodec}" != "${CONF_ENCODER_NAME}" ]]; then
 				convert=true
@@ -851,8 +923,8 @@ for valid in "${VALID[@]}"; do
 			if ${CONF_VERBOSE}; then
 				total=$(echo "${videodata}" | grep -x 'nb_frames=.*' | sed -E 's/[^0-9]//g')
 				if [[ -z "${total}" ]]; then
-					fps=$(echo "${data}" | sed -n "s/.*, \(.*\) fps.*/\1/p")
-					dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
+					fps=$(echo "${data}" | sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
+					dur=$(echo "${data}" | sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
 					total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
 				fi
 				if (( total > 0 )); then
@@ -1075,7 +1147,7 @@ for valid in "${VALID[@]}"; do
 				done
 			done
 		done
-		if [[ ! -z "${streams[@]}" ]] && [[ "${audiostreams[@]}" != "${streams[@]}" ]]; then
+		if [[ ! -z "${streams[*]}" ]] && [[ "${audiostreams[*]}" != "${streams[*]}" ]]; then
 			audiostreams=("${streams[@]}")
 			skip=false
 		fi
@@ -1129,7 +1201,7 @@ for valid in "${VALID[@]}"; do
 					fi
 				done
 			done
-			if [[ ! -z "${streams[@]}" ]] && [[ "${audiostreams[@]}" != "${streams[@]}" ]]; then
+			if [[ ! -z "${streams[*]}" ]] && [[ "${audiostreams[*]}" != "${streams[*]}" ]]; then
 				audiostreams=("${streams[@]}")
 				skip=false
 			fi
@@ -1149,9 +1221,6 @@ for valid in "${VALID[@]}"; do
 				fi
 				audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-				if (( ${#audiomap} > 3 )); then
-					audiomap=${audiomap%:*}
-				fi
 				audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
 				audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
@@ -1465,7 +1534,7 @@ for valid in "${VALID[@]}"; do
 					done
 				done
 			done
-			if [[ ! -z "${streams[@]}" ]] && [[ "${subtitlestreams[@]}" != "${streams[@]}" ]]; then
+			if [[ ! -z "${streams[*]}" ]] && [[ "${subtitlestreams[*]}" != "${streams[*]}" ]]; then
 				subtitlestreams=("${streams[@]}")
 				skip=false
 			fi
@@ -1483,9 +1552,6 @@ for valid in "${VALID[@]}"; do
 					fi
 					subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-					if (( ${#subtitlemap} > 3 )); then
-						subtitlemap=${subtitlemap%:*}
-					fi
 					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
@@ -1510,8 +1576,8 @@ for valid in "${VALID[@]}"; do
 							echo "Extracting..."
 							TMPFILES+=("${SRTFILE}")
 							eval "${EXTRACT_COMMAND} &" &>/dev/null
-							PID=${!}
-							wait ${PID} &>/dev/null
+							CONVERTER=${!}
+							wait ${CONVERTER} &>/dev/null
 							if [[ ${?} -ne 0 ]]; then
 								echo "Result: failure"
 							else
@@ -1537,7 +1603,7 @@ for valid in "${VALID[@]}"; do
 				command="${command//-i ${file}/-fix_sub_duration -i ${file}}"
 			fi
 		else
-			if [[ ! -z "${subtitle[@]}" ]] && (( ${#subtitle[@]} > 0 )); then
+			if [[ ! -z "${subtitle[*]}" ]] && (( ${#subtitle[@]} > 0 )); then
 				command+=" -sn"
 				skip=false
 			fi
@@ -1566,9 +1632,10 @@ for valid in "${VALID[@]}"; do
 		echo "Converting..."
 		TMPFILES+=("${tmpfile}")
 		eval "${command} &" &>/dev/null
-		PID=${!}
-		progress 1 "${total}"
-		wait ${PID} &>/dev/null
+		CONVERTER=${!}
+		progress 1 "${total}" &
+		background &
+		wait ${CONVERTER} &>/dev/null
 		if [[ ${?} -ne 0 ]]; then
 			echo "Result: failure"
 			failure=true && clean && continue
@@ -1578,7 +1645,7 @@ for valid in "${VALID[@]}"; do
 		if ${PROGRESSED}; then
 			echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 		fi
-		if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[@]}" ]]; then
+		if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
 			echo "Checking audio levels..."
 			normalizedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" normalize=false
 			command="ffmpeg -threads ${CONF_THREADS} -i \"${normalizedfile}\""
@@ -1588,14 +1655,11 @@ for valid in "${VALID[@]}"; do
 					continue
 				fi
 				videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-				if (( ${#videomap} > 3 )); then
-					videomap=${videomap%:*}
-				fi
 				if ${CONF_VERBOSE}; then
 					total=$(ffprobe "${tmpfile}" -v quiet -select_streams v:${i} -show_entries stream=nb_frames -of default=nokey=1:noprint_wrappers=1)
 					if [[ -z "${total}" ]]; then
-						fps=$(echo "${data}" | sed -n "s/.*, \(.*\) fps.*/\1/p")
-						dur=$(echo "${data}" | sed -n "s/.* Duration: \([^,]*\), .*/\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
+						fps=$(echo "${data}" | sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
+						dur=$(echo "${data}" | sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
 						total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
 					fi
 					if (( total > 0 )); then
@@ -1617,9 +1681,6 @@ for valid in "${VALID[@]}"; do
 						continue
 					fi
 					audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-					if (( ${#audiomap} > 3 )); then
-						audiomap=${audiomap%:*}
-					fi
 					if [[ "${audio[${i}]}" != "${audio[${stream}]}" ]]; then
 						command+=" -map ${audiomap} -c:a:${i} copy"
 						continue
@@ -1647,9 +1708,6 @@ for valid in "${VALID[@]}"; do
 					continue
 				fi
 				subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
-				if (( ${#subtitlemap} > 3 )); then
-					subtitlemap=${subtitlemap%:*}
-				fi
 				command+=" -map ${subtitlemap} -c:s:${i} copy"
 			done
 			command+=" -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
@@ -1661,9 +1719,10 @@ for valid in "${VALID[@]}"; do
 				fi
 				echo "Normalizing..."
 				eval "${command} &" &>/dev/null
-				PID=${!}
-				progress 2 "${total}"
-				wait ${PID} &>/dev/null
+				CONVERTER=${!}
+				progress 2 "${total}" &
+				background &
+				wait ${CONVERTER} &>/dev/null
 				if [[ ${?} -eq 0 ]]; then
 					echo "Result: success"
 				else
