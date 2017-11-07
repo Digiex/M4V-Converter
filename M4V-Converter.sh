@@ -21,7 +21,7 @@
 #Debug=false
 
 # Background Mode (true, false).
-# Automatically pauses transcoding if a processes (determined below) is found running.
+# Automatically pauses transcoding if a process (determined below) is found running.
 #Background=false
 
 # Number of Threads (*).
@@ -825,6 +825,19 @@ for valid in "${VALID[@]}"; do
 		subtitle="$(echo "${data}" | grep 'Stream.*Subtitle:' | sed 's/.*Stream/Stream/g')"
 		if [[ ! -z "${subtitle}" ]]; then
 			readarray -t subtitle <<< "${subtitle}"
+		fi
+		for ((i = 0; i < ${#video[@]}; i++)); do
+			if [[ -z "${video[${i}]}" ]]; then
+				continue
+			fi
+			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
+			if [[ "${videodata,,}" =~ "drm" ]]; then
+				echo "File is DRM Protected"
+				failure=true && break
+			fi
+		done
+		if ${failure}; then
+			continue
 		fi
 		filtered=()
 		for ((i = 0; i < ${#video[@]}; i++)); do
