@@ -826,6 +826,7 @@ for valid in "${VALID[@]}"; do
 		if [[ ! -z "${subtitle}" ]]; then
 			readarray -t subtitle <<< "${subtitle}"
 		fi
+		local DRM=false
 		for ((i = 0; i < ${#video[@]}; i++)); do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
@@ -833,10 +834,10 @@ for valid in "${VALID[@]}"; do
 			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			if [[ "${videodata,,}" =~ "drm" ]]; then
 				echo "File is DRM Protected"
-				failure=true && break
+				DRM=true && break
 			fi
 		done
-		if ${failure}; then
+		if ${DRM}; then
 			continue
 		fi
 		filtered=()
