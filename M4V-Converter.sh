@@ -657,7 +657,7 @@ esac
 
 CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
 : "${CONF_PROCESSES:=ffmpeg}"
-read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/\ //g' | sed 's/,/\ /g')"
+readarray -t CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /\n/g' | sed 's/,/\n/g')"
 if [[ ! "${CONF_PROCESSES}" =~ "ffmpeg" ]]; then
 	CONF_PROCESSES+=("ffmpeg")
 fi
@@ -826,7 +826,7 @@ for valid in "${VALID[@]}"; do
 		if [[ ! -z "${subtitle}" ]]; then
 			readarray -t subtitle <<< "${subtitle}"
 		fi
-		local DRM=false
+		DRM=false
 		for ((i = 0; i < ${#video[@]}; i++)); do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
