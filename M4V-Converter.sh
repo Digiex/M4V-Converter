@@ -1754,7 +1754,7 @@ for valid in "${VALID[@]}"; do
 				fi
 			fi
 		fi
-		echo "Conversion efficiency at $(( $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') / $(wc -c "${file}" 2>&1 | awk '{print($1)}') * -100 ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
+		echo "Conversion efficiency at $(( $(wc -c "${file}" 2>&1 | awk '{print($1)}') / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') * -100 ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
 		if ${CONF_DELETE}; then
 			rm -f "${file}"
 		fi
