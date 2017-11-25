@@ -685,6 +685,9 @@ background() {
 				if [[ "${PID}" == "${CONVERTER}" ]]; then
 					continue
 				fi
+				if [[ "${PROCESS}" == "ffmpeg" ]] && (( PID > CONVERTER )); then
+					continue
+				fi
 				PROCESS="${PROCESS}"
 				PID="${PID}"
 				STATE=true
@@ -741,6 +744,10 @@ progress() {
 				ETA=$(awk "BEGIN{print int((${ELAPSED} / ${CURRENTFRAME}) * (${TOTALFRAMES} - ${CURRENTFRAME}))}")
 				echo "${TYPE}... ${PERCENTAGE}% ETA: $(formatDate "${ETA}")"
 				PROGRESSED=true
+			fi
+			if (( PERCENTAGE == 99 )); then
+				echo "Finishing up, this may take a moment..."
+				break
 			fi
 		fi
 	done
@@ -930,7 +937,7 @@ for valid in "${VALID[@]}"; do
 			fi
 			pixel=false
 			videopixel=$(echo "${videodata}" | grep -x 'pix_fmt=.*' | sed 's/pix_fmt=//g')
-			if [[ "${videopixel}" != "yuv420p" ]]; then
+			if ! [[ "${videopixel}" =~ "yuv420p" ]]; then
 				convert=true
 				pixel=true
 			fi
@@ -1647,8 +1654,8 @@ for valid in "${VALID[@]}"; do
 		TMPFILES+=("${tmpfile}")
 		eval "${command} &" &>/dev/null
 		CONVERTER=${!}
-		progress 1 "${total}" &
 		background &
+		progress 1 "${total}"
 		wait ${CONVERTER} &>/dev/null
 		if [[ ${?} -ne 0 ]]; then
 			echo "Result: failure"
@@ -1734,8 +1741,8 @@ for valid in "${VALID[@]}"; do
 				echo "Normalizing..."
 				eval "${command} &" &>/dev/null
 				CONVERTER=${!}
-				progress 2 "${total}" &
 				background &
+				progress 2 "${total}"
 				wait ${CONVERTER} &>/dev/null
 				if [[ ${?} -eq 0 ]]; then
 					echo "Result: success"
@@ -1743,11 +1750,11 @@ for valid in "${VALID[@]}"; do
 					echo "Result: failure"
 				fi
 				if ${PROGRESSED}; then
-					echo "Time taken: ${ELAPSED}"
+					echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 				fi
 			fi
 		fi
-		echo "Conversion efficiency at $(( 100 * $(wc -c "${file}" 2>&1 | awk '{print($1)}') / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
+		echo "Conversion efficiency at $(( $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') / $(wc -c "${file}" 2>&1 | awk '{print($1)}') * -100 ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
 		if ${CONF_DELETE}; then
 			rm -f "${file}"
 		fi
