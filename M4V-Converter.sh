@@ -398,7 +398,7 @@ fi
 
 CONF_FFPROBE=${CONF_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}
 : "${CONF_FFPROBE:=ffprobe}"
-if ! hash "$CONF_FFPROBE}" 2>/dev/null; then
+if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
 	echo "Sorry, you do not have FFprobe"
 	exit ${DEPEND}
 fi
