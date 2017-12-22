@@ -12,6 +12,14 @@
 ##############################################################################
 ### OPTIONS                                                                ###
 
+# FFmpeg (*).
+# Use this to specify a location to the ffmpeg binary when using a non-standard setup.
+#FFmpeg=ffmpeg
+
+# FFprobe (*).
+# Use this to specify a location to the ffprobe binary when using a non-standard setup.
+#FFprobe=ffprobe
+
 # Verbose Mode (true, false).
 # Prints extra details, useful for debugging.
 #Verbose=false
@@ -207,6 +215,8 @@ usage() {
 
 	https://github.com/Digiex/M4V-Converter/blob/master/default.conf
 
+	--ffmpeg
+	--ffprobe
 	--threads
 	--languages
 	--encoder
@@ -243,14 +253,6 @@ fi
 
 if (( BASH_VERSINFO < 4 )); then
 	echo "Sorry, you do not have Bash 4"
-	exit ${DEPEND}
-fi
-if ! hash ffmpeg 2>/dev/null; then
-	echo "Sorry, you do not have FFmpeg"
-	exit ${DEPEND}
-fi
-if ! hash ffprobe 2>/dev/null; then
-	echo "Sorry, you do not have FFprobe"
 	exit ${DEPEND}
 fi
 
@@ -323,6 +325,8 @@ else
 			-) arg="${OPTARG#*=}";
 				case "${OPTARG,,}" in
        				help) usage ;;
+					ffmpeg=*) FFMPEG="${ARG}" ;;
+					ffprobe=*) FFPROBE="${ARG}" ;;
 					input=*) PROCESS+=("${arg}") ;;
 					output=*) CONF_OUTPUT="${arg}" ;;
 					config=*) CONFIG_FILE="${arg}" ;;
@@ -383,6 +387,20 @@ else
 	if [[ -e "${CONFIG_FILE}" ]]; then
 		source "${CONFIG_FILE}"
 	fi
+fi
+
+CONF_FFMPEG=${CONF_FFMPEG:-${NZBPO_FFMPEG:-${FFMPEG}}}
+: "${CONF_FFMPEG:=ffmpeg}"
+if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
+	echo "Sorry, you do not have FFmpeg"
+	exit ${DEPEND}
+fi
+
+CONF_FFPROBE=${CONF_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}
+: "${CONF_FFPROBE:=ffprobe}"
+if ! hash "$CONF_FFPROBE}" 2>/dev/null; then
+	echo "Sorry, you do not have FFprobe"
+	exit ${DEPEND}
 fi
 
 if [[ ! -z "${CONF_OUTPUT}" ]]; then
@@ -793,7 +811,7 @@ for valid in "${VALID[@]}"; do
 			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
 			*.srt) continue ;;
 			*)
-				if [[ "$(ffprobe "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
+				if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
 					echo "File is not convertable" && continue
 				else
 					echo "File does not have the expected extension, attemtping..."
@@ -815,8 +833,8 @@ for valid in "${VALID[@]}"; do
 		if [[ -e "${tmpfile}" ]]; then
 			rm -f "${tmpfile}"
 		fi
-		command="ffmpeg -threads ${CONF_THREADS} -i \"${file}\""
-		data="$(ffprobe "${file}" 2>&1)"
+		command="${CONF_FFMPEG} -threads ${CONF_THREADS} -i \"${file}\""
+		data="$(${CONF_FFPROBE} "${file}" 2>&1)"
 		video="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 		if [[ -z "${video}" ]]; then
 			echo "File is missing video"
@@ -838,7 +856,7 @@ for valid in "${VALID[@]}"; do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
 			fi
-			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
+			videodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			if [[ "${videodata,,}" =~ "drm" ]]; then
 				echo "File is DRM Protected"
 				DRM=true && break
@@ -852,7 +870,7 @@ for valid in "${VALID[@]}"; do
 			if [[ -z "${video[${i}]}" ]]; then
 				continue
 			fi
-			if (( $(ffprobe "${file}" -v quiet -select_streams v:${i} -show_entries stream_disposition=attached_pic -of default=nokey=1:noprint_wrappers=1) == 1 )); then
+			if (( $(${CONF_FFPROBE} "${file}" -v quiet -select_streams v:${i} -show_entries stream_disposition=attached_pic -of default=nokey=1:noprint_wrappers=1) == 1 )); then
 			 	filtered+=("${video[${i}]}")
 				continue
 			fi
@@ -875,7 +893,7 @@ for valid in "${VALID[@]}"; do
 				fi
 			fi
 			convert=false
-			videodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
+			videodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
 			videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 			videocodec=$(echo "${videodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 			if [[ "${videocodec}" != "${CONF_ENCODER_NAME}" ]]; then
@@ -903,10 +921,10 @@ for valid in "${VALID[@]}"; do
 			if (( CONF_VIDEOBITRATE > 0 )); then
 				videobitrate=$(echo "${videodata}" | grep -x 'bit_rate=.*' | sed -E 's/[^0-9]//g')
 				if (( videobitrate == 0 )); then
-					globalbitrate=$(ffprobe "${file}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
+					globalbitrate=$(${CONF_FFPROBE} "${file}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
 					if (( globalbitrate > 0 )); then
 						for ((a = 0; a < ${#audio[@]}; a++)); do
-							bitrate=$(ffprobe "${file}" -v quiet -select_streams a:${a} -show_entries stream=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
+							bitrate=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${a} -show_entries stream=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
 							audiobitrate=$(( audiobitrate + bitrate ))
 						done
 						videobitrate=$(( globalbitrate - audiobitrate ))
@@ -1000,7 +1018,7 @@ for valid in "${VALID[@]}"; do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
-			audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
+			audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 			if [[ "$(echo "${audiodata,,}" | grep -i 'TAG:')" =~ commentary ]]; then
 				filtered+=("${audio[${i}]}")
 				continue
@@ -1049,7 +1067,7 @@ for valid in "${VALID[@]}"; do
 					continue
 				fi
 			fi
-			audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
+			audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 			audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 			if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
 				audiolang="${CONF_DEFAULTLANGUAGE}"
@@ -1083,7 +1101,7 @@ for valid in "${VALID[@]}"; do
 						if [[ -z "${audio[${a}]}" ]]; then
 							continue
 						fi
-						audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
+						audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
 						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 							lang="${CONF_DEFAULTLANGUAGE}"
@@ -1117,7 +1135,7 @@ for valid in "${VALID[@]}"; do
 						if [[ -z "${audio[${a}]}" ]]; then
 							continue
 						fi
-						audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
+						audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
 						lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 						if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
 							lang="${CONF_DEFAULTLANGUAGE}"
@@ -1156,7 +1174,7 @@ for valid in "${VALID[@]}"; do
 					if [[ "${audio[${i}]}" != "${stream}" ]]; then
 						continue
 					fi
-					audiolang=$(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
+					audiolang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${audiolang}" ]] || [[ "${audiolang,,}" == "und" ]] || [[ "${audiolang,,}" == "unk" ]]; then
 							audiolang="${CONF_DEFAULTLANGUAGE}"
@@ -1186,7 +1204,7 @@ for valid in "${VALID[@]}"; do
 					if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
 						continue
 					fi
-					audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
+					audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 					audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 						if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
@@ -1240,7 +1258,7 @@ for valid in "${VALID[@]}"; do
 				if [[ "${audio[${i}]}" != "${audiostreams[${s}]}" ]]; then
 					continue
 				fi
-				audiodata=$(ffprobe "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
+				audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
 				audiomap=$(echo "${audio[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 				audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
 				audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
@@ -1444,7 +1462,7 @@ for valid in "${VALID[@]}"; do
 			if [[ -z "${audio[${i}]}" ]]; then
 				continue
 			fi
-			if (( $(ffprobe "${file}" -v quiet -select_streams a:${i} -show_entries stream_disposition=default -of default=nokey=1:noprint_wrappers=1) == 1 )); then
+			if (( $(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${i} -show_entries stream_disposition=default -of default=nokey=1:noprint_wrappers=1) == 1 )); then
 			 	((x++))
 			fi
 		done
@@ -1457,7 +1475,7 @@ for valid in "${VALID[@]}"; do
 				if [[ -z "${subtitle[${i}]}" ]]; then
 					continue
 				fi
-				subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
+				subtitledata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
@@ -1504,7 +1522,7 @@ for valid in "${VALID[@]}"; do
 				if ! ${allow}; then
 					continue
 				fi
-				subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
+				subtitledata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 				subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 				if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
 					subtitlelang="${CONF_DEFAULTLANGUAGE}"
@@ -1514,7 +1532,7 @@ for valid in "${VALID[@]}"; do
 					if [[ -z "${subtitlestreams[${s}]}" ]]; then
 						continue
 					fi
-					lang=$(ffprobe "${file}" -v quiet -select_streams s:${s} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
+					lang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams s:${s} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 					if [[ -z "${lang}" ]] || [[ "${lang,,}" == "und" ]] || [[ "${lang,,}" == "unk" ]]; then
 						lang="${CONF_DEFAULTLANGUAGE}"
 					fi
@@ -1543,7 +1561,7 @@ for valid in "${VALID[@]}"; do
 						if [[ "${subtitle[${i}]}" != "${stream}" ]]; then
 							continue
 						fi
-						subtitlelang=$(ffprobe "${file}" -v quiet -select_streams s:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
+						subtitlelang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams s:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
 						if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
 							if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang,,}" == "und" ]] || [[ "${subtitlelang,,}" == "unk" ]]; then
 								subtitlelang="${CONF_DEFAULTLANGUAGE}"
@@ -1571,7 +1589,7 @@ for valid in "${VALID[@]}"; do
 					if [[ "${subtitle[${i}]}" != "${subtitlestreams[${s}]}" ]]; then
 						continue
 					fi
-					subtitledata=$(ffprobe "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
+					subtitledata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
 					subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 					subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
 					if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
@@ -1587,7 +1605,7 @@ for valid in "${VALID[@]}"; do
 						if [[ -e "${SRTFILE}" ]]; then
 							echo "Unable to extract (${subtitlelang}) subtitle, file already exists"
 						else
-							EXTRACT_COMMAND="ffmpeg -i \"${file}\" -vn -an -c:s:${i} srt \"${SRTFILE}\""
+							EXTRACT_COMMAND="${CONF_FFMPEG} -i \"${file}\" -vn -an -c:s:${i} srt \"${SRTFILE}\""
 							if ${CONF_VERBOSE}; then
 								echo "VERBOSE: ${EXTRACT_COMMAND}"
 							fi
@@ -1629,13 +1647,13 @@ for valid in "${VALID[@]}"; do
 				skip=false
 			fi
 		fi
-		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_entries format_tags=title -of default=nokey=1:noprint_wrappers=1)" ]]; then
+		if [[ ! -z "$(${CONF_FFPROBE} "${file}" -v quiet -show_entries format_tags=title -of default=nokey=1:noprint_wrappers=1)" ]]; then
 			skip=false
 		fi
-		if [[ ! -z "$(ffprobe "${file}" -v quiet -show_chapters)" ]]; then
+		if [[ ! -z "$(${CONF_FFPROBE} "${file}" -v quiet -show_chapters)" ]]; then
 			skip=false
 		fi
-		if [[ "$(ffprobe "${file}" -v quiet -show_entries format=format_name -of default=nokey=1:noprint_wrappers=1)" != "mov,mp4,m4a,3gp,3g2,mj2" ]]; then
+		if [[ "$(${CONF_FFPROBE} "${file}" -v quiet -show_entries format=format_name -of default=nokey=1:noprint_wrappers=1)" != "mov,mp4,m4a,3gp,3g2,mj2" ]]; then
 			skip=false
 		fi
 		command+=" -map_metadata -1 -map_chapters -1 -f ${CONF_FORMAT} -flags +global_header -movflags +faststart -strict -2 -y \"${tmpfile}\""
@@ -1668,8 +1686,8 @@ for valid in "${VALID[@]}"; do
 		fi
 		if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
 			echo "Checking audio levels..."
-			normalizedfile="${tmpfile}.old" data="$(ffprobe "${tmpfile}" 2>&1)" normalize=false
-			command="ffmpeg -threads ${CONF_THREADS} -i \"${normalizedfile}\""
+			normalizedfile="${tmpfile}.old" data="$(${CONF_FFPROBE} "${tmpfile}" 2>&1)" normalize=false
+			command="${CONF_FFMPEG} -threads ${CONF_THREADS} -i \"${normalizedfile}\""
 			readarray -t video <<< "$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
 			for ((i = 0; i < ${#video[@]}; i++)); do
 				if [[ -z "${video[${i}]}" ]]; then
@@ -1677,7 +1695,7 @@ for valid in "${VALID[@]}"; do
 				fi
 				videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
 				if ${CONF_VERBOSE}; then
-					total=$(ffprobe "${tmpfile}" -v quiet -select_streams v:${i} -show_entries stream=nb_frames -of default=nokey=1:noprint_wrappers=1)
+					total=$(${CONF_FFPROBE} "${tmpfile}" -v quiet -select_streams v:${i} -show_entries stream=nb_frames -of default=nokey=1:noprint_wrappers=1)
 					if [[ -z "${total}" ]]; then
 						fps=$(echo "${data}" | sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
 						dur=$(echo "${data}" | sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
@@ -1710,7 +1728,7 @@ for valid in "${VALID[@]}"; do
 					if [[ "${audiocodec}" == *, ]]; then
 						audiocodec=${audiocodec%?}
 					fi
-					dB=$(ffmpeg -i "${tmpfile}" -map "${audiomap}" -filter:a:${i} volumedetect -f null /dev/null 2>&1 | \
+					dB=$(${CONF_FFMPEG} -i "${tmpfile}" -map "${audiomap}" -filter:a:${i} volumedetect -f null /dev/null 2>&1 | \
 						grep 'max_volume:' | sed -E 's/\[.*\:|[^-\.0-9]//g')
 					if [[ ! -z "${dB}" ]] && ! (( ${dB%.*} == 0 )); then
 						if (( ${dB%.*} < 0 )); then
