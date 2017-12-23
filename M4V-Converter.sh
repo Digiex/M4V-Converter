@@ -308,6 +308,10 @@ if ${NZBGET}; then
 	fi
 	PROCESS+=("${NZBPP_DIRECTORY}")
 elif ${SABNZBD}; then
+	if [[ -z "${SAB_PP_STATUS}" ]]; then
+		echo "Sorry, you do not have SABnzbd version 2.0.0 or later."
+		exit ${DEPEND}
+	fi
 	if ! (( SAB_PP_STATUS == 0 )); then
 		exit ${SKIPPED}
 	fi
@@ -727,7 +731,7 @@ background() {
 				kill -STOP "${CONVERTER}"
 			fi
 		else
-			if [[ "$(ps -o s= -p "${CONVERTER}")" == "T" ]]; then 
+			if [[ "$(ps -o s= -p "${CONVERTER}")" == "T" ]]; then
 				echo "Resuming..."
 				kill -CONT "${CONVERTER}"
 			fi
