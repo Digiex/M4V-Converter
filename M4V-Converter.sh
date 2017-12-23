@@ -192,6 +192,11 @@ elif [[ ! -z "${SAB_VERSION}" ]]; then
 	SABNZBD=true
 fi
 
+if (( BASH_VERSINFO < 4 )); then
+	echo "Sorry, you do not have Bash 4"
+	exit ${DEPEND}
+fi
+
 usage() {
 	cat <<-EOF
 	USAGE: ${0} parameters
@@ -249,11 +254,6 @@ if [[ "${OSTYPE}" == darwin* ]]; then
 		bash "${0}" "${@}"
 		exit ${?}
 	fi
-fi
-
-if (( BASH_VERSINFO < 4 )); then
-	echo "Sorry, you do not have Bash 4"
-	exit ${DEPEND}
 fi
 
 force() {
@@ -676,7 +676,7 @@ esac
 CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
 : "${CONF_PROCESSES:=ffmpeg}"
 readarray -t CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /\n/g' | sed 's/,/\n/g')"
-if [[ ! "${CONF_PROCESSES}" =~ "ffmpeg" ]]; then
+if [[ ! "${CONF_PROCESSES[*]}" =~ "ffmpeg" ]]; then
 	CONF_PROCESSES+=("ffmpeg")
 fi
 
@@ -1605,7 +1605,8 @@ for valid in "${VALID[@]}"; do
 						if [[ -e "${SRTFILE}" ]]; then
 							echo "Unable to extract (${subtitlelang}) subtitle, file already exists"
 						else
-							EXTRACT_COMMAND="${CONF_FFMPEG} -i \"${file}\" -vn -an -c:s:${i} srt \"${SRTFILE}\""
+							EXTRACT_COMMAND="${CONF_FFMPEG} -i \"${file}\" -vn -an -map ${subtitlemap} -c:s:${x} srt \"${SRTFILE}\""
+							((x++))
 							if ${CONF_VERBOSE}; then
 								echo "VERBOSE: ${EXTRACT_COMMAND}"
 							fi
@@ -1633,8 +1634,9 @@ for valid in "${VALID[@]}"; do
 							command+=" -map ${subtitlemap} -c:s:${x} copy"
 						fi
 						if ! [[ -z "${subtitlelang}" ]]; then
-							command+=" -metadata:s:s:${s} \"language=${subtitlelang}\""
+							command+=" -metadata:s:s:${x} \"language=${subtitlelang}\""
 						fi
+						((x++))
 					fi
 				done
 			done
@@ -1766,13 +1768,15 @@ for valid in "${VALID[@]}"; do
 					echo "Result: success"
 				else
 					echo "Result: failure"
+					rm -f "${tmpfile}"
+					mv "${normalizedfile}" "${tmpfile}"
 				fi
 				if ${PROGRESSED}; then
 					echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 				fi
 			fi
 		fi
-		echo "Conversion efficiency at $(( $(wc -c "${file}" 2>&1 | awk '{print($1)}') / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') * -100 ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
+		echo "Conversion efficiency at $(( $(wc -c "${file}" 2>&1 | awk '{print($1)}') * -100 / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
 		if ${CONF_DELETE}; then
 			rm -f "${file}"
 		fi
