@@ -703,8 +703,13 @@ background() {
 				if [[ "${PID}" == "${CONVERTER}" ]]; then
 					continue
 				fi
-				if [[ "${PROCESS}" == "ffmpeg" ]] && (( PID > CONVERTER )); then
-					continue
+				if [[ "${PROCESS}" == "ffmpeg" ]]; then
+					TIMES="$(ps -eo pid,etimes,comm | grep ffmpeg)"
+					CONVERTERELAPSED="$(echo "${TIMES}" | grep "${CONVERTER}" | awk '{print($2)}')"
+					PIDELAPSED="$(echo "${TIMES}" | grep "${PID}" | awk '{print($2)}')"
+					if (( CONVERTERELAPSED > PIDELAPSED )); then
+						continue
+					fi
 				fi
 				PROCESS="${PROCESS}"
 				PID="${PID}"
@@ -716,12 +721,10 @@ background() {
 			fi
 		done
 		if ${STATE}; then
-			if [[ "$(ps -o s= -p "${CONVERTER}")" == "R" ]]; then 
+			if [[ "$(ps -o s= -p "${CONVERTER}")" == "R" ]]; then
 				echo "Detected running process ${PROCESS}; pid=${PID}"
 				echo "Pausing..."
 				kill -STOP "${CONVERTER}"
-			else
-				STATE=false
 			fi
 		else
 			if [[ "$(ps -o s= -p "${CONVERTER}")" == "T" ]]; then 
@@ -729,7 +732,7 @@ background() {
 				kill -CONT "${CONVERTER}"
 			fi
 		fi
-		sleep 10
+		sleep 5
 	done
 }
 
