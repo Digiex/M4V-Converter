@@ -12,11 +12,11 @@
 ##############################################################################
 ### OPTIONS                                                                ###
 
-# FFmpeg (*).
+# FFmpeg.
 # Use this to specify a location to the ffmpeg binary when using a non-standard setup.
 #FFmpeg=ffmpeg
 
-# FFprobe (*).
+# FFprobe.
 # Use this to specify a location to the ffprobe binary when using a non-standard setup.
 #FFprobe=ffprobe
 
