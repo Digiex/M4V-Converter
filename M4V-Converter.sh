@@ -3,7 +3,7 @@
 ##############################################################################
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 
-# M4V-Converter (Linux/macOS)
+# Convert media to mp4 format.
 #
 # This script converts media to a universal mp4 format.
 #
@@ -128,7 +128,7 @@
 
 # File Extension (MP4, M4V).
 # The extension applied at the end of the file, such as video.mp4.
-#Extension=m4v
+#Extension=mp4
 
 # Delete Original File (true, false).
 # If true then the original file will be deleted. Otherwise it saves both original and converted files.
@@ -192,11 +192,6 @@ elif [[ ! -z "${SAB_VERSION}" ]]; then
 	SABNZBD=true
 fi
 
-if (( BASH_VERSINFO < 4 )); then
-	echo "Sorry, you do not have Bash 4"
-	exit ${DEPEND}
-fi
-
 usage() {
 	cat <<-EOF
 	USAGE: ${0} parameters
@@ -248,6 +243,11 @@ usage() {
 	exit ${CONFIG}
 }
 
+if (( BASH_VERSINFO < 4 )); then
+	echo "Sorry, you do not have Bash 4"
+	exit ${DEPEND}
+fi
+
 if [[ "${OSTYPE}" == darwin* ]]; then
 	if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
 		PATH=/usr/local/bin:${PATH}
@@ -256,10 +256,16 @@ if [[ "${OSTYPE}" == darwin* ]]; then
 	fi
 fi
 
+M4VCONVERTER=()
+BACKGROUNDMANAGER="/tmp/m4v.tmp"
+TMPFILES+=("${BACKGROUNDMANAGER}")
+
 force() {
-	if (( CONVERTER > 0 )) && ps -p "${CONVERTER}" &>/dev/null; then
+	if (( CONVERTER > 0 )) && kill -0 "${CONVERTER}" &>/dev/null; then
 		disown "${CONVERTER}"
 		kill -KILL "${CONVERTER}" &>/dev/null
+		M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
+		echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
 	fi
 	exit ${SKIPPED}
 }
@@ -267,13 +273,39 @@ force() {
 clean() {
 	for file in "${TMPFILES[@]}"; do
 		if [[ -e "${file}" ]]; then
-			rm "${file}"
+			if [[ "${file}" == "${BACKGROUNDMANAGER}" ]]; then
+				source "${file}"
+				if (( ${#M4VCONVERTER[@]} > 0 )); then
+					continue
+				fi
+			fi
+			rm -f "${file}"
 		fi
 	done
 }
 
 trap force HUP INT TERM QUIT
 trap clean EXIT
+
+validate() {
+	if [[ -e "${BACKGROUNDMANAGER}" ]]; then
+		source "${BACKGROUNDMANAGER}"
+		EDITED=false
+		for PID in "${M4VCONVERTER[@]}"; do
+			if ! kill -0 "${PID}" &>/dev/null; then
+				M4VCONVERTER=("${M4VCONVERTER[@]//${PID}/}")
+				EDITED=true
+			fi
+		done
+		if ${EDITED}; then
+			if (( ${#M4VCONVERTER[@]} >= 1 )); then
+				echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+			else
+				rm -f "${BACKGROUNDMANAGER}"
+			fi
+		fi
+	fi
+}
 
 if ${NZBGET}; then
 	if [[ -z "${NZBPP_TOTALSTATUS}" ]]; then
@@ -285,7 +317,8 @@ if ${NZBGET}; then
 	fi
 	samplesize=${NZBPO_CLEANUP_SIZE:-0}
 	if (( samplesize > 0 )); then
-		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${NZBPO_CLEANUP_SIZE//[!0-9]/}"M)"
+		SIZE=$(( ${NZBPO_CLEANUP_SIZE//[!0-9]/} * 1024 * 1024 ))
+		readarray -t samples <<< "$(find "${NZBPP_DIRECTORY}" -type f -size -"${SIZE}"c)"
 		if [[ ! -z "${samples[*]}" ]]; then
 			for file in "${samples[@]}"; do
 				rm -f "${file}"
@@ -400,10 +433,20 @@ if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
 	exit ${DEPEND}
 fi
 
+if [[ "$(ffmpeg 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
+	echo "While you do have FFmpeg installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
+	exit ${DEPEND}
+fi
+
 CONF_FFPROBE=${CONF_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}
 : "${CONF_FFPROBE:=ffprobe}"
 if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
 	echo "Sorry, you do not have FFprobe"
+	exit ${DEPEND}
+fi
+
+if [[ "$(ffprobe 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
+	echo "While you do have FFprobe installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
 	exit ${DEPEND}
 fi
 
@@ -639,7 +682,7 @@ case "${CONF_DELETE}" in
 esac
 
 CONF_FILE=${CONF_FILE:-${NZBPO_FILE_PERMISSION:-${FILE_PERMISSION}}}
-if [[ ! -z "${CONF_FILE}" ]]; then 
+if [[ ! -z "${CONF_FILE}" ]]; then
 	if [[ ! "${CONF_FILE}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FILE} > 4 || ${#CONF_FILE} < 3 )); then
 		echo "File is incorretly configured"
 		exit ${CONFIG}
@@ -654,7 +697,7 @@ if [[ ! -z "${CONF_FILE}" ]]; then
 fi
 
 CONF_FOLDER=${CONF_FOLDER:-${NZBPO_FOLDER_PERMISSION:-${FOLDER_PERMISSION}}}
-if [[ ! -z "${CONF_FOLDER}" ]]; then 
+if [[ ! -z "${CONF_FOLDER}" ]]; then
 	if [[ ! "${CONF_FOLDER}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FOLDER} > 4 || ${#CONF_FOLDER} < 3 )); then
 		echo "Folder is incorretly configured"
 		exit ${CONFIG}
@@ -689,12 +732,19 @@ if (( ${#PROCESS[@]} == 0 )); then
 fi
 
 background() {
-	if ! ${CONF_BACKGROUND}; then
-		exit 0
-	fi
 	echo "Running in background mode..."
-	while ps -p "${CONVERTER}" &>/dev/null; do
-		local STATE=false
+	if hash getconf; then
+		HZ=$(getconf CLK_TCK)
+	fi
+	: "${HZ:=100}"
+	while kill -0 "${CONVERTER}" &>/dev/null; do
+		validate
+		if [[ -e "${BACKGROUNDMANAGER}" ]]; then
+			source "${BACKGROUNDMANAGER}"
+		else
+			M4VCONVERTER=()
+		fi
+		TOGGLE=false
 		for PROCESS in "${CONF_PROCESSES[@]}"; do
 			if [[ -z "${PROCESS}" ]]; then
 				continue
@@ -704,34 +754,56 @@ background() {
 				if [[ -z "${PID}" ]]; then
 					continue
 				fi
-				if [[ "${PID}" == "${CONVERTER}" ]]; then
-					continue
-				fi
 				if [[ "${PROCESS}" == "ffmpeg" ]]; then
-					TIMES="$(ps -eo pid,etimes,comm | grep ffmpeg)"
-					CONVERTERELAPSED="$(echo "${TIMES}" | grep "${CONVERTER}" | awk '{print($2)}')"
-					PIDELAPSED="$(echo "${TIMES}" | grep "${PID}" | awk '{print($2)}')"
-					if (( CONVERTERELAPSED > PIDELAPSED )); then
+					if (( ${#PIDS[@]} == 1 )); then
 						continue
+					fi
+					UPTIME=$(awk '{print($1)}' < "/proc/uptime")
+					CONVERTERELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < "/proc/${CONVERTER}/stat") / HZ ))
+					PIDELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < "/proc/${PID}/stat") / HZ ))
+					if (( CONVERTERELAPSED > PIDELAPSED )); then
+						PARENT=$(awk '{print($4)}' < "/proc/${PID}/stat")
+						if grep -q $(basename "${0}") "/proc/${PARENT}/cmdline"; then
+							continue
+						fi
+					elif (( CONVERTERELAPSED == PIDELAPSED )); then
+						if [[ ! -z "${M4VCONVERTER[*]}" ]]; then
+							SKIP=false
+							for APP in "${M4VCONVERTER[@]}"; do
+								if [[ -z "${APP}" ]]; then
+									continue
+								fi
+								if [[ "${APP}" == "${PID}" ]]; then
+									SKIP=true
+									break
+								fi
+							done
+							if ${SKIP}; then
+								continue
+							fi
+						else
+							continue
+						fi
 					fi
 				fi
 				PROCESS="${PROCESS}"
 				PID="${PID}"
-				STATE=true
+				TOGGLE=true
 				break
 			done
-			if ${STATE}; then
+			if ${TOGGLE}; then
 				break
 			fi
 		done
-		if ${STATE}; then
-			if [[ "$(ps -o s= -p "${CONVERTER}")" == "R" ]]; then
+		STATE=$(awk '{print($3)}' < "/proc/${CONVERTER}/stat")
+		if ${TOGGLE}; then
+			if [[ "${STATE}" == "R" ]] || [[ "${STATE}" == "S" ]]; then
 				echo "Detected running process ${PROCESS}; pid=${PID}"
 				echo "Pausing..."
 				kill -STOP "${CONVERTER}"
 			fi
 		else
-			if [[ "$(ps -o s= -p "${CONVERTER}")" == "T" ]]; then
+			if [[ "${STATE}" == "T" ]]; then
 				echo "Resuming..."
 				kill -CONT "${CONVERTER}"
 			fi
@@ -742,19 +814,19 @@ background() {
 
 formatDate() {
 	case "${OSTYPE}" in
-		linux-gnu) date -d @"${1}" -u +%H:%M:%S ;;
+		linux*) date -d @"${1}" -u +%H:%M:%S ;;
 		darwin*) date -r "${1}" -u +%H:%M:%S ;;
 	esac
 }
 
 progress() {
 	START=$(date +%s) PROGRESSED=false CURRENTFRAME=0 PERCENTAGE=0 RATE=0 ETA=0 ELAPSED=0
-	local TOTALFRAMES=${2} FRAME=0 OLDPERCENTAGE=0
+	TOTALFRAMES=${2} FRAME=0 OLDPERCENTAGE=0
 	case ${1} in
 		1) local TYPE="Converting" ;;
 		2) local TYPE="Normalizing" ;;
 	esac
-	while ps -p "${CONVERTER}" &>/dev/null; do
+	while kill -0 "${CONVERTER}" &>/dev/null; do
 		sleep 2
 		if [[ -e "${STATSFILE}" ]]; then
 			FRAME=$(tail -n 11 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
@@ -813,15 +885,16 @@ for valid in "${VALID[@]}"; do
 		DIRECTORY=$(path "${file}")
 		FILE_NAME="$(basename "${file}")"
 		file="${DIRECTORY}/${FILE_NAME}"
-		echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
 		case "${file,,}" in
-			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
-			*.srt) continue ;;
+			*.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg)
+				echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
+			;;
+			*.srt | *.tmp | *.stats) continue ;;
 			*)
 				if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
 					echo "File is not convertable" && continue
 				else
-					echo "File does not have the expected extension, attemtping..."
+					echo "File does not have the expected extension, attempting..."
 				fi
 			;;
 		esac
@@ -833,6 +906,9 @@ for valid in "${VALID[@]}"; do
 			newname="${FILE_NAME}.${CONF_EXTENSION}"
 		else
 			newname="${FILE_NAME//${FILE_NAME##*.}/${CONF_EXTENSION}}"
+		fi
+		if [[ "${FILE_NAME}" != "${newname}" ]]; then
+			skip=false
 		fi
 		DIRECTORY="${CONF_OUTPUT:-${DIRECTORY}}"
 		newfile="${DIRECTORY}/${newname}"
@@ -957,7 +1033,7 @@ for valid in "${VALID[@]}"; do
 					if (( videowidth > scale )); then
 						convert=true
 						resize=true
-					fi	
+					fi
 				fi
 			fi
 			pixel=false
@@ -1681,7 +1757,15 @@ for valid in "${VALID[@]}"; do
 		TMPFILES+=("${tmpfile}")
 		eval "${command} &" &>/dev/null
 		CONVERTER=${!}
-		background &
+		if ! ${CONF_BACKGROUND}; then
+			if [[ -e "${BACKGROUNDMANAGER}" ]]; then
+				source "${BACKGROUNDMANAGER}"
+			fi
+			M4VCONVERTER+=("${CONVERTER}")
+			echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+		else
+			background &
+		fi
 		progress 1 "${total}"
 		wait ${CONVERTER} &>/dev/null
 		if [[ ${?} -ne 0 ]]; then
@@ -1693,6 +1777,8 @@ for valid in "${VALID[@]}"; do
 		if ${PROGRESSED}; then
 			echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 		fi
+		M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
+		echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
 		if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
 			echo "Checking audio levels..."
 			normalizedfile="${tmpfile}.old" data="$(${CONF_FFPROBE} "${tmpfile}" 2>&1)" normalize=false
@@ -1768,7 +1854,15 @@ for valid in "${VALID[@]}"; do
 				echo "Normalizing..."
 				eval "${command} &" &>/dev/null
 				CONVERTER=${!}
-				background &
+				if ! ${CONF_BACKGROUND}; then
+					if [[ -e "${BACKGROUNDMANAGER}" ]]; then
+						source "${BACKGROUNDMANAGER}"
+					fi
+					M4VCONVERTER+=("${CONVERTER}")
+					echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+				else
+					background &
+				fi
 				progress 2 "${total}"
 				wait ${CONVERTER} &>/dev/null
 				if [[ ${?} -eq 0 ]]; then
@@ -1781,6 +1875,8 @@ for valid in "${VALID[@]}"; do
 				if ${PROGRESSED}; then
 					echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
 				fi
+				M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
+				echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
 			fi
 		fi
 		echo "Conversion efficiency at $(( $(wc -c "${file}" 2>&1 | awk '{print($1)}') * -100 / $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') ))%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
