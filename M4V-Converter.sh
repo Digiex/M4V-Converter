@@ -1417,6 +1417,11 @@ for valid in "${VALID[@]}"; do
                                     if ! [[ -z "${audiolang}" ]]; then
                                         command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                     fi
+                                    if (( x == 0 )); then
+                                        command+=" -disposition:a:${x} default"
+                                    else
+                                        command+=" -disposition:a:${x} 0"
+                                    fi
                                     ((x++))
                                     command+=" -map ${audiomap} -c:a:${x} ac3"
                                     if (( audiochannels > 6 )); then
@@ -1439,6 +1444,11 @@ for valid in "${VALID[@]}"; do
                                     fi
                                     if ! [[ -z "${audiolang}" ]]; then
                                         command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+                                    fi
+                                    if (( x == 0 )); then
+                                        command+=" -disposition:a:${x} default"
+                                    else
+                                        command+=" -disposition:a:${x} 0"
                                     fi
                                     ((x++))
                                     command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1466,6 +1476,11 @@ for valid in "${VALID[@]}"; do
                                 if ! [[ -z "${audiolang}" ]]; then
                                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                 fi
+                                if (( x == 0 )); then
+                                    command+=" -disposition:a:${x} default"
+                                else
+                                    command+=" -disposition:a:${x} 0"
+                                fi
                                 ((x++))
                                 if (( audiochannels > 6 )) || ${CONF_FORCE_AUDIO}; then
                                     command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
@@ -1491,6 +1506,11 @@ for valid in "${VALID[@]}"; do
                                 fi
                                 if ! [[ -z "${audiolang}" ]]; then
                                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
+                                fi
+                                if (( x == 0 )); then
+                                    command+=" -disposition:a:${x} default"
+                                else
+                                    command+=" -disposition:a:${x} 0"
                                 fi
                                 ((x++))
                                 command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1553,6 +1573,11 @@ for valid in "${VALID[@]}"; do
                 if ! [[ -z "${audiolang}" ]]; then
                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                 fi
+                if (( x == 0 )); then
+                    command+=" -disposition:a:${x} default"
+                else
+                    command+=" -disposition:a:${x} 0"
+                fi
                 ((x++))
             done
         done
@@ -1588,7 +1613,7 @@ for valid in "${VALID[@]}"; do
                     continue
                 fi
                 subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-                if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]] || [[ "${subtitlecodec}" == dvbsub ]]; then
+                if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]] || [[ "${subtitlecodec}" == dvb_subtitle ]]; then
                     filtered+=("${subtitle[${i}]}")
                     continue
                 fi
