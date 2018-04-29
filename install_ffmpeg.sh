@@ -20,9 +20,9 @@ installLinux() {
 	mkdir ~/ffmpeg_sources
 
 	cd ~/ffmpeg_sources
-	wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.01/nasm-2.13.01.tar.bz2
-	tar xjvf nasm-2.13.01.tar.bz2
-	cd nasm-2.13.01
+	wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.02/nasm-2.13.02.tar.bz2
+	tar xjvf nasm-2.13.02.tar.bz2
+	cd nasm-2.13.02
 	./autogen.sh
 	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
 	make
@@ -40,18 +40,18 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget https://github.com/libass/libass/releases/download/0.13.6/libass-0.13.6.tar.gz
-	tar xzvf libass-0.13.6.tar.gz
-	cd libass-0.13.6
+	wget https://github.com/libass/libass/releases/download/0.14.0/libass-0.14.0.tar.gz
+	tar xzvf libass-0.14.0.tar.gz
+	cd libass-0.14.0
 	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 	PATH="$HOME/bin:$PATH" make
 	make install
 	echo
 
 	cd ~/ffmpeg_sources
-	wget -O fdk-aac-0.1.5.tar.gz https://github.com/mstorsjo/fdk-aac/archive/v0.1.5.tar.gz
-	tar xzvf fdk-aac-0.1.5.tar.gz
-	cd fdk-aac-0.1.5
+	wget -O fdk-aac-0.1.6.tar.gz https://github.com/mstorsjo/fdk-aac/archive/v0.1.6.tar.gz
+	tar xzvf fdk-aac-0.1.6.tar.gz
+	cd fdk-aac-0.1.6
 	autoreconf -fiv
 	./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 	make
@@ -59,18 +59,18 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz
-	tar xzvf lame-3.99.5.tar.gz
-	cd lame-3.99.5
+	wget http://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+	tar xzvf lame-3.100.tar.gz
+	cd lame-3.100
 	./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin" --enable-nasm --disable-shared
 	make
 	make install
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://downloads.xiph.org/releases/opus/opus-1.1.3.tar.gz
-	tar xzvf opus-1.1.3.tar.gz
-	cd opus-1.1.3
+	wget http://downloads.xiph.org/releases/opus/opus-1.2.1.tar.gz
+	tar xzvf opus-1.2.1.tar.gz
+	cd opus-1.2.1
 	PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 	make
 	make install
@@ -95,18 +95,18 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.gz
-	tar xzvf libvorbis-1.3.4.tar.gz
-	cd libvorbis-1.3.4
+	wget http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.6.tar.gz
+	tar xzvf libvorbis-1.3.6.tar.gz
+	cd libvorbis-1.3.6
 	./configure --prefix="$HOME/ffmpeg_build" --with-ogg="$HOME/ffmpeg_build" --disable-shared
 	make
 	make install
 	echo
 
 	cd ~/ffmpeg_sources
-	wget -O libvpx-1.6.0.tar.gz https://github.com/webmproject/libvpx/archive/v1.6.0.tar.gz
-	tar xzvf libvpx-1.6.0.tar.gz
-	cd libvpx-1.6.0
+	wget -O libvpx-1.7.0.tar.gz https://github.com/webmproject/libvpx/archive/v1.7.0.tar.gz
+	tar xzvf libvpx-1.7.0.tar.gz
+	cd libvpx-1.7.0
 	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --disable-examples --disable-unit-tests
 	PATH="$HOME/bin:$PATH" make
 	make install
@@ -115,7 +115,7 @@ installLinux() {
 	cd ~/ffmpeg_sources
 	git clone https://git.videolan.org/git/x264.git
 	cd x264
-	PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin" --enable-static --disable-opencl
+	PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin" --enable-static --enable-pic
 	PATH="$HOME/bin:$PATH" make
 	make install
 	echo
@@ -129,18 +129,17 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://www.ffmpeg.org/releases/ffmpeg-3.4.tar.gz
-	tar xzvf ffmpeg-3.4.tar.gz
-	cd ffmpeg-3.4
+	wget -O ffmpeg-snapshot.tar.bz2 http://www.ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2
+	tar xjvf ffmpeg-snapshot.tar.bz2
+	cd ffmpeg
 
-	# Fixes multiple audio streams being default
-	# http://trac.ffmpeg.org/ticket/3622
-	# https://gist.github.com/outlyer/4a88f1adb7f895b93fd9
-	# https://gist.github.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8
-	wget https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/a3571e6cc3c051dd449cff89244b5bbd40b0c183/ffmpeg-3.4-defaultstreams.patch
-	patch libavformat/movenc.c < ffmpeg-3.4-defaultstreams.patch
-
-	PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --pkg-config-flags="--static" --extra-cflags="-I$HOME/ffmpeg_build/include" --extra-ldflags="-L$HOME/ffmpeg_build/lib" --bindir="$HOME/bin" \
+	PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
+		--prefix="$HOME/ffmpeg_build" \
+		--pkg-config-flags="--static" \
+		--extra-cflags="-I$HOME/ffmpeg_build/include" \
+		--extra-ldflags="-L$HOME/ffmpeg_build/lib" \
+		--extra-libs="-lpthread -lm" \
+		--bindir="$HOME/bin" \
 		--enable-gpl \
 		--enable-libass \
 		--enable-libfdk-aac \
