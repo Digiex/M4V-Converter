@@ -1020,7 +1020,7 @@ for valid in "${VALID[@]}"; do
                     globalbitrate=$(${CONF_FFPROBE} "${file}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
                     if (( globalbitrate > 0 )); then
                         for ((a = 0; a < ${#audio[@]}; a++)); do
-                            bitrate=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${a} -show_entries stream=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
+                            bitrate=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${a} -show_entries stream=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g' | head -1)
                             audiobitrate=$(( audiobitrate + bitrate ))
                         done
                         videobitrate=$(( globalbitrate - audiobitrate ))
@@ -1077,7 +1077,7 @@ for valid in "${VALID[@]}"; do
                 if [[ -z "${total}" ]]; then
                     fps=$(echo "${data}" | sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
                     dur=$(echo "${data}" | sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | awk -F ':' '{print $1*3600+$2*60+$3}')
-                    total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}')
+                    total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}' | head -1)
                 fi
                 if (( total > 0 )); then
                     STATSFILE="${newfile}.stats"
