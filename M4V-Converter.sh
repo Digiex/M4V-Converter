@@ -978,6 +978,9 @@ for valid in "${VALID[@]}"; do
                     continue
                 fi
             fi
+            if (( x > 0 )); then
+                continue
+            fi
             convert=false
             videodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams v:${i} 2>&1)
             videomap=$(echo "${video[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
