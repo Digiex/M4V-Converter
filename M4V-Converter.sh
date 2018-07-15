@@ -94,6 +94,14 @@
 # NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
 #Resolution=
 
+# File/Folder Rename (true, false).
+# This will rename the file/folder when resolution is changed.
+#
+# NOTE: Ex. movie.2018.4k.uhd.king to movie.2018.1080p.king (when using the above Video Resolution option)
+#
+# NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on nzbget. (Sonarr/Radarr don't yet support NZBPP_FINALDIR, this is a workaround)
+#Rename=true
+
 # Video Bitrate (KB).
 # Use this to limit video bitrate.
 #
@@ -202,6 +210,57 @@ elif [[ ! -z "${SAB_VERSION}" ]]; then
     SABNZBD=true
 fi
 
+usage() {
+    cat <<-EOF
+	USAGE: ${0} parameters
+
+	This script converts media to a universal mp4 format.
+
+	NOTE: This script requires FFmpeg, FFprobe and Bash 4
+
+	OPTIONS:
+	--------
+	-h  --help          Show this message
+	-v  --verbose       Verbose Mode
+	-d  --debug         Debug Mode
+	-i  --input         Input file or directory
+	-o  --output        Output directory
+	-c  --config        Config file
+	-b  --background    Auto pauses if processes are running
+
+	ADVANCED OPTIONS:
+	-----------------
+	https://github.com/Digiex/M4V-Converter/blob/master/default.conf
+
+	--ffmpeg
+	--ffprobe
+	--threads
+	--languages
+	--encoder
+	--preset
+	--crf
+	--resolution
+	--rename
+	--video-bitrate
+	--force-video
+	--dual-audio
+	--force-audio
+	--normalize
+	--force-normalize
+	--subtitles
+	--force-subtitles
+	--format
+	--extension
+	--delete
+	--file-permission
+	--folder-permission
+	--processes
+
+	EXAMPLE: ${0} -i ~/video.mkv
+	EOF
+    exit ${CONFIG}
+}
+
 if (( BASH_VERSINFO < 4 )); then
     echo "Sorry, you do not have Bash version 4 or later"
     exit ${DEPEND}
@@ -213,64 +272,13 @@ if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
     exit ${?}
 fi
 
-usage() {
-    cat <<-EOF
-USAGE: ${0} parameters
-
-This script converts media to a universal mp4 format.
-
-NOTE: This script requires FFmpeg, FFprobe and Bash 4
-
-OPTIONS:
---------
--h  --help      Show this message
--v  --verbose       Verbose Mode
--d  --debug         Debug Mode
--i  --input         Input file or directory
--o  --Output        Output directory
--c  --config        Config file
--b  --background    Auto pauses if processes are running
-
-ADVANCED OPTIONS:
------------------
-
-https://github.com/Digiex/M4V-Converter/blob/master/default.conf
-
---ffmpeg
---ffprobe
---threads
---languages
---encoder
---preset
---crf
---resolution
---video-bitrate
---force-video
---dual-audio
---force-audio
---normalize
---force-normalize
---subtitles
---force-subtitles
---format
---extension
---delete
---file-permission
---folder-permission
---processes
-
-EXAMPLE: ${0} -v -i ~/video.mkv
-EOF
-    exit ${CONFIG}
-}
-
 BACKGROUNDMANAGER="/tmp/m4v.tmp"
 TMPFILES+=("${BACKGROUNDMANAGER}")
 
 force() {
     if (( CONVERTER > 0 )) && kill -0 "${CONVERTER}" &>/dev/null; then
         disown "${CONVERTER}"
-        kill -KILL "${CONVERTER}" &>/dev/null
+        kill -9 "${CONVERTER}" &>/dev/null
         M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
         echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
     fi
@@ -294,133 +302,55 @@ clean() {
 trap force HUP INT TERM QUIT
 trap clean EXIT
 
-if ${NZBGET}; then
-    if [[ ! -z "${NZBNP_NZBNAME}" ]]; then
-        # Workaround till Radarr/Sonarr support NZBPP_FINALDIR
-        if [[ ! -z "${NZBPO_RESOLUTION}" ]]; then
-            case "${NZBPO_RESOLUTION,,}" in
-                480p|sd) NZBPO_RESOLUTION=640x480 ;;
-                720p|hd) NZBPO_RESOLUTION=1280x720 ;;
-                1080p) NZBPO_RESOLUTION=1920x1080 ;;
-                1440p|2k) NZBPO_RESOLUTION=2560x1440 ;;
-                2160p|4k|uhd) NZBPO_RESOLUTION=3840x2160 ;;
+while getopts hvdi:o:c:b-: opts; do
+    case ${opts,,} in
+        h) usage ;;
+        v) CONF_VERBOSE=true ;;
+        d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
+        i) PROCESS+=("${OPTARG}") ;;
+        o) CONF_OUTPUT="${OPTARG}" ;;
+        c) CONFIG_FILE="${OPTARG}" ;;
+        b) CONF_BACKGROUND=true ;;
+        -) ARG="${OPTARG#*=}";
+            case "${OPTARG,,}" in
+                help) usage ;;
+                ffmpeg=*) FFMPEG="${ARG}" ;;
+                ffprobe=*) FFPROBE="${ARG}" ;;
+                input=*) PROCESS+=("${ARG}") ;;
+                output=*) CONF_OUTPUT="${ARG}" ;;
+                config=*) CONFIG_FILE="${ARG}" ;;
+                verbose=*) CONF_VERBOSE="${ARG}" ;;
+                debug=*) CONF_DEBUG="${ARG}" ;;
+                threads=*) CONF_THREADS="${ARG}" ;;
+                languages=*) CONF_LANGUAGES="${ARG}" ;;
+                encoder=*) CONF_ENCODER="${ARG}" ;;
+                preset=*) CONF_PRESET="${ARG}" ;;
+                profile=*) CONF_PROFILE="${ARG}" ;;
+                level=*) CONF_LEVEL="${ARG}" ;;
+                crf=*) CONF_CRF="${ARG}" ;;
+                resolution=*) CONF_RESOLUTION="${ARG}" ;;
+                rename=*) CONF_RENAME="${ARG}" ;;
+                video-bitrate=*) CONF_VIDEOBITRATE="${ARG}" ;;
+                force-video=*) CONF_FORCE_VIDEO="${ARG}" ;;
+                dual-audio=*) CONF_DUALAUDIO="${ARG}" ;;
+                force-audio=*) CONF_FORCE_AUDIO="${ARG}" ;;
+                normalize=*) CONF_NORMALIZE="${ARG}" ;;
+                force-normalize=*) CONF_FORCE_NORMALIZE="${ARG}" ;;
+                subtitles=*) CONF_SUBTITLES="${ARG}" ;;
+                force-subtitles=*) CONF_FORCE_SUBTITLES="${ARG}" ;;
+                format=*) CONF_FORMAT="${ARG}" ;;
+                extension=*) CONF_EXTENSION="${ARG}" ;;
+                delete=*) CONF_DELETE="${ARG}" ;;
+                file-permission=*) CONF_FILE="${ARG}" ;;
+                folder-permission=*) CONF_FOLDER="${ARG}" ;;
+                background=*) CONF_BACKGROUND="${ARG}" ;;
+                processes=*) CONF_PROCESSES="${ARG}" ;;
+                *) usage ;;
             esac
-            if [[ ! "${NZBPO_RESOLUTION}" =~ [x|:] ]] || [[ ! "${NZBPO_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
-                echo "Resolution is incorrectly configured"
-                exit ${CONFIG}
-            fi
-            width=${NZBPO_RESOLUTION//[x|:]*/}
-            height=${NZBPO_RESOLUTION//*[x|:]/}
-            if (( width < height )); then
-                width=${NZBPO_RESOLUTION//*[x|:]/}
-                height=${NZBPO_RESOLUTION//[x|:]*/}
-            fi
-            RESOLUTION=$(echo "${NZBNP_NZBNAME}" | grep -oE "[0-9]{3,4}[p|P]")
-            if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > height )); then
-                NAME=$(echo "${NZBNP_NZBNAME}" | sed -E "s/${RESOLUTION}/${height}p/g")
-                if [[ "${NZBNP_NZBNAME}" != "${NAME}" ]]; then
-                    echo "[NZB] NZBNAME=${NAME}"
-                fi
-            fi
-        fi
-        exit 0
-    fi
-    if [[ -z "${NZBPP_TOTALSTATUS}" ]]; then
-        echo "Sorry, you do not have NZBGet version 13.0 or later."
-        exit ${DEPEND}
-    fi
-    if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
-        exit ${SKIPPED}
-    fi
-    if [[ ! -z "${NZBPP_FINALDIR}" ]]; then
-        DIRECTORY="${NZBPP_FINALDIR}"
-    else
-        DIRECTORY="${NZBPP_DIRECTORY}"
-    fi
-    samplesize=${NZBPO_CLEANUP_SIZE:-0}
-    if (( samplesize > 0 )); then
-        SIZE=$(( ${NZBPO_CLEANUP_SIZE//[!0-9]/} * 1024 * 1024 ))
-        readarray -t samples <<< "$(find "${DIRECTORY}" -type f -size -"${SIZE}"c)"
-        if [[ ! -z "${samples[*]}" ]]; then
-            for file in "${samples[@]}"; do
-                rm -f "${file}"
-            done
-        fi
-    fi
-    read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
-    if [[ ! -z "${extensions[*]}" ]]; then
-        readarray -t files <<< "$(find "${DIRECTORY}" -type f)"
-        if [[ ! -z "${files[*]}" ]]; then
-            for file in "${files[@]}"; do
-                for ext in "${extensions[@]}"; do
-                    if [[ "${file##*.}" == "${ext//./}" ]]; then
-                        rm -f "${file}"
-                        break
-                    fi
-                done
-            done
-        fi
-    fi
-    PROCESS+=("${DIRECTORY}")
-elif ${SABNZBD}; then
-    if [[ -z "${SAB_PP_STATUS}" ]]; then
-        echo "Sorry, you do not have SABnzbd version 2.0.0 or later."
-        exit ${DEPEND}
-    fi
-    if ! (( SAB_PP_STATUS == 0 )); then
-        exit ${SKIPPED}
-    fi
-    PROCESS+=("${SAB_COMPLETE_DIR}")
-else
-    while getopts hvdi:o:c:b-: opts; do
-        case ${opts,,} in
-            h) usage ;;
-            v) CONF_VERBOSE=true ;;
-            d) CONF_DEBUG=true; CONF_VERBOSE=true ;;
-            i) PROCESS+=("${OPTARG}") ;;
-            o) CONF_OUTPUT="${OPTARG}" ;;
-            c) CONFIG_FILE="${OPTARG}" ;;
-            b) CONF_BACKGROUND=true ;;
-            -) ARG="${OPTARG#*=}";
-                case "${OPTARG,,}" in
-                    help) usage ;;
-                    ffmpeg=*) FFMPEG="${ARG}" ;;
-                    ffprobe=*) FFPROBE="${ARG}" ;;
-                    input=*) PROCESS+=("${ARG}") ;;
-                    output=*) CONF_OUTPUT="${ARG}" ;;
-                    config=*) CONFIG_FILE="${ARG}" ;;
-                    verbose=*) CONF_VERBOSE="${ARG}" ;;
-                    debug=*) CONF_DEBUG="${ARG}" ;;
-                    threads=*) CONF_THREADS="${ARG}" ;;
-                    languages=*) CONF_LANGUAGES="${ARG}" ;;
-                    encoder=*) CONF_ENCODER="${ARG}" ;;
-                    preset=*) CONF_PRESET="${ARG}" ;;
-                    profile=*) CONF_PROFILE="${ARG}" ;;
-                    level=*) CONF_LEVEL="${ARG}" ;;
-                    crf=*) CONF_CRF="${ARG}" ;;
-                    resolution=*) CONF_RESOLUTION="${ARG}" ;;
-                    video-bitrate=*) CONF_VIDEOBITRATE="${ARG}" ;;
-                    force-video=*) CONF_FORCE_VIDEO="${ARG}" ;;
-                    dual-audio=*) CONF_DUALAUDIO="${ARG}" ;;
-                    force-audio=*) CONF_FORCE_AUDIO="${ARG}" ;;
-                    normalize=*) CONF_NORMALIZE="${ARG}" ;;
-                    force-normalize=*) CONF_FORCE_NORMALIZE="${ARG}" ;;
-                    subtitles=*) CONF_SUBTITLES="${ARG}" ;;
-                    force-subtitles=*) CONF_FORCE_SUBTITLES="${ARG}" ;;
-                    format=*) CONF_FORMAT="${ARG}" ;;
-                    extension=*) CONF_EXTENSION="${ARG}" ;;
-                    delete=*) CONF_DELETE="${ARG}" ;;
-                    file-permission=*) CONF_FILE="${ARG}" ;;
-                    folder-permission=*) CONF_FOLDER="${ARG}" ;;
-                    background=*) CONF_BACKGROUND="${ARG}" ;;
-                    processes=*) CONF_PROCESSES="${ARG}" ;;
-                    *) usage ;;
-                esac
-            ;;
-            *) usage ;;
-        esac
-    done
-fi
+        ;;
+        *) usage ;;
+    esac
+done
 
 path() {
     local SOURCE="${1}" DIRECTORY
@@ -574,17 +504,31 @@ CONF_RESOLUTION=${CONF_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
 CONF_RESOLUTION=${CONF_RESOLUTION,,}
 if [[ ! -z "${CONF_RESOLUTION}" ]]; then
     case "${CONF_RESOLUTION,,}" in
-        480p|sd) CONF_RESOLUTION=640x480 ;;
-        720p|hd) CONF_RESOLUTION=1280x720 ;;
+        480p|sd) CONF_RESOLUTION=640x480; OPTIONAL+=("sd") ;;
+        720p|hd) CONF_RESOLUTION=1280x720; OPTIONAL+=("hd") ;;
         1080p) CONF_RESOLUTION=1920x1080 ;;
-        1440p|2k) CONF_RESOLUTION=2560x1440 ;;
-        2160p|4k|uhd) CONF_RESOLUTION=3840x2160 ;;
+        1440p|2k) CONF_RESOLUTION=2560x1440; OPTIONAL+=("2k") ;;
+        2160p|4k|uhd) CONF_RESOLUTION=3840x2160; OPTIONAL+=("4k"); OPTIONAL+=("uhd") ;;
     esac
     if [[ ! "${CONF_RESOLUTION}" =~ [x|:] ]] || [[ ! "${CONF_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
         echo "Resolution is incorrectly configured"
         exit ${CONFIG}
     fi
+    WIDTH=${CONF_RESOLUTION//[x|:]*/}
+    HEIGHT=${CONF_RESOLUTION//*[x|:]/}
+    if (( WIDTH < HEIGHT )); then
+        WIDTH=${CONF_RESOLUTION//*[x|:]/}
+        HEIGHT=${CONF_RESOLUTION//[x|:]*/}
+    fi
 fi
+
+CONF_RENAME=${CONF_RENAME:-${NZBPO_RENAME:-${RENAME}}}
+: "${CONF_RENAME:=true}"
+CONF_RENAME=${CONF_RENAME,,}
+case "${CONF_RENAME}" in
+    true|false) ;;
+    *) echo "Rename is incorrectly configured"; exit ${CONFIG} ;;
+esac
 
 CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEO_BITRATE}}}
 : "${CONF_VIDEOBITRATE:=0}"
@@ -718,6 +662,72 @@ CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
 readarray -t CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /\n/g' | sed 's/,/\n/g')"
 [[ ! "${CONF_PROCESSES[*]}" =~ "ffmpeg" ]] && CONF_PROCESSES+=("ffmpeg")
 
+if ${NZBGET}; then
+    if [[ -z "${NZBOP_VERSION}" ]]; then
+        echo "Sorry, you do not have NZBGet version 11.1 or later."
+        exit ${DEPEND}
+    fi
+    if [[ ! -z "${NZBNP_NZBNAME}" ]]; then
+        # Workaround till Radarr/Sonarr support NZBPP_FINALDIR
+        if ${CONF_RENAME}; then
+            NAME=$(echo "${NZBNP_NZBNAME}")
+            for OPT in "${OPTIONAL[@]}"; do
+                NAME=$(echo "${NAME}" | sed -i -E "s/${OPTIONAL}//g")
+            done
+            RESOLUTION=$(echo "${NZBNP_NZBNAME}" | grep -oE "[0-9]{3,4}[p|P]")
+            if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+                NAME=$(echo "${NAME}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
+            fi
+            if [[ "${NZBNP_NZBNAME}" != "${NAME}" ]]; then
+                echo "[NZB] NZBNAME=${NAME}"
+            fi
+        fi
+        exit 0
+    fi
+    if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
+        exit ${SKIPPED}
+    fi
+    if [[ ! -z "${NZBPP_FINALDIR}" ]]; then
+        DIRECTORY="${NZBPP_FINALDIR}"
+    else
+        DIRECTORY="${NZBPP_DIRECTORY}"
+    fi
+    samplesize=${NZBPO_CLEANUP_SIZE:-0}
+    if (( samplesize > 0 )); then
+        SIZE=$(( ${NZBPO_CLEANUP_SIZE//[!0-9]/} * 1024 * 1024 ))
+        readarray -t samples <<< "$(find "${DIRECTORY}" -type f -size -"${SIZE}"c)"
+        if [[ ! -z "${samples[*]}" ]]; then
+            for file in "${samples[@]}"; do
+                rm -f "${file}"
+            done
+        fi
+    fi
+    read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/\ //g' | sed 's/,/\ /g')"
+    if [[ ! -z "${extensions[*]}" ]]; then
+        readarray -t files <<< "$(find "${DIRECTORY}" -type f)"
+        if [[ ! -z "${files[*]}" ]]; then
+            for file in "${files[@]}"; do
+                for ext in "${extensions[@]}"; do
+                    if [[ "${file##*.}" == "${ext//./}" ]]; then
+                        rm -f "${file}"
+                        break
+                    fi
+                done
+            done
+        fi
+    fi
+    PROCESS+=("${DIRECTORY}")
+elif ${SABNZBD}; then
+    if [[ -z "${SAB_PP_STATUS}" ]]; then
+        echo "Sorry, you do not have SABnzbd version 2.0.0 or later."
+        exit ${DEPEND}
+    fi
+    if ! (( SAB_PP_STATUS == 0 )); then
+        exit ${SKIPPED}
+    fi
+    PROCESS+=("${SAB_COMPLETE_DIR}")
+fi
+
 (( ${#PROCESS[@]} == 0 )) && usage
 
 background() {
@@ -726,7 +736,7 @@ background() {
         HZ=$(getconf CLK_TCK)
     fi
     : "${HZ:=100}"
-    while kill -0 "${CONVERTER}" &>/dev/null; do
+    while kill -0 "${CONVERTER}" 2>/dev/null; do
         if [[ -e "${BACKGROUNDMANAGER}" ]]; then
             source "${BACKGROUNDMANAGER}"
             EDITED=false
@@ -826,7 +836,7 @@ progress() {
         1) local TYPE="Converting" ;;
         2) local TYPE="Normalizing" ;;
     esac
-    while kill -0 "${CONVERTER}" &>/dev/null; do
+    while kill -0 "${CONVERTER}" 2>/dev/null; do
         sleep 2
         if [[ -e "${STATSFILE}" ]]; then
             FRAME=$(tail -n 11 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
@@ -1021,35 +1031,34 @@ for valid in "${VALID[@]}"; do
             fi
             resize=false
             if [[ ! -z "${CONF_RESOLUTION}" ]]; then
-                width=${CONF_RESOLUTION//[x|:]*/}
-                height=${CONF_RESOLUTION//*[x|:]/}
-                if (( width < height )); then
-                    width=${CONF_RESOLUTION//*[x|:]/}
-                    height=${CONF_RESOLUTION//[x|:]*/}
-                fi
                 videowidth=$(echo "${videodata}" | grep -x 'width=.*' | sed -E 's/[^0-9]//g')
-                if (( videowidth > width )); then
+                if (( videowidth > WIDTH )); then
                     convert=true
                     resize=true
                 fi
-                if ! [[ "${DIRECTORY}" =~ ${height}[p|P] ]]; then
+                if ${CONF_RENAME}; then
                     if ! ${SABNZBD}; then
                         RESOLUTION=$(echo "${DIRECTORY}" | grep -oE "[0-9]{3,4}[p|P]")
-                        if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > height )); then
-                            DIRECTORY=$(echo "${DIRECTORY}" | sed -E "s/${RESOLUTION}/${height}p/g")
+                        if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+                            DIRECTORY=$(echo "${DIRECTORY}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
+                            for OPT in "${OPTIONAL[@]}"; do
+                                DIRECTORY=$(echo "${DIRECTORY}" | sed -i -E "s/${OPTIONAL}//g")
+                            done
                             if [[ ! -e "${DIRECTORY}" ]]; then
                                 mkdir "${DIRECTORY}"
                             fi
-                            if ${NZBGET}; then
-                                echo "[NZB] FINALDIR=${DIRECTORY}"
-                            fi
+                            # Needs Sonarr/Radarr support
+                            #if ${NZBGET}; then
+                            #    echo "[NZB] FINALDIR=${DIRECTORY}"
+                            #fi
                         fi
                     fi
-                fi
-                if ! [[ "${newname}" =~ ${height}[p|P] ]]; then
                     RESOLUTION=$(echo "${newname}" | grep -oE "[0-9]{3,4}[p|P]")
-                    if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > height )); then
-                        newname=$(echo "${newname}" | sed -E "s/${RESOLUTION}/${height}p/g")
+                    if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+                        newname=$(echo "${newname}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
+                        for OPT in "${OPTIONAL[@]}"; do
+                            newname=$(echo "${newname}" | sed -i -E "s/${OPTIONAL}//g")
+                        done
                     fi
                 fi
                 newfile="${DIRECTORY}/${newname}"
@@ -1082,7 +1091,7 @@ for valid in "${VALID[@]}"; do
             if ${convert}; then
                 command+=" -map ${videomap} -c:v:${x} ${CONF_ENCODER}"
                 if ${resize}; then
-                    command+=" -filter_complex \"[${videomap}]scale=${width}:trunc(ow/a/2)*2\""
+                    command+=" -filter_complex \"[${videomap}]scale=${WIDTH}:trunc(ow/a/2)*2\""
                 fi
                 command+=" -preset:${x} ${CONF_PRESET}"
                 if ${profile}; then
