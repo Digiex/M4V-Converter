@@ -164,7 +164,7 @@ This is the command I use for batch processing all my older media. This should e
 Config File
 ------------
 
-Included is a `default.conf`, if you copy/paste it and edit the settings to you liking. Once done, rename it to match the script name exactly and it will be automatically used. This will allow you to avoid having to type long commands as seen in the last example above. You can also specify a location to this file by using `-c CONFIG` or `--config CONIFG` replacing CONFIG with the path to your config file.
+Included is a `default.conf`, if you copy/paste it and edit the settings to you liking. Once done, rename it to match the script name exactly and it will be automatically used. This will allow you to avoid having to type long commands as seen in the last example above. You can also specify a location to this file by using `-c CONFIG` or `--config=CONIFG` replacing CONFIG with the path to your config file.
 
 Credits & Useful Links
 -------------------------
