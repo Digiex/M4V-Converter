@@ -19,7 +19,7 @@ installLinux() {
 
 	case "${distro}" in
 		ubuntu|debian|linuxmint) depends="autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev" ;;
-		fedora|centos) depends="autoconf automake cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial patch pkgconfig wget zlib-devel" ;;
+		fedora|centos) depends="autoconf automake cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel" ;;
 		*) echo "This Linux distribution is unsupported"; exit 2 ;;
 	esac
 
