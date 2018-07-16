@@ -346,10 +346,10 @@ if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
     exit ${DEPEND}
 fi
 
-if [[ "$(ffmpeg 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
-    echo "While you do have FFmpeg installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
-    exit ${DEPEND}
-fi
+#if [[ "$(ffmpeg 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
+#    echo "While you do have FFmpeg installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
+#    exit ${DEPEND}
+#fi
 
 CONF_FFPROBE=${CONF_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}
 : "${CONF_FFPROBE:=ffprobe}"
@@ -358,10 +358,10 @@ if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
     exit ${DEPEND}
 fi
 
-if [[ "$(ffprobe 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
-    echo "While you do have FFprobe installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
-    exit ${DEPEND}
-fi
+#if [[ "$(ffprobe 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
+#    echo "While you do have FFprobe installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
+#    exit ${DEPEND}
+#fi
 
 if [[ ! -z "${CONF_OUTPUT}" ]]; then
     CONF_OUTPUT="${CONF_OUTPUT%/}"
