@@ -274,10 +274,6 @@ usage() {
     exit ${CONFIG}
 }
 
-if (( ${#} == 0 )); then
-    usage
-fi
-
 while getopts hvdi:o:c:b-: opts; do
     case ${opts,,} in
         h) usage ;;
@@ -691,6 +687,8 @@ elif ${SABNZBD}; then
         exit ${SKIPPED}
     fi
     PROCESS+=("${SAB_COMPLETE_DIR}")
+elif (( ${#} == 0 )); then
+    usage
 fi
 
 (( ${#PROCESS[@]} == 0 )) && usage
