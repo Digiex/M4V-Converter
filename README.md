@@ -110,7 +110,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
     This will set directory permissions in either decimal (493) or octal (leading zero: 0755).
   --processes=
     These are the processes background mode will look for and auto-pause any active converting if found.
-      NOTE: Use quotes when specifying more than one process. Ex. '"ffmpeg, Plex Transcoder"'
+      NOTE: Use quotes when specifying more than one process. Ex. "ffmpeg, Plex Transcoder"
 ```
 
 Credits & Useful Links
