@@ -105,7 +105,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
       NOTE: Ex. 'SD, HD, 720p, 1920x1080, 4K'
       NOTE: https://trac.ffmpeg.org/wiki/Scaling
       NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
-  --rename=[true,false]
+  --rename=[true, false]
     This will rename the file/folder when resolution is changed.
       NOTE: Ex. 'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
       NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
@@ -127,11 +127,11 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
     This will copy/convert subtitles of your matching language(s) into the converted file or extract them into a srt file.
   --force-subtitles=[false, true]
     Use this to force the subtitles to convert, overriding all other checks.
-  --format=[mp4,mov]
+  --format=[mp4, mov]
     MP4 is better supported universally. MOV is best with Apple devices and iTunes.
-  --extension=[mp4,m4v]
+  --extension=[mp4, m4v]
     The extension applied at the end of the file, such as video.mp4.
-  --delete=[false,true]
+  --delete=[false, true]
     If true then the original file will be deleted.
   --file-permission=
     This will set file permissions in either decimal (493) or octal (leading zero: 0755).
