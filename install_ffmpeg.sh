@@ -177,7 +177,7 @@ installMac() {
 		echo "You must install Homebrew from http://brew.sh/ for this script to assist in installing ffmpeg"
 		exit 10
 	fi
-	brew install ffmpeg --with-tools --with-fdk-aac --with-freetype --with-fontconfig --with-libass --with-libvorbis --with-libvpx --with-opus --with-x265 --HEAD
+	brew install ffmpeg
 }
 manager() {
 	if hash apt-get 2>/dev/null; then
