@@ -198,7 +198,7 @@ manager() {
 }
 
 case "${OSTYPE}" in
-	linux-gnu) installLinux ;;
+	linux*) installLinux ;;
 	darwin*) installMac ;;
 esac
 
