@@ -96,8 +96,8 @@
 # NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
 #Resolution=
 
-# File/Folder Rename (true, false).
-# This will rename the file/folder when resolution is changed.
+# File/Directory Rename (true, false).
+# This will rename the file/directory when resolution is changed.
 #
 # NOTE: Ex. movie.'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
 #
@@ -164,11 +164,11 @@
 # NOTE: http://permissions-calculator.org/
 #File Permission=
 
-# Folder Permissions (*).
-# This will set folder permissions in either decimal (493) or octal (leading zero: 0755).
+# Directory Permissions (*).
+# This will set directory permissions in either decimal (493) or octal (leading zero: 0755).
 #
 # NOTE: http://permissions-calculator.org/
-#Folder Permission=
+#Directory Permission=
 
 # Cleanup Size (MB).
 # Any file less than the specified size is deleted.
@@ -318,7 +318,7 @@ while getopts hvdi:o:c:b-: opts; do
                 extension=*) CONF_EXTENSION="${ARG}" ;;
                 delete=*) CONF_DELETE="${ARG}" ;;
                 file-permission=*) CONF_FILE="${ARG}" ;;
-                folder-permission=*) CONF_FOLDER="${ARG}" ;;
+                directory-permission=*) CONF_DIRECTORY="${ARG}" ;;
                 background) CONF_BACKGROUND=true ;;
                 processes=*) CONF_PROCESSES="${ARG}" ;;
                 *) usage ;;
@@ -599,15 +599,15 @@ if [[ ! -z "${CONF_FILE}" ]]; then
     fi
 fi
 
-CONF_FOLDER=${CONF_FOLDER:-${NZBPO_FOLDER_PERMISSION:-${FOLDER_PERMISSION}}}
-if [[ ! -z "${CONF_FOLDER}" ]]; then
-    if [[ ! "${CONF_FOLDER}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_FOLDER} > 4 || ${#CONF_FOLDER} < 3 )); then
-        echo "Folder is incorrectly configured"
+CONF_DIRECTORY=${CONF_DIRECTORY:-${NZBPO_DIRECTORY_PERMISSION:-${DIRECTORY_PERMISSION}}}
+if [[ ! -z "${CONF_DIRECTORY}" ]]; then
+    if [[ ! "${CONF_DIRECTORY}" =~ ^-?[0-9]+$ ]] || (( ${#CONF_DIRECTORY} > 4 || ${#CONF_DIRECTORY} < 3 )); then
+        echo "Directory is incorrectly configured"
         exit ${CONFIG}
     else
-        for ((i = 0; i < ${#CONF_FOLDER}; i++)); do
-            if (( ${CONF_FOLDER:${i}:1} < 0 || ${CONF_FOLDER:${i}:1} > 7 )); then
-                echo "Folder is incorrectly configured"
+        for ((i = 0; i < ${#CONF_DIRECTORY}; i++)); do
+            if (( ${CONF_DIRECTORY:${i}:1} < 0 || ${CONF_DIRECTORY:${i}:1} > 7 )); then
+                echo "Directory is incorrectly configured"
                 exit ${CONFIG}
             fi
         done
@@ -1919,8 +1919,8 @@ for valid in "${VALID[@]}"; do
         if [[ ! -z "${CONF_FILE}" ]]; then
             chmod "${CONF_FILE}" "${newfile}"
         fi
-        if [[ ! -z "${CONF_FOLDER}" ]]; then
-            chmod "${CONF_FOLDER}" "${DIRECTORY}"
+        if [[ ! -z "${CONF_DIRECTORY}" ]]; then
+            chmod "${CONF_DIRECTORY}" "${DIRECTORY}"
         fi
         clean
     done
