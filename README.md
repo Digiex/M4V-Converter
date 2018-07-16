@@ -112,16 +112,16 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --video-bitrate=
     Use this to limit video bitrate, if exceeded then video will be converted and quality downgraded.
       NOTE: This value is in Kilobytes, Ex. '8192' (8 Mbps)
-  --force-video=
+  --force-video=[false, true]
     Use this to force the video to convert, overriding all other checks.
-  --dual-audio=
+  --dual-audio=[false, true]
     This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
       NOTE: AAC will be the default for better compatability with more devices.
-  --force-audio=
+  --force-audio=[false, true]
     Use this to force the audio to convert, overriding all other checks.
-  --normalize=[]
+  --normalize=[false, true]
     This will normalize audio if needed due to downmixing.
-  --force-normalize=
+  --force-normalize=[false, true]
     This will force check audio levels for all supported audio streams.
   --subtitles=[true, false, extract]
     This will copy/convert subtitles of your matching language(s) into the converted file or extract them into a srt file.
