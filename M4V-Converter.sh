@@ -724,7 +724,7 @@ background() {
             if [[ -z "${PROCESS}" ]]; then
                 continue
             fi
-            readarray -t PIDS <<< "$(pgrep ^"${PROCESS}")"
+            readarray -t PIDS <<< "$(pgrep -i ^"${PROCESS}")"
             for PID in "${PIDS[@]}"; do
                 if [[ -z "${PID}" ]]; then
                     continue
