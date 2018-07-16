@@ -565,7 +565,7 @@ if [[ "${CONF_FORMAT}" != "mp4" ]] && [[ "${CONF_FORMAT}" != "mov" ]]; then
 fi
 
 CONF_EXTENSION=${CONF_EXTENSION:-${NZBPO_EXTENSION:-${EXTENSION}}}
-: "${CONF_EXTENSION:=m4v}"
+: "${CONF_EXTENSION:=mp4}"
 CONF_EXTENSION=${CONF_EXTENSION,,}
 if [[ "${CONF_EXTENSION}" != "mp4" ]] && [[ "${CONF_EXTENSION}" != "m4v" ]]; then
     echo "Extension is incorrectly configured"
