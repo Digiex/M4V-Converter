@@ -1596,7 +1596,6 @@ for valid in "${VALID[@]}"; do
                         continue;
                     ;;
                 esac
-                fi
                 if [[ "${CONF_LANGUAGES}" != "*" ]]; then
                     allow=false
                     for language in "${CONF_LANGUAGES[@]}"; do
