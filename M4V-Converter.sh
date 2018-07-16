@@ -1590,9 +1590,12 @@ for valid in "${VALID[@]}"; do
                     continue
                 fi
                 subtitlecodec=$(echo "${subtitledata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
-                if [[ "${subtitlecodec}" == hdmv_pgs_subtitle ]] || [[ "${subtitlecodec}" == pgssub ]] || [[ "${subtitlecodec}" == dvb_subtitle ]]; then
-                    filtered+=("${subtitle[${i}]}")
-                    continue
+                case "${subtitlecodec}" in
+                    hdmv_pgs_subtitle|pgssub|dvb_subtitle|dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext)
+                        filtered+=("${subtitle[${i}]}");
+                        continue;
+                    ;;
+                esac
                 fi
                 if [[ "${CONF_LANGUAGES}" != "*" ]]; then
                     allow=false
