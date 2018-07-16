@@ -17,14 +17,16 @@ Docker
 -------
 You can use this script almost anywhere, even on Windows (through virtualization) when using Docker. [Download Docker here!](https://store.docker.com/search?type=edition&offering=community) Run the following command to install script with NZBGet in Docker!
 
-`docker create \
+```
+docker create \
   --name nzbget \
   -p 6789:6789 \
   -e PUID=<UID> -e PGID=<GID> \
   -e TZ=<timezone> \
   -v </path/to/appdata>:/config \
   -v <path/to/downloads>:/downloads \
-  xzkingzxburnzx/m4v-converter`
+  xzkingzxburnzx/m4v-converter
+```
 
 If you prefer SABnzbd, you can get that to! Just change the last line to `xzkingzxburnzx/m4v-converter:sabnzbd`
 
