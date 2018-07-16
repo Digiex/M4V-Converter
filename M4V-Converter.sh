@@ -21,15 +21,15 @@
 #FFprobe=ffprobe
 
 # Verbose Mode (true, false).
-# Prints extra details, useful for debugging.
+# Prints extra details such as progress information and the FFmpeg command generated.
 #Verbose=false
 
 # Debug Mode (true, false).
-# When enabled this script does nothing.
+# Prints generated FFmpeg command ONLY, useful for debugging.
 #Debug=false
 
 # Background Mode (true, false).
-# Automatically pauses transcoding if a process (determined below) is found running.
+# Automatically pauses any active converting if a process (determined by Processes below) is found running.
 #Background=false
 
 # Number of Threads (*).
@@ -39,11 +39,13 @@
 # Preferred Languages (*).
 # This is the language(s) you prefer.
 #
-# NOTE: English (eng), French (fre), German (ger), Italian (ita), Spanish (spa), * (all).
+# NOTE: This is used for audio and subtitles. The first listed is considered the default/preferred.
 #
-# NOTE: This is used for audio and subtitles.
+# NOTE: Selecting "*" will allow all languages.
 #
-# NOTE: The first listed is considered the default/preferred.
+# NOTE: Use 3 digit code language code, ISO 639-2.
+#
+# NOTE: https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
 #Languages=
 
 # Video Encoder (H.264, H.265, *).
@@ -59,7 +61,7 @@
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This controls encoding speed to compression ratio.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Preset
 #Preset=medium
 
 # Video Profile (baseline, main, high, *).
@@ -67,7 +69,7 @@
 #
 # NOTE: Selecting "*" will disable this check.
 #
-# NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Profiles
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Profile
 #Profile=main
 
 # Video Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *).
@@ -75,19 +77,19 @@
 #
 # NOTE: Selecting "*" will disable this check.
 #
-# NOTE: https://en.wikipedia.org/wiki/H.264/MPEG-4_AVC#Levels
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Compatibility
 #Level=4.1
 
 # Video Constant Rate Factor (0-51).
 # This controls maximum compression efficiency with a single pass.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264
+# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#crf
 #CRF=23
 
 # Video Resolution (*).
 # This will resize the video maintaining aspect ratio.
 #
-# NOTE: Ex. 720p, 1280x720, 1280:720
+# NOTE: Ex. 'SD, HD, 720p, 1920x1080, 4K'
 #
 # NOTE: https://trac.ffmpeg.org/wiki/Scaling
 #
@@ -97,19 +99,19 @@
 # File/Folder Rename (true, false).
 # This will rename the file/folder when resolution is changed.
 #
-# NOTE: Ex. movie.2018.4k.uhd.king to movie.2018.1080p.king (when using the above Video Resolution option)
+# NOTE: Ex. movie.'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
 #
-# NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on nzbget. (Sonarr/Radarr don't yet support NZBPP_FINALDIR, this is a workaround)
+# NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
 #Rename=true
 
 # Video Bitrate (KB).
-# Use this to limit video bitrate.
+# Use this to limit video bitrate, if exceeded then video will be converted and quality downgraded.
 #
-# NOTE: Ex. '6144' (6 Mbps)
+# NOTE: This value is in Kilobytes, Ex. '8192' (8 Mbps)
 #Video Bitrate=
 
-# Force Video Transcode (true, false).
-# Use this to force the video to transcode, overriding all other checks.
+# Force Video Convert (true, false).
+# Use this to force the video to convert, overriding all other checks.
 #Force Video=false
 
 # Create Dual Audio Streams (true, false).
@@ -118,12 +120,12 @@
 # NOTE: AAC will be the default for better compatability with more devices.
 #Dual Audio=false
 
-# Force Audio Transcode (true, false).
-# Use this to force the audio to transcode, overriding all other checks.
+# Force Audio Convert (true, false).
+# Use this to force the audio to convert, overriding all other checks.
 #Force Audio=false
 
 # Normalize Audio (true, false).
-# This will normalize audio if needed due to downmixing 5.1 to 2.0.
+# This will normalize audio if needed due to downmixing.
 #Normalize=false
 
 # Force Normalize (true, false).
@@ -131,11 +133,11 @@
 #Force Normalize=false
 
 # Copy Subtitles (true, false, extract).
-# This will copy/convert subtitles of your matching language(s) into the converted file.
+# This will copy/convert subtitles of your matching language(s) into the converted file or extract them into a srt file.
 #Subtitles=true
 
-# Force Subtitle Transcode (true, false).
-# Use this to force the subtitles to transcode, overriding all other checks.
+# Force Subtitle Convert (true, false).
+# Use this to force the subtitles to convert, overriding all other checks.
 #Force Subtitle=false
 
 # File Format (MP4, MOV).
@@ -210,57 +212,6 @@ elif [[ ! -z "${SAB_VERSION}" ]]; then
     SABNZBD=true
 fi
 
-usage() {
-    cat <<-EOF
-	USAGE: ${0} parameters
-
-	This script converts media to a universal mp4 format.
-
-	NOTE: This script requires FFmpeg, FFprobe and Bash 4
-
-	OPTIONS:
-	--------
-	-h  --help          Show this message
-	-v  --verbose       Verbose Mode
-	-d  --debug         Debug Mode
-	-i  --input         Input file or directory
-	-o  --output        Output directory
-	-c  --config        Config file
-	-b  --background    Auto pauses if processes are running
-
-	ADVANCED OPTIONS:
-	-----------------
-	https://github.com/Digiex/M4V-Converter/blob/master/default.conf
-
-	--ffmpeg
-	--ffprobe
-	--threads
-	--languages
-	--encoder
-	--preset
-	--crf
-	--resolution
-	--rename
-	--video-bitrate
-	--force-video
-	--dual-audio
-	--force-audio
-	--normalize
-	--force-normalize
-	--subtitles
-	--force-subtitles
-	--format
-	--extension
-	--delete
-	--file-permission
-	--folder-permission
-	--processes
-
-	EXAMPLE: ${0} -i ~/video.mkv
-	EOF
-    exit ${CONFIG}
-}
-
 if (( BASH_VERSINFO < 4 )); then
     echo "Sorry, you do not have Bash version 4 or later"
     exit ${DEPEND}
@@ -302,6 +253,31 @@ clean() {
 trap force HUP INT TERM QUIT
 trap clean EXIT
 
+path() {
+    local SOURCE="${1}" DIRECTORY
+    while [ -h "${SOURCE}" ]; do
+        DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+        SOURCE="$(readlink "${SOURCE}")"
+        [[ "${SOURCE}" != /* ]] && SOURCE="${DIRECTORY}/${SOURCE}"
+    done
+    DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+    echo "${DIRECTORY}"
+}
+
+usage() {
+    local DIRECTORY=$(path ${0})
+    if [[ -e "${DIRECTORY}" ]] && [[ -e "${DIRECTORY}/README.md" ]]; then
+        cat "${DIRECTORY}/README.md"
+    else
+        echo "README.md file not found, please refer to it directly at https://github.com/Digiex/M4V-Converter/blob/master/README.md"
+    fi
+    exit ${CONFIG}
+}
+
+if (( ${#} == 0 )); then
+    usage
+fi
+
 while getopts hvdi:o:c:b-: opts; do
     case ${opts,,} in
         h) usage ;;
@@ -319,8 +295,8 @@ while getopts hvdi:o:c:b-: opts; do
                 input=*) PROCESS+=("${ARG}") ;;
                 output=*) CONF_OUTPUT="${ARG}" ;;
                 config=*) CONFIG_FILE="${ARG}" ;;
-                verbose=*) CONF_VERBOSE="${ARG}" ;;
-                debug=*) CONF_DEBUG="${ARG}" ;;
+                verbose) CONF_VERBOSE=true ;;
+                debug) CONF_DEBUG=true; CONF_VERBOSE=true ;;
                 threads=*) CONF_THREADS="${ARG}" ;;
                 languages=*) CONF_LANGUAGES="${ARG}" ;;
                 encoder=*) CONF_ENCODER="${ARG}" ;;
@@ -343,7 +319,7 @@ while getopts hvdi:o:c:b-: opts; do
                 delete=*) CONF_DELETE="${ARG}" ;;
                 file-permission=*) CONF_FILE="${ARG}" ;;
                 folder-permission=*) CONF_FOLDER="${ARG}" ;;
-                background=*) CONF_BACKGROUND="${ARG}" ;;
+                background) CONF_BACKGROUND=true ;;
                 processes=*) CONF_PROCESSES="${ARG}" ;;
                 *) usage ;;
             esac
@@ -351,17 +327,6 @@ while getopts hvdi:o:c:b-: opts; do
         *) usage ;;
     esac
 done
-
-path() {
-    local SOURCE="${1}" DIRECTORY
-    while [ -h "${SOURCE}" ]; do
-        DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
-        SOURCE="$(readlink "${SOURCE}")"
-        [[ "${SOURCE}" != /* ]] && SOURCE="${DIRECTORY}/${SOURCE}"
-    done
-    DIRECTORY="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
-    echo "${DIRECTORY}"
-}
 
 if [[ ! -z "${CONFIG_FILE}" ]]; then
     if [[ ! -f "${CONFIG_FILE}" ]]; then
