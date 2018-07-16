@@ -6,6 +6,15 @@ installLinux() {
 		exit 1
 	fi
 
+	manager -y update
+	manager -y install ffmpeg
+
+	if [[ $? -ne 0 ]]; then
+		echo "This script attempted to install ffmpeg directly from apt/dnf/yum and failed, falling back to manually compiling..."
+	else
+		exit 0
+	fi
+
 	distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
 
 	case "${distro}" in
@@ -14,15 +23,14 @@ installLinux() {
 		*) echo "This Linux distribution is unsupported"; exit 2 ;;
 	esac
 
-	manager -y update
 	manager -y install ${depends}
 
 	mkdir ~/ffmpeg_sources
 
 	cd ~/ffmpeg_sources
-	wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.02/nasm-2.13.02.tar.bz2
-	tar xjvf nasm-2.13.02.tar.bz2
-	cd nasm-2.13.02
+	wget http://www.nasm.us/pub/nasm/releasebuilds/2.13.03/nasm-2.13.03.tar.bz2
+	tar xjvf nasm-2.13.03.tar.bz2
+	cd nasm-2.13.03
 	./autogen.sh
 	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
 	make
@@ -77,9 +85,9 @@ installLinux() {
 	echo
 
 	cd ~/ffmpeg_sources
-	wget http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.gz
-	tar xzvf libogg-1.3.2.tar.gz
-	cd libogg-1.3.2
+	wget http://downloads.xiph.org/releases/ogg/libogg-1.3.3.tar.gz
+	tar xzvf libogg-1.3.3.tar.gz
+	cd libogg-1.3.3
 	./configure --prefix="$HOME/ffmpeg_build" --disable-shared
 	make
 	make install
@@ -169,17 +177,11 @@ installMac() {
 		echo "You must install Homebrew from http://brew.sh/ for this script to assist in installing ffmpeg"
 		exit 10
 	fi
-	brew update
-	brew upgrade
-	brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm ffmpeg
-	curl -s https://gist.githubusercontent.com/xzKinGzxBuRnzx/da6406c854d18afdd76ab1ce7d4762c8/raw/648d5742abfc7d22d4fc7eba8b2d1d7fe0433e66/ffmpeg.rb > ffmpeg.rb
-	mv ffmpeg.rb /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/ffmpeg.rb
-	brew reinstall ffmpeg --with-tools --with-fdk-aac --with-freetype --with-fontconfig --with-libass --with-libvorbis --with-libvpx --with-opus --with-x265
-	brew cleanup ffmpeg
+	brew install ffmpeg --with-tools --with-fdk-aac --with-freetype --with-fontconfig --with-libass --with-libvorbis --with-libvpx --with-opus --with-x265 --HEAD
 }
 manager() {
 	if hash apt-get 2>/dev/null; then
-		apt-get "${@}"
+		apt "${@}"
 	elif hash dnf 2>/dev/null; then
 		if [[ "${@}" == "-y update" ]]; then
 			dnf -y check-update
