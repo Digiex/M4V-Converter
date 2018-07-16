@@ -1,5 +1,5 @@
 M4V-Converter
-=============
+==============
 
 This script automates media conversion to a universal MP4 format with many options to customize. Avoid transcoding and support native playback across all devices when using Plex.
 
@@ -10,11 +10,26 @@ Tested using Ubuntu Server 16.04 LTS, Debian 8.6.0, Linux Mint 18.1, Fedora Serv
 Need help with something? [Get support here!](https://digiex.net/threads/m4v-converter-convert-your-media-to-a-universal-format-nzbget-sabnzbd-automation-linux-macos.14997/) Found a bug? [Report it here!](https://github.com/Digiex/M4V-Converter/issues/new)
 
 Dependencies
-------------
+-------------
 Requires `FFmpeg`, `FFprobe` and `Bash`
 
+Docker
+-------
+You can use this script almost anywhere, even on Windows (through virtualization) when using Docker. [Download Docker here!](https://store.docker.com/search?type=edition&offering=community) Run the following command to install script with NZBGet in Docker!
+
+`docker create \
+  --name nzbget \
+  -p 6789:6789 \
+  -e PUID=<UID> -e PGID=<GID> \
+  -e TZ=<timezone> \
+  -v </path/to/appdata>:/config \
+  -v <path/to/downloads>:/downloads \
+  xzkingzxburnzx/m4v-converter`
+
+If you prefer SABnzbd, you can get that to! Just change the last line to `xzkingzxburnzx/m4v-converter:sabnzbd`
+
 Manual Script Usage
---------------
+--------------------
 To run the script manually, (good for batch operations) follow this format:
 ```
 Help output
@@ -114,7 +129,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
 ```
 
 Credits & Useful Links
---------------
+-------------------------
 This project makes use of the following projects:
 - https://github.com/linuxserver/docker-nzbget
 - https://github.com/jrottenberg/ffmpeg
