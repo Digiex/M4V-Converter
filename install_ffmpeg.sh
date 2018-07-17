@@ -18,8 +18,8 @@ installLinux() {
 	distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
 
 	case "${distro}" in
-		ubuntu|debian|linuxmint) depends="autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev" ;;
-		fedora|centos) depends="autoconf automake cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel" ;;
+		ubuntu|debian) depends="autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev" ;;
+		fedora|centos) depends="autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel" ;;
 		*) echo "This Linux distribution is unsupported"; exit 2 ;;
 	esac
 
@@ -115,7 +115,7 @@ installLinux() {
 	wget -O libvpx-1.7.0.tar.gz https://github.com/webmproject/libvpx/archive/v1.7.0.tar.gz
 	tar xzvf libvpx-1.7.0.tar.gz
 	cd libvpx-1.7.0
-	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --disable-examples --disable-unit-tests
+	PATH="$HOME/bin:$PATH" ./configure --prefix="$HOME/ffmpeg_build" --disable-examples --disable-unit-tests --enable-vp9-highbitdepth --as=yasm
 	PATH="$HOME/bin:$PATH" make
 	make install
 	echo
@@ -179,6 +179,7 @@ installMac() {
 	fi
 	brew install ffmpeg
 }
+
 manager() {
 	if hash apt-get 2>/dev/null; then
 		apt "${@}"
