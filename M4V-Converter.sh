@@ -1079,8 +1079,10 @@ for valid in "${VALID[@]}"; do
             if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                 videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
                 if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
-                    videolang="${CONF_DEFAULTLANGUAGE}"
-                    skip=false
+                    if [[ "${videolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                        videolang="${CONF_DEFAULTLANGUAGE}"
+                        skip=false
+                    fi
                 fi
                 if [[ ! -z "${videolang}" ]]; then
                     command+=" -metadata:s:v:${x} \"language=${videolang}\""
@@ -1100,7 +1102,9 @@ for valid in "${VALID[@]}"; do
             fi
             audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
             if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
-                audiolang="${CONF_DEFAULTLANGUAGE}"
+                if [[ "${audiolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                    audiolang="${CONF_DEFAULTLANGUAGE}"
+                fi
             fi
             if [[ "${CONF_LANGUAGES}" != "*" ]]; then
                 allow=false
@@ -1145,7 +1149,9 @@ for valid in "${VALID[@]}"; do
             audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${i} 2>&1)
             audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
             if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
-                audiolang="${CONF_DEFAULTLANGUAGE}"
+                if [[ "${audiolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                    audiolang="${CONF_DEFAULTLANGUAGE}"
+                fi
             fi
             audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
             audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
@@ -1179,7 +1185,9 @@ for valid in "${VALID[@]}"; do
                         audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
                         lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                         if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-                            lang="${CONF_DEFAULTLANGUAGE}"
+                            if [[ "${lang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                lang="${CONF_DEFAULTLANGUAGE}"
+                            fi
                         fi
                         if [[ "${lang}" != "${audiolang}" ]]; then
                             continue
@@ -1213,7 +1221,9 @@ for valid in "${VALID[@]}"; do
                         audiodata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams a:${a} 2>&1)
                         lang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                         if [[ -z "${lang}" ]] || [[ "${lang}" == "und" ]] || [[ "${lang}" == "unk" ]]; then
-                            lang="${CONF_DEFAULTLANGUAGE}"
+                            if [[ "${lang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                lang="${CONF_DEFAULTLANGUAGE}"
+                            fi
                         fi
                         if [[ "${lang}" != "${audiolang}" ]]; then
                             continue
@@ -1252,7 +1262,9 @@ for valid in "${VALID[@]}"; do
                     audiolang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams a:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
                     if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                         if [[ -z "${audiolang}" ]] || [[ "${audiolang,,}" == "und" ]] || [[ "${audiolang,,}" == "unk" ]]; then
-                            audiolang="${CONF_DEFAULTLANGUAGE}"
+                            if [[ "${audiolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                audiolang="${CONF_DEFAULTLANGUAGE}"
+                            fi
                         fi
                     fi
                     if [[ "${audiolang,,}" == "${language}" ]]; then
@@ -1283,7 +1295,9 @@ for valid in "${VALID[@]}"; do
                     audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                     if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                         if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
-                            audiolang="${CONF_DEFAULTLANGUAGE}"
+                            if [[ "${audiolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                audiolang="${CONF_DEFAULTLANGUAGE}"
+                            fi
                         fi
                     fi
                     aac=false ac3=false
@@ -1342,8 +1356,10 @@ for valid in "${VALID[@]}"; do
                 audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                 if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                     if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
-                        audiolang="${CONF_DEFAULTLANGUAGE}"
-                        skip=false
+                        if [[ "${audiolang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                            audiolang="${CONF_DEFAULTLANGUAGE}"
+                            skip=false
+                        fi
                     fi
                 fi
                 audiobitrate=$(echo "${audiodata}" | grep -x 'bit_rate=.*' | sed -E 's/[^0-9]//g')
@@ -1579,7 +1595,9 @@ for valid in "${VALID[@]}"; do
                 subtitledata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
                 subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                 if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
-                    subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                    if [[ "${subtitlelang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                        subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                    fi
                 fi
                 forced=$(echo "${subtitledata}" | grep -x 'DISPOSITION:forced=.*' | sed -E 's/[^0-9]//g')
                 if [[ ! -z "$(echo "${subtitledata}" | grep -i 'TAG:.*forced')" ]] || (( forced == 1 )); then
@@ -1628,7 +1646,9 @@ for valid in "${VALID[@]}"; do
                 subtitledata=$(${CONF_FFPROBE} "${file}" -v quiet -show_streams -select_streams s:${i} 2>&1)
                 subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                 if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
-                    subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                    if [[ "${subtitlelang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                        subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                    fi
                 fi
                 have=false
                 for ((s = 0; s < ${#subtitlestreams[@]}; s++)); do
@@ -1637,7 +1657,9 @@ for valid in "${VALID[@]}"; do
                     fi
                     lang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams s:${s} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
                     if [[ -z "${lang}" ]] || [[ "${lang,,}" == "und" ]] || [[ "${lang,,}" == "unk" ]]; then
-                        lang="${CONF_DEFAULTLANGUAGE}"
+                        if [[ "${lang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                            lang="${CONF_DEFAULTLANGUAGE}"
+                        fi
                     fi
                     if [[ "${lang,,}" == "${subtitlelang}" ]]; then
                         have=true
@@ -1667,7 +1689,9 @@ for valid in "${VALID[@]}"; do
                         subtitlelang=$(${CONF_FFPROBE} "${file}" -v quiet -select_streams s:${i} -show_entries stream_tags=language -of default=nokey=1:noprint_wrappers=1)
                         if [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                             if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang,,}" == "und" ]] || [[ "${subtitlelang,,}" == "unk" ]]; then
-                                subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                                if [[ "${subtitlelang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                    subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                                fi
                             fi
                         fi
                         if [[ "${subtitlelang,,}" == "${language}" ]]; then
@@ -1698,7 +1722,9 @@ for valid in "${VALID[@]}"; do
                     subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                     if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                         if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
-                            subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                            if [[ "${subtitlelang}" != "${CONF_DEFAULTLANGUAGE}" ]]; then
+                                subtitlelang="${CONF_DEFAULTLANGUAGE}"
+                            fi
                             if [[ "${CONF_SUBTITLES}" != "extract" ]]; then
                                 skip=false
                             fi
