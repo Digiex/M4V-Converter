@@ -420,8 +420,8 @@ CONF_ENCODER=${CONF_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
 : "${CONF_ENCODER:=H.264}"
 CONF_ENCODER=${CONF_ENCODER,,}
 case "${CONF_ENCODER}" in
-    h.264|h264|libx264) CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264" ;;
-    h.265|h265|hevc|libx265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
+    h.264|[h|x]264|libx264) CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264" ;;
+    h.265|[h|x]265|hevc|libx265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
     "*") ;;
     *) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
 esac
