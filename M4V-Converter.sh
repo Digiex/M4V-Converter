@@ -402,11 +402,10 @@ if [[ "${CONF_THREADS}" != "auto" ]]; then
 fi
 
 CONF_LANGUAGES="${CONF_LANGUAGES:-${NZBPO_LANGUAGES:-${LANGUAGES}}}"
-: "${CONF_LANGUAGES:=*}"
+: "${CONF_LANGUAGES:=unk}"
 CONF_LANGUAGES="${CONF_LANGUAGES,,}"
 read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed 's/\ //g' | sed 's/,/\ /g')"
 CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
-: "${CONF_DEFAULTLANGUAGE:=*}"
 if [[ "${CONF_LANGUAGES}" != "*" ]]; then
     for language in "${CONF_LANGUAGES[@]}"; do
         if ! (( ${#language} == 3 )); then
@@ -1077,13 +1076,13 @@ for valid in "${VALID[@]}"; do
             else
                 command+=" -map ${videomap} -c:v:${x} copy"
             fi
-            if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+            if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                 videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
                 if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
                     videolang="${CONF_DEFAULTLANGUAGE}"
                     skip=false
                 fi
-                if ! [[ -z "${videolang}" ]]; then
+                if [[ ! -z "${videolang}" ]]; then
                     command+=" -metadata:s:v:${x} \"language=${videolang}\""
                 fi
             fi
@@ -1341,7 +1340,7 @@ for valid in "${VALID[@]}"; do
                 audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
                 audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
                 audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
-                if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+                if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                     if [[ -z "${audiolang}" ]] || [[ "${audiolang}" == "und" ]] || [[ "${audiolang}" == "unk" ]]; then
                         audiolang="${CONF_DEFAULTLANGUAGE}"
                         skip=false
@@ -1389,7 +1388,7 @@ for valid in "${VALID[@]}"; do
                                     if (( audiobitrate > 128000 )); then
                                         command+=" -ab:a:${x} 128k"
                                     fi
-                                    if ! [[ -z "${audiolang}" ]]; then
+                                    if [[ ! -z "${audiolang}" ]]; then
                                         command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                     fi
                                     if (( x == 0 )); then
@@ -1417,7 +1416,7 @@ for valid in "${VALID[@]}"; do
                                     if (( audiobitrate > 128000 )); then
                                         command+=" -ab:a:${x} 128k"
                                     fi
-                                    if ! [[ -z "${audiolang}" ]]; then
+                                    if [[ ! -z "${audiolang}" ]]; then
                                         command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                     fi
                                     if (( x == 0 )); then
@@ -1448,7 +1447,7 @@ for valid in "${VALID[@]}"; do
                                 if (( audiobitrate > 128000 )); then
                                     command+=" -ab:a:${x} 128k"
                                 fi
-                                if ! [[ -z "${audiolang}" ]]; then
+                                if [[ ! -z "${audiolang}" ]]; then
                                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                 fi
                                 if (( x == 0 )); then
@@ -1479,7 +1478,7 @@ for valid in "${VALID[@]}"; do
                                 if (( audiobitrate > 128000 )); then
                                     command+=" -ab:a:${x} 128k"
                                 fi
-                                if ! [[ -z "${audiolang}" ]]; then
+                                if [[ ! -z "${audiolang}" ]]; then
                                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                                 fi
                                 if (( x == 0 )); then
@@ -1545,7 +1544,7 @@ for valid in "${VALID[@]}"; do
                         skip=false
                     fi
                 fi
-                if ! [[ -z "${audiolang}" ]]; then
+                if [[ ! -z "${audiolang}" ]]; then
                     command+=" -metadata:s:a:${x} \"language=${audiolang}\""
                 fi
                 if (( x == 0 )); then
@@ -1697,7 +1696,7 @@ for valid in "${VALID[@]}"; do
                     subtitlemap=$(echo "${subtitle[${i}]}" | awk '{print($2)}' | sed -E 's/#|\(.*|\[.*//g')
                     subtitlemap=${subtitlemap%:}
                     subtitlelang=$(echo "${subtitledata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
-                    if ! [[ -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
+                    if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                         if [[ -z "${subtitlelang}" ]] || [[ "${subtitlelang}" == "und" ]] || [[ "${subtitlelang}" == "unk" ]]; then
                             subtitlelang="${CONF_DEFAULTLANGUAGE}"
                             if [[ "${CONF_SUBTITLES}" != "extract" ]]; then
@@ -1738,7 +1737,7 @@ for valid in "${VALID[@]}"; do
                         else
                             command+=" -map ${subtitlemap} -c:s:${x} copy"
                         fi
-                        if ! [[ -z "${subtitlelang}" ]]; then
+                        if [[ ! -z "${subtitlelang}" ]]; then
                             command+=" -metadata:s:s:${x} \"language=${subtitlelang}\""
                         fi
                         ((x++))
