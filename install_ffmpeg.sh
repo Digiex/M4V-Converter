@@ -7,17 +7,21 @@ case "${OSTYPE}" in
       exit 1
     fi
     distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
+    compile=false
+    if [[ $@ =~ -c ]] || [[ $@ =~ --compile ]]; then
+      compile=true
+    fi
     case "${distro}" in
       ubuntu|debian)
         depends="apt install -y wget autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
-        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+        if ! ${compile}; then
           apt update
           apt install -y ffmpeg
         fi
       ;;
       fedora)
         depends="dnf install -y findutils autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
-        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+        if ! ${compile}; then
           dnf install -y \
             https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
             https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
@@ -26,7 +30,7 @@ case "${OSTYPE}" in
       ;;
       centos)
         depends="yum install -y autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
-        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+        if ! ${compile}; then
           yum localinstall -y --nogpgcheck \
             https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm \
             https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-7.noarch.rpm
@@ -35,7 +39,7 @@ case "${OSTYPE}" in
       ;;
       alpine)
         depends="apk add bash autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc libgc++ git libtool make mercurial pkgconf zlib-dev"
-        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+        if ! ${compile}; then
           apk update
           apk add bash ffmpeg
         fi
@@ -46,7 +50,7 @@ case "${OSTYPE}" in
     if [[ $? -ne 0 ]]; then
       echo "This script attempted to install ffmpeg directly and failed, falling back to manually compiling..."
     else
-      exit 0
+      ! ${compile} && exit 0
     fi
 
     ${depends}
