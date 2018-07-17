@@ -38,7 +38,7 @@ case "${OSTYPE}" in
         fi
       ;;
       alpine)
-        depends="apk add coreutils autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc g++ git libtool make mercurial pkgconf zlib-dev"
+        depends="apk add coreutils diffutils autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc g++ git libtool make mercurial pkgconf zlib-dev"
         if ! ${compile}; then
           apk update
           apk add ffmpeg
