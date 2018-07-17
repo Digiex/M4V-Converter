@@ -9,33 +9,40 @@ case "${OSTYPE}" in
     distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
     case "${distro}" in
 			ubuntu|debian)
-        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
-				depends="apt install -y autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
-				apt update
-				apt install -y ffmpeg
+				depends="apt install -y wget autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
+				if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+          apt update
+				  apt install -y ffmpeg
+        fi
 			;;
 			fedora)
 				depends="dnf install -y findutils autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
-        dnf install -y \
-          https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-          https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-        dnf install -y findutils ffmpeg
+        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+          dnf install -y \
+            https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+            https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+          dnf install -y findutils ffmpeg
+        fi
       ;;
 		  centos)
         depends="yum install -y autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
-        yum localinstall -y --nogpgcheck \
-          https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm \
-          https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-7.noarch.rpm
-        yum install -y ffmpeg
+        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+          yum localinstall -y --nogpgcheck \
+            https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm \
+            https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-7.noarch.rpm
+          yum install -y ffmpeg
+        fi
       ;;
       alpine)
         depends="apk add bash autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc libgc++ git libtool make mercurial pkgconf zlib-dev"
-        apk update
-        apk add bash ffmpeg
+        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+          apk update
+          apk add bash ffmpeg
+        fi
       ;;
       *) echo "This Linux distribution is unsupported"; exit 2 ;;
     esac
-    
+
     if [[ $? -ne 0 ]]; then
       echo "This script attempted to install ffmpeg directly and failed, falling back to manually compiling..."
     else
