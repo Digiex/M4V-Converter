@@ -38,10 +38,10 @@ case "${OSTYPE}" in
         fi
       ;;
       alpine)
-        depends="apk add bash autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc libgc++ git libtool make mercurial pkgconf zlib-dev"
+        depends="apk add coreutils autoconf automake cmake fontconfig-dev freetype-dev fribidi-dev gcc g++ git libtool make mercurial pkgconf zlib-dev"
         if ! ${compile}; then
           apk update
-          apk add bash ffmpeg
+          apk add ffmpeg
         fi
       ;;
       *) echo "This Linux distribution is unsupported"; exit 2 ;;
