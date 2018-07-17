@@ -8,6 +8,7 @@ case "${OSTYPE}" in
     fi
     distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
     case "${distro}" in
+      ubuntu|debian)
         depends="apt install -y wget autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
         if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
           apt update
