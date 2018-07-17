@@ -24,7 +24,7 @@ case "${OSTYPE}" in
           dnf install -y findutils ffmpeg
         fi
       ;;
-		  centos)
+      centos)
         depends="yum install -y autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
         if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
           yum localinstall -y --nogpgcheck \
