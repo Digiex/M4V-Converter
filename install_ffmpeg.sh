@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 
 case "${OSTYPE}" in
-	linux*)
+  linux*)
     if [[ $(whoami) != "root" ]]; then
-			echo "You must be root to run this script on Linux"
-			exit 1
-		fi
+      echo "You must be root to run this script on Linux"
+      exit 1
+    fi
     distro=$(cat /etc/*-release | grep -x 'ID=.*' | sed -E 's/ID=|\"//g')
     case "${distro}" in
-			ubuntu|debian)
-				depends="apt install -y wget autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
-				if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
+        depends="apt install -y wget autoconf automake build-essential cmake git libfreetype6-dev libfribidi-dev libfontconfig1-dev libtool pkg-config mercurial texinfo zlib1g-dev"
+        if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
           apt update
-				  apt install -y ffmpeg
+          apt install -y ffmpeg
         fi
-			;;
-			fedora)
-				depends="dnf install -y findutils autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
+      ;;
+      fedora)
+        depends="dnf install -y findutils autoconf automake bzip2 cmake fontconfig-devel freetype-devel fribidi-devel gcc gcc-c++ git libtool make mercurial pkgconfig wget zlib-devel"
         if [[ ! $@ =~ "-c" ]] || [[ ! $@ =~ "--compile" ]]; then
           dnf install -y \
             https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
