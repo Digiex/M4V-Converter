@@ -97,6 +97,8 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
     This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
       NOTE: Selecting "*" will disable this check.
       NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Compatibility
+  --force-level=[false,true]
+    This forces video level to the specified setting above.
   --crf=[0-51]
     This controls maximum compression efficiency with a single pass.
       NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#crf

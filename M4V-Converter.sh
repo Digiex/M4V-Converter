@@ -80,6 +80,10 @@
 # NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Compatibility
 #Level=4.1
 
+# Force Video Level (true, false).
+# This forces video level to the specified setting above.
+#Force Level=false
+
 # Video Constant Rate Factor (0-51).
 # This controls maximum compression efficiency with a single pass.
 #
@@ -99,7 +103,7 @@
 # File/Directory Rename (true, false).
 # This will rename the file/directory when resolution is changed.
 #
-# NOTE: Ex. movie.'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
+# NOTE: Ex. 'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
 #
 # NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
 #Rename=true
@@ -299,6 +303,7 @@ while getopts hvdi:o:c:b-: opts; do
                 preset=*) CONF_PRESET="${ARG}" ;;
                 profile=*) CONF_PROFILE="${ARG}" ;;
                 level=*) CONF_LEVEL="${ARG}" ;;
+                force-level=*) CONF_FORCE_LEVEL="${ARG}" ;;
                 crf=*) CONF_CRF="${ARG}" ;;
                 resolution=*) CONF_RESOLUTION="${ARG}" ;;
                 rename=*) CONF_RENAME="${ARG}" ;;
@@ -419,8 +424,8 @@ CONF_ENCODER=${CONF_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
 : "${CONF_ENCODER:=H.264}"
 CONF_ENCODER=${CONF_ENCODER,,}
 case "${CONF_ENCODER}" in
-    h.264|[h|x]264|libx264) CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264" ;;
-    h.265|[h|x]265|hevc|libx265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
+    h.264|h264|x264|libx264) CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264" ;;
+    h.265|h265|x265|hevc|libx265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
     "*") ;;
     *) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
 esac
@@ -447,6 +452,14 @@ CONF_LEVEL=${CONF_LEVEL,,}
 case "${CONF_LEVEL}" in
     3.0|3.1|3.2|4.0|4.1|4.2|5.0|5.1|5.2|"*") ;;
     *) echo "Level is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_LEVEL=${CONF_FORCE_LEVEL:-${NZBPO_FORCE_LEVEL:-${FORCE_LEVEL}}}
+: "${CONF_FORCE_LEVEL:=false}"
+CONF_FORCE_LEVEL=${CONF_FORCE_LEVEL,,}
+case "${CONF_FORCE_LEVEL}" in
+    true|false) ;;
+    *) echo "Force Level is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
 CONF_CRF=${CONF_CRF:-${NZBPO_CRF:-${CRF}}}
@@ -970,7 +983,7 @@ for valid in "${VALID[@]}"; do
             level=false
             if [[ "${CONF_LEVEL}" != "*" ]] && [[ "${CONF_ENCODER_NAME}" == "h264" ]]; then
                 videolevel=$(echo "${videodata}" | grep -x 'level=.*' | sed -E 's/[^0-9]//g')
-                if (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
+                if ${CONF_FORCE_LEVEL} || (( videolevel < 30 )) || (( videolevel > ${CONF_LEVEL//./} )); then
                     convert=true
                     level=true
                 fi
