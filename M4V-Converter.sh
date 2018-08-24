@@ -971,7 +971,7 @@ for valid in "${VALID[@]}"; do
                 convert=true
             fi
             profile=false
-            if [[ "${CONF_PROFILE}" != "*" ]] && [[ "${CONF_ENCODER_NAME}" == "h264" ]]; then
+            if (( CONF_CRF != 0 )) && [[ "${CONF_PROFILE}" != "*" ]] && [[ "${CONF_ENCODER_NAME}" == "h264" ]]; then
                 videoprofile=$(echo "${videodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
                 if ! [[ "${videoprofile,,}" =~ "constrained" ]]; then
                     if [[ "${videoprofile,,}" != "${CONF_PROFILE}" ]]; then
