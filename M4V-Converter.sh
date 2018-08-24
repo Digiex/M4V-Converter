@@ -320,7 +320,7 @@ while getopts hvdi:o:c:b-: opts; do
                 delete=*) CONF_DELETE="${ARG}" ;;
                 file-permission=*) CONF_FILE="${ARG}" ;;
                 directory-permission=*) CONF_DIRECTORY="${ARG}" ;;
-                background) CONF_BACKGROUND=true ;;
+                background=*) CONF_BACKGROUND="${ARG}" ;;
                 processes=*) CONF_PROCESSES="${ARG}" ;;
                 *) usage ;;
             esac
