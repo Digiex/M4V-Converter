@@ -711,7 +711,7 @@ background() {
         HZ=$(getconf CLK_TCK)
     fi
     : "${HZ:=100}"
-    while kill -0 "${CONVERTER}" 2>/dev/null; do
+    while [ -e /proc/${CONVERTER} ]; do
         if [[ -e "${BACKGROUNDMANAGER}" ]]; then
             source "${BACKGROUNDMANAGER}"
             EDITED=false
