@@ -45,7 +45,7 @@
 #
 # NOTE: Use 3 digit code language code, ISO 639-2.
 #
-# NOTE: https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
+# NOTE: http://bit.ly/2nT8wUj
 #Languages=
 
 # Video Encoder (H.264, H.265, *).
@@ -61,7 +61,7 @@
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This controls encoding speed to compression ratio.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Preset
+# NOTE: http://bit.ly/2QjAVz6
 #Preset=medium
 
 # Video Profile (baseline, main, high, *).
@@ -69,7 +69,7 @@
 #
 # NOTE: Selecting "*" will disable this check.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Profile
+# NOTE: http://bit.ly/2JEzFnD
 #Profile=main
 
 # Video Level (3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *).
@@ -77,7 +77,7 @@
 #
 # NOTE: Selecting "*" will disable this check.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Compatibility
+# NOTE: http://bit.ly/2ALg0Qa
 #Level=4.1
 
 # Force Video Level (true, false).
@@ -87,7 +87,7 @@
 # Video Constant Rate Factor (0-51).
 # This controls maximum compression efficiency with a single pass.
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#crf
+# NOTE: http://bit.ly/2DmOsDd
 #CRF=23
 
 # Video Resolution (*).
@@ -95,7 +95,7 @@
 #
 # NOTE: Ex. 'SD, HD, 720p, 1920x1080, 4K'
 #
-# NOTE: https://trac.ffmpeg.org/wiki/Scaling
+# NOTE: http://bit.ly/2JDL0UR
 #
 # NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
 #Resolution=
