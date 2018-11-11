@@ -216,15 +216,15 @@ elif [[ ! -z "${SAB_VERSION}" ]]; then
     SABNZBD=true
 fi
 
-if (( BASH_VERSINFO < 4 )); then
-    echo "Sorry, you do not have Bash version 4 or later"
-    exit ${DEPEND}
-fi
-
 if ! [[ "${PATH}" =~ "/usr/local/bin" ]]; then
     PATH=/usr/local/bin:${PATH}
     bash "${0}" "${@}"
     exit ${?}
+fi
+
+if (( BASH_VERSINFO < 4 )); then
+    echo "Sorry, you do not have Bash version 4 or later"
+    exit ${DEPEND}
 fi
 
 BACKGROUNDMANAGER="/tmp/m4v.tmp"
