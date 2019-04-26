@@ -172,7 +172,7 @@ Credits & Useful Links
 -------------------------
 This project makes use of the following projects:
 - https://github.com/linuxserver/docker-nzbget
-- https://github.com/jrottenberg/ffmpeg
+- https://github.com/linuxserver/docker-sabnzbd
 
 Useful links:
 - http://ffmpeg.org/documentation.html
