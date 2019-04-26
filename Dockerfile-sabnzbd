@@ -1,0 +1,19 @@
+FROM linuxserver/sabnzbd:latest
+MAINTAINER xzKinGzxBuRnzx
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN \
+  apt-get update && \
+  apt-get -y install ffmpeg && \
+  apt-get clean && \
+  mkdir -p /config/scripts /app/M4V-Converter
+
+COPY M4V-Converter.sh /app/M4V-Converter/
+COPY default.conf /app/M4V-Converter/
+COPY README.md /app/M4V-Converter/
+COPY LICENSE /app/M4V-Converter/
+
+COPY docker/sabnzbd/sabnzbd.sh /config/scripts/
+COPY docker/sabnzbd/root /
+COPY docker/sabnzbd/sabnzbd.ini /defaults/
