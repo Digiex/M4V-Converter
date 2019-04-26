@@ -90,6 +90,10 @@
 # NOTE: http://bit.ly/2DmOsDd
 #CRF=23
 
+# Force Pixel Format (true, false).
+# This forces pixel format to match yuv420p exactly, good for converting HEVC 10bit to 8bit.
+#Force Pixel=false
+
 # Video Resolution (*).
 # This will resize the video maintaining aspect ratio.
 #
@@ -106,7 +110,7 @@
 # NOTE: Ex. 'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
 #
 # NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
-#Rename=true
+#Rename=false
 
 # Video Bitrate (KB).
 # Use this to limit video bitrate, if exceeded then video will be converted and quality downgraded.
@@ -305,6 +309,7 @@ while getopts hvdi:o:c:b-: opts; do
                 level=*) CONF_LEVEL="${ARG}" ;;
                 force-level=*) CONF_FORCE_LEVEL="${ARG}" ;;
                 crf=*) CONF_CRF="${ARG}" ;;
+                force-pixel=*) CONF_FORCE_PIXEL="${ARG}" ;;
                 resolution=*) CONF_RESOLUTION="${ARG}" ;;
                 rename=*) CONF_RENAME="${ARG}" ;;
                 video-bitrate=*) CONF_VIDEOBITRATE="${ARG}" ;;
@@ -351,22 +356,12 @@ if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
     exit ${DEPEND}
 fi
 
-#if [[ "$(ffmpeg 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
-#    echo "While you do have FFmpeg installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
-#    exit ${DEPEND}
-#fi
-
 CONF_FFPROBE=${CONF_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}
 : "${CONF_FFPROBE:=ffprobe}"
 if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
     echo "Sorry, you do not have FFprobe"
     exit ${DEPEND}
 fi
-
-#if [[ "$(ffprobe 2>&1 | grep 'configuration:')" =~ "--enable-small" ]]; then
-#    echo "While you do have FFprobe installed, it has been compiled with the \"--enable-small\" option and this will cause issues. Please reinstall without this option"
-#    exit ${DEPEND}
-#fi
 
 if [[ ! -z "${CONF_OUTPUT}" ]]; then
     CONF_OUTPUT="${CONF_OUTPUT%/}"
@@ -473,6 +468,14 @@ if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || (( "${CONF_CRF}" < 0 )) || (( "${CONF_
     exit ${CONFIG}
 fi
 
+CONF_FORCE_PIXEL=${CONF_FORCE_PIXEL:-${NZBPO_FORCE_PIXEL:-${FORCE_PIXEL}}}
+: "${CONF_FORCE_PIXEL:=false}"
+CONF_FORCE_PIXEL=${CONF_FORCE_PIXEL,,}
+case "${CONF_FORCE_PIXEL}" in
+    true|false) ;;
+    *) echo "Force Pixel is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
 CONF_RESOLUTION=${CONF_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
 CONF_RESOLUTION=${CONF_RESOLUTION,,}
 if [[ ! -z "${CONF_RESOLUTION}" ]]; then
@@ -496,7 +499,7 @@ if [[ ! -z "${CONF_RESOLUTION}" ]]; then
 fi
 
 CONF_RENAME=${CONF_RENAME:-${NZBPO_RENAME:-${RENAME}}}
-: "${CONF_RENAME:=true}"
+: "${CONF_RENAME:=false}"
 CONF_RENAME=${CONF_RENAME,,}
 case "${CONF_RENAME}" in
     true|false) ;;
@@ -1043,7 +1046,7 @@ for valid in "${VALID[@]}"; do
             fi
             pixel=false
             videopixel=$(echo "${videodata}" | grep -x 'pix_fmt=.*' | sed 's/pix_fmt=//g')
-            if ! [[ "${videopixel}" =~ "yuv420p" ]]; then
+            if ${CONF_FORCE_PIXEL} && ! [[ "${videopixel}" == "yuv420p" ]] || ! [[ "${videopixel}" =~ "yuv420p" ]]; then
                 convert=true
                 pixel=true
             fi
