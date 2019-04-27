@@ -881,11 +881,10 @@ for valid in "${VALID[@]}"; do
         DIRECTORY=$(path "${file}")
         FILE_NAME="$(basename "${file}")"
         file="${DIRECTORY}/${FILE_NAME}"
+        echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
         case "${file,,}" in
-            *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg)
-                echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
-            ;;
-            *.srt | *.tmp | *.stats) continue ;;
+            *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
+            *.srt | *.tmp | *.stats) echo “File skipped” && continue ;;
             *)
                 if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
                     echo "File is not convertable" && continue
