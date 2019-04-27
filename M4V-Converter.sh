@@ -862,8 +862,8 @@ for valid in "${VALID[@]}"; do
     if [[ -d "${valid}" ]]; then
         echo "Processing directory[${CURRENTDIRECTORY} of ${#VALID[@]}]: ${valid}"
     fi
-    if ! [[ -e “${valid}” ]]; then
-        echo “Directory: ${valid} no longer exists”
+    if [[ ! -e "${valid}" ]]; then
+        echo "Directory: ${valid} no longer exists"
         continue
     fi
     readarray -t files <<< "$(find "${valid}" -type f)"
@@ -872,8 +872,8 @@ for valid in "${VALID[@]}"; do
         if [[ -z "${file}" ]]; then
             continue
         fi
-        if ! [[ -e “${file}” ]]; then
-            echo “File: ${file} no longer exists”
+        if [[ ! -e "${file}" ]]; then
+            echo "File: ${file} no longer exists"
             continue
         fi
         ((CURRENTFILE++))
