@@ -884,7 +884,7 @@ for valid in "${VALID[@]}"; do
         echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
         case "${file,,}" in
             *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
-            *.srt | *.tmp | *.stats) echo “File skipped” && continue ;;
+            *.srt | *.tmp | *.stats) echo "File skipped" && continue ;;
             *)
                 if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
                     echo "File is not convertable" && continue
