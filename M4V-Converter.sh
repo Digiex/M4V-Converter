@@ -651,7 +651,7 @@ if ${NZBGET}; then
                 NAME=$(echo "${NAME}" | sed -i -E "s/${OPTIONAL}//g")
             done
             RESOLUTION=$(echo "${NZBNP_NZBNAME}" | grep -oE "[0-9]{3,4}[p|P]")
-            if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+            if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
                 NAME=$(echo "${NAME}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
             fi
             if [[ "${NZBNP_NZBNAME}" != "${NAME}" ]]; then
@@ -1027,7 +1027,7 @@ for valid in "${VALID[@]}"; do
                 if ${CONF_RENAME}; then
                     if ! ${SABNZBD}; then
                         RESOLUTION=$(echo "${DIRECTORY}" | grep -oE "[0-9]{3,4}[p|P]")
-                        if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+                        if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
                             DIRECTORY=$(echo "${DIRECTORY}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
                             for OPT in "${OPTIONAL[@]}"; do
                                 DIRECTORY=$(echo "${DIRECTORY}" | sed -i -E "s/${OPTIONAL}//g")
@@ -1042,7 +1042,7 @@ for valid in "${VALID[@]}"; do
                         fi
                     fi
                     RESOLUTION=$(echo "${newname}" | grep -oE "[0-9]{3,4}[p|P]")
-                    if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p-P]/} > HEIGHT )); then
+                    if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
                         newname=$(echo "${newname}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
                         for OPT in "${OPTIONAL[@]}"; do
                             newname=$(echo "${newname}" | sed -i -E "s/${OPTIONAL}//g")
