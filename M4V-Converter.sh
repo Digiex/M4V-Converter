@@ -715,7 +715,7 @@ background() {
             source "${BACKGROUNDMANAGER}"
             EDITED=false
             for PID in "${M4VCONVERTER[@]}"; do
-                if ! ps -p "${PID}" 2>/dev/null; then
+                if ! ps -p "${PID}" &>/dev/null; then
                     M4VCONVERTER=("${M4VCONVERTER[@]//${PID}/}")
                     EDITED=true
                 fi
