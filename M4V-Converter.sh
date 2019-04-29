@@ -635,7 +635,7 @@ esac
 
 CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
 : "${CONF_PROCESSES:=ffmpeg}"
-readarray -t CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /\n/g' | sed 's/,/\n/g')"
+IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /|/g')"
 [[ ! "${CONF_PROCESSES[*]}" =~ "ffmpeg" ]] && CONF_PROCESSES+=("ffmpeg")
 
 if ${NZBGET}; then
@@ -710,16 +710,12 @@ fi
 
 background() {
     echo "Running in background mode..."
-    if hash getconf; then
-        HZ=$(getconf CLK_TCK)
-    fi
-    : "${HZ:=100}"
-    while [ -e /proc/${CONVERTER} ]; do
+    while ps -p ${CONVERTER} &>/dev/null; do
         if [[ -e "${BACKGROUNDMANAGER}" ]]; then
             source "${BACKGROUNDMANAGER}"
             EDITED=false
             for PID in "${M4VCONVERTER[@]}"; do
-                if ! kill -0 "${PID}" &>/dev/null; then
+                if ! ps -p "${PID}" 2>/dev/null; then
                     M4VCONVERTER=("${M4VCONVERTER[@]//${PID}/}")
                     EDITED=true
                 fi
@@ -730,6 +726,7 @@ background() {
                 else
                     rm -f "${BACKGROUNDMANAGER}"
                 fi
+
             fi
         fi
         TOGGLE=false
@@ -737,7 +734,7 @@ background() {
             if [[ -z "${PROCESS}" ]]; then
                 continue
             fi
-            readarray -t PIDS <<< "$(pgrep -i ^"${PROCESS}")"
+            readarray -t PIDS <<< "$(pgrep -i "${PROCESS}")"
             for PID in "${PIDS[@]}"; do
                 if [[ -z "${PID}" ]]; then
                     continue
@@ -746,12 +743,11 @@ background() {
                     if (( ${#PIDS[@]} == 1 )); then
                         continue
                     fi
-                    UPTIME=$(awk '{print($1)}' < "/proc/uptime")
-                    CONVERTERELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < "/proc/${CONVERTER}/stat") / HZ ))
-                    PIDELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < "/proc/${PID}/stat") / HZ ))
+                    CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
+                    PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
                     if (( CONVERTERELAPSED > PIDELAPSED )); then
-                        PARENT=$(awk '{print($4)}' < "/proc/${PID}/stat")
-                        if grep -q "$(basename "${0}") /proc/${PARENT}/cmdline"; then
+                        PARENT=$(ps -o ppid= -p ${PID})
+                        if (( ${PARENT} == ${$} )); then
                             continue
                         fi
                     elif (( CONVERTERELAPSED == PIDELAPSED )); then
@@ -783,18 +779,22 @@ background() {
                 break
             fi
         done
-        STATE=$(awk '{print($3)}' < "/proc/${CONVERTER}/stat")
+        STATE=$(ps -o state= -p ${CONVERTER})
         if ${TOGGLE}; then
-            if [[ "${STATE}" == "R" ]] || [[ "${STATE}" == "S" ]]; then
-                echo "Detected running process ${PROCESS}; pid=${PID}"
-                echo "Pausing..."
-                kill -STOP "${CONVERTER}"
-            fi
+            case "${STATE}" in
+                R*|S)
+                    echo "Detected running process ${PROCESS}; pid=${PID}"
+                    echo "Pausing..."
+                    kill -STOP "${CONVERTER}"
+                ;;
+            esac
         else
-            if [[ "${STATE}" == "T" ]]; then
-                echo "Resuming..."
-                kill -CONT "${CONVERTER}"
-            fi
+            case "${STATE}" in
+                T*)
+                    echo "Resuming..."
+                    kill -CONT "${CONVERTER}"
+                ;;
+            esac
         fi
         sleep 5
     done
@@ -817,7 +817,7 @@ progress() {
     while kill -0 "${CONVERTER}" 2>/dev/null; do
         sleep 2
         if [[ -e "${STATSFILE}" ]]; then
-            FRAME=$(tail -n 11 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
+            FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
             if (( FRAME > CURRENTFRAME )); then
                 CURRENTFRAME=${FRAME}
                 PERCENTAGE=$(( 100 * CURRENTFRAME / TOTALFRAMES ))
