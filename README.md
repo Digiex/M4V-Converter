@@ -15,7 +15,14 @@ Requires `FFmpeg`, `FFprobe` and `Bash`
 
 Docker
 -------
-You can use this script almost anywhere, even on Windows (through virtualization) when using Docker. [Download Docker here!](https://store.docker.com/search?type=edition&offering=community) Run the following command to install the script with NZBGet in Docker!
+You can use this script almost anywhere, even on Windows (through virtualization) when using Docker. [Download Docker here!](https://store.docker.com/search?type=edition&offering=community) 
+
+```
+docker run -it --rm \
+  -v </path/to/process>:/process \
+  xzkingzxburnzx/m4v-converter
+```
+Run the following command to install the script with NZBGet in Docker!
 
 ```
 docker create \
@@ -25,9 +32,8 @@ docker create \
   -e TZ=<timezone> \
   -v </path/to/appdata>:/config \
   -v </path/to/downloads>:/downloads \
-  xzkingzxburnzx/m4v-converter
+  xzkingzxburnzx/m4v-converter:nzbget
 ```
-
 If you prefer SABnzbd, you can get that to!
 
 ```
