@@ -30,6 +30,8 @@
 
 # Background Mode (true, false).
 # Automatically pauses any active converting if a process (determined by Processes below) is found running.
+#
+# NOTE: To use this in Docker, please pass /tmp to the container like so -v /tmp:/tmp
 #Background=false
 
 # Number of Threads (*).
@@ -57,6 +59,14 @@
 #
 # NOTE: H.265 offers 50-75% more compression efficiency.
 #Encoder=H.264
+
+# Hardware Acceleration (intel, nvidia, mac, software).
+# This allows for hardware acceleration using intel or nvidia gpus.
+#
+# NOTE: EXPERIMENTAL!!
+# NOTE: To use nvidia you must install drivers and have a ffmpeg compiled with --enable-nvenc. Docker also requires nvidia-docker-runtime.
+# NOTE: Hardware Acceleration typically scarifices quality for speed.
+#Acceleration=software
 
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This controls encoding speed to compression ratio.
@@ -304,6 +314,7 @@ while getopts hvdi:o:c:b-: opts; do
                 threads=*) CONF_THREADS="${ARG}" ;;
                 languages=*) CONF_LANGUAGES="${ARG}" ;;
                 encoder=*) CONF_ENCODER="${ARG}" ;;
+                acceleration=*) CONF_ACCELERATION="${ARG}" ;;
                 preset=*) CONF_PRESET="${ARG}" ;;
                 profile=*) CONF_PROFILE="${ARG}" ;;
                 level=*) CONF_LEVEL="${ARG}" ;;
@@ -423,6 +434,35 @@ case "${CONF_ENCODER}" in
     h.265|h265|x265|hevc|libx265) CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265" ;;
     "*") ;;
     *) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_ACCELERATION=${CONF_ACCELERATION:-${NZBPO_ACCELERATION:-${ACCELERATION}}}
+: "${CONF_ACCELERATION:=software}"
+CONF_ACCELERATION=${CONF_ACCELERATION,,}
+case "${CONF_ACCELERATION}" in
+    intel)
+        if [[ "${CONF_ENCODER}" == "libx265" ]]; then
+            CONF_ENCODER="hevc_vaapi"
+        else
+            CONF_ENCODER="h264_vaapi"
+        fi
+    ;;
+    nvidia)
+        if [[ "${CONF_ENCODER}" == "libx265" ]]; then
+            CONF_ENCODER="nvenc_hevc"
+        else
+            CONF_ENCODER="h264_nvenc"
+        fi
+    ;;
+    mac)
+        if [[ "${CONF_ENCODER}" == "libx265" ]]; then
+            CONF_ENCODER="hevc_videotoolbox"
+        else
+            CONF_ENCODER="h264_videotoolbox"
+        fi
+    ;;
+    software) ;;
+    *) echo "Acceleration is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
 CONF_PRESET=${CONF_PRESET:-${NZBPO_PRESET:-${PRESET}}}
@@ -713,28 +753,16 @@ background() {
     while ps -p ${CONVERTER} &>/dev/null; do
         if [[ -e "${BACKGROUNDMANAGER}" ]]; then
             source "${BACKGROUNDMANAGER}"
-            EDITED=false
-            for PID in "${M4VCONVERTER[@]}"; do
-                if ! ps -p "${PID}" &>/dev/null; then
-                    M4VCONVERTER=("${M4VCONVERTER[@]//${PID}/}")
-                    EDITED=true
-                fi
-            done
-            if ${EDITED}; then
-                if (( ${#M4VCONVERTER[@]} >= 1 )); then
-                    echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
-                else
-                    rm -f "${BACKGROUNDMANAGER}"
-                fi
-
-            fi
         fi
         TOGGLE=false
         for PROCESS in "${CONF_PROCESSES[@]}"; do
             if [[ -z "${PROCESS}" ]]; then
                 continue
             fi
-            readarray -t PIDS <<< "$(pgrep -i "${PROCESS}")"
+            readarray -t PIDS <<< "$(pgrep "${PROCESS}")"
+            if [[ "${PROCESS}" == "ffmpeg" ]] && [[ ! -z "${M4VCONVERTER[*]}" ]]; then
+                PIDS=("${PIDS[@]}" "${M4VCONVERTER[@]}")
+            fi
             for PID in "${PIDS[@]}"; do
                 if [[ -z "${PID}" ]]; then
                     continue
@@ -746,28 +774,7 @@ background() {
                     CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
                     PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
                     if (( CONVERTERELAPSED > PIDELAPSED )); then
-                        PARENT=$(ps -o ppid= -p ${PID})
-                        if (( ${PARENT} == ${$} )); then
-                            continue
-                        fi
-                    elif (( CONVERTERELAPSED == PIDELAPSED )); then
-                        if [[ ! -z "${M4VCONVERTER[*]}" ]]; then
-                            SKIP=false
-                            for APP in "${M4VCONVERTER[@]}"; do
-                                if [[ -z "${APP}" ]]; then
-                                    continue
-                                fi
-                                if [[ "${APP}" == "${PID}" ]]; then
-                                    SKIP=true
-                                    break
-                                fi
-                            done
-                            if ${SKIP}; then
-                                continue
-                            fi
-                        else
-                            continue
-                        fi
+                        continue
                     fi
                 fi
                 PROCESS="${PROCESS}"
@@ -884,7 +891,7 @@ for valid in "${VALID[@]}"; do
         echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
         case "${file,,}" in
             *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
-            *.srt | *.tmp | *.stats) echo "File skipped" && continue ;;
+            *.srt | *.tmp | *.stats | .DS_Store) echo "File skipped" && continue ;;
             *)
                 if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
                     echo "File is not convertable" && continue
@@ -904,7 +911,11 @@ for valid in "${VALID[@]}"; do
         fi
         DIRECTORY="${CONF_OUTPUT:-${DIRECTORY}}"
         newfile="${DIRECTORY}/${newname}"
-        command="${CONF_FFMPEG} -threads ${CONF_THREADS} -i \"${file}\""
+        command="${CONF_FFMPEG} -threads ${CONF_THREADS}"
+        if [[ "${CONF_ACCELERATION}" == "intel" ]]; then
+            command+=" -vaapi_device /dev/dri/renderD128"
+        fi
+        command+=" -i \"${file}\""
         data="$(${CONF_FFPROBE} "${file}" 2>&1)"
         video="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
         if [[ -z "${video}" ]]; then
