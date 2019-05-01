@@ -1111,7 +1111,7 @@ for valid in "${VALID[@]}"; do
                 command+=" -map ${videomap} -c:v:${x} copy"
             fi
             videocodectag=$(echo "${videodata}" | grep -x 'codec_tag_string=.*' | sed 's/codec_tag_string=//g')
-            if [[ "${videocodectag}" == "avc1" ]] || [[ "${videocodectag}" == "hev1" ]] && [[ "${CONF_ENCODER}" == "libx265" ]]; then
+            if [[ "${videocodectag}" != "hvc1" ]] && [[ "${CONF_ENCODER}" == "libx265" ]]; then
                 command+=" -tag:v:${x} hvc1"
                 skip=false
             fi
