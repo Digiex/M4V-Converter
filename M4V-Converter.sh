@@ -241,15 +241,16 @@ if (( BASH_VERSINFO < 4 )); then
     exit ${DEPEND}
 fi
 
-BACKGROUNDMANAGER="/tmp/m4v.tmp"
-TMPFILES+=("${BACKGROUNDMANAGER}")
+declare -A MANAGER=()
+MANFILE="/tmp/m4v.tmp"
+TMPFILES+=("${MANFILE}")
 
 force() {
     if (( CONVERTER > 0 )) && kill -0 "${CONVERTER}" &>/dev/null; then
         disown "${CONVERTER}"
         kill -9 "${CONVERTER}" &>/dev/null
-        M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
-        echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+        unset MANAGER[${CONVERTER}]
+        declare -p MANAGER > "${MANFILE}"
     fi
     exit ${SKIPPED}
 }
@@ -257,9 +258,9 @@ force() {
 clean() {
     for file in "${TMPFILES[@]}"; do
         if [[ -e "${file}" ]]; then
-            if [[ "${file}" == "${BACKGROUNDMANAGER}" ]]; then
+            if [[ "${file}" == "${MANFILE}" ]]; then
                 source "${file}"
-                if (( ${#M4VCONVERTER[@]} > 0 )); then
+                if (( ${#MANAGER[@]} > 0 )); then
                     continue
                 fi
             fi
@@ -751,8 +752,8 @@ fi
 background() {
     echo "Running in background mode..."
     while ps -p ${CONVERTER} &>/dev/null; do
-        if [[ -e "${BACKGROUNDMANAGER}" ]]; then
-            source "${BACKGROUNDMANAGER}"
+        if [[ -e "${MANFILE}" ]]; then
+            source "${MANFILE}"
         fi
         TOGGLE=false
         for PROCESS in "${CONF_PROCESSES[@]}"; do
@@ -760,25 +761,25 @@ background() {
                 continue
             fi
             readarray -t PIDS <<< "$(pgrep "${PROCESS}")"
-            if [[ "${PROCESS}" == "ffmpeg" ]] && [[ ! -z "${M4VCONVERTER[*]}" ]]; then
-                PIDS=("${PIDS[@]}" "${M4VCONVERTER[@]}")
+            if [[ "${PROCESS}" == "ffmpeg" ]]; then
+                for KEY in ${!MANAGER[@]}; do
+                    if [[ "${KEY}" == "${CONVERTER}" ]]; then
+                        continue
+                    fi
+                    PIDS+=("${KEY}")
+                done
             fi
             for PID in "${PIDS[@]}"; do
                 if [[ -z "${PID}" ]]; then
                     continue
                 fi
-                if [[ "${PROCESS}" == "ffmpeg" ]]; then
-                    if (( ${#PIDS[@]} == 1 )); then
-                        continue
-                    fi
-                    if [[ "${PID}" == "${CONVERTER}" ]]; then
-                        continue
-                    fi
-                    CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
-                    PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
-                    if (( CONVERTERELAPSED > PIDELAPSED )); then
-                        continue
-                    fi
+                if [[ "${PROCESS}" == "ffmpeg" ]] && (( ${#PIDS[@]} == 1 )); then
+                    continue
+                fi
+                CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
+                PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
+                if (( CONVERTERELAPSED > PIDELAPSED )); then
+                    continue
                 fi
                 PROCESS="${PROCESS}"
                 PID="${PID}"
@@ -894,7 +895,7 @@ for valid in "${VALID[@]}"; do
         echo "Processing file[${CURRENTFILE} of ${#files[@]}]: ${file}"
         case "${file,,}" in
             *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
-            *.srt | *.tmp | *.stats | .DS_Store) echo "File skipped" && continue ;;
+            *.srt | *.tmp | *.stats | .ds_store) echo "File skipped" && continue ;;
             *)
                 if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
                     echo "File is not convertable" && continue
@@ -906,6 +907,22 @@ for valid in "${VALID[@]}"; do
         if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
             echo "File is in use"
             skipped=true && continue
+        fi
+        USE=false
+        if [[ -e "${MANFILE}" ]]; then
+            source "${MANFILE}"
+            for KEY in ${!MANAGER[@]}; do
+                if [[ "${KEY}" == "${CONVERTER}" ]]; then
+                    continue
+                fi
+                if [[ "${MANAGER[${KEY}]}" == "${file}" ]]; then
+                    echo "File is in use in another instance"
+                    USE=true skipped=true && break
+                fi
+            done
+        fi
+        if ${USE}; then
+            continue
         fi
         if [[ "${FILE_NAME}" == "${FILE_NAME##*.}" ]]; then
             newname="${FILE_NAME}.${CONF_EXTENSION}"
@@ -1853,13 +1870,12 @@ for valid in "${VALID[@]}"; do
         TMPFILES+=("${tmpfile}")
         eval "${command} &" &>/dev/null
         CONVERTER=${!}
-        if ! ${CONF_BACKGROUND}; then
-            if [[ -e "${BACKGROUNDMANAGER}" ]]; then
-                source "${BACKGROUNDMANAGER}"
-            fi
-            M4VCONVERTER+=("${CONVERTER}")
-            echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
-        else
+        #if [[ -e "${MANFILE}" ]]; then
+        #    source "${MANFILE}"
+        #fi
+        MANAGER["${CONVERTER}"]="${file}"
+        declare -p MANAGER > "${MANFILE}"
+        if ${CONF_BACKGROUND}; then
             background &
         fi
         progress 1 "${total}"
@@ -1873,8 +1889,8 @@ for valid in "${VALID[@]}"; do
         if ${PROGRESSED}; then
             echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
         fi
-        M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
-        echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+        unset MANAGER["${CONVERTER}"]
+        declare -p MANAGER > "${MANFILE}"
         if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
             echo "Checking audio levels..."
             normalizedfile="${tmpfile}.old" data="$(${CONF_FFPROBE} "${tmpfile}" 2>&1)" normalize=false
@@ -1953,13 +1969,12 @@ for valid in "${VALID[@]}"; do
                 echo "Normalizing..."
                 eval "${command} &" &>/dev/null
                 CONVERTER=${!}
-                if ! ${CONF_BACKGROUND}; then
-                    if [[ -e "${BACKGROUNDMANAGER}" ]]; then
-                        source "${BACKGROUNDMANAGER}"
-                    fi
-                    M4VCONVERTER+=("${CONVERTER}")
-                    echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
-                else
+                #if [[ -e "${MANFILE}" ]]; then
+                #    source "${MANFILE}"
+                #fi
+                MANAGER["${CONVERTER}"]="${file}"
+                declare -p MANAGER > "${MANFILE}"
+                if ${CONF_BACKGROUND}; then
                     background &
                 fi
                 progress 2 "${total}"
@@ -1974,8 +1989,8 @@ for valid in "${VALID[@]}"; do
                 if ${PROGRESSED}; then
                     echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
                 fi
-                M4VCONVERTER=("${M4VCONVERTER[@]//${CONVERTER}/}")
-                echo "M4VCONVERTER=(${M4VCONVERTER[*]})" > "${BACKGROUNDMANAGER}"
+                unset MANAGER["${CONVERTER}"]
+                declare -p MANAGER > "${MANFILE}"
             fi
         fi
         echo "Conversion efficiency at $(echo $(wc -c "${file}" 2>&1 | awk '{print($1)}') $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') | awk '{printf("%.2f\n",($2-$1)/$1*100)}')%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
