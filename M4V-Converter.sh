@@ -771,6 +771,9 @@ background() {
                     if (( ${#PIDS[@]} == 1 )); then
                         continue
                     fi
+                    if [[ "${PID}" == "${CONVERTER}" ]]; then
+                        continue
+                    fi
                     CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
                     PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
                     if (( CONVERTERELAPSED > PIDELAPSED )); then
