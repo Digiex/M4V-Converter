@@ -1099,6 +1099,11 @@ for valid in "${VALID[@]}"; do
             else
                 command+=" -map ${videomap} -c:v:${x} copy"
             fi
+            videocodectag=$(echo "${videodata}" | grep -x 'codec_tag_string=.*' | sed 's/codec_tag_string=//g')
+            if [[ "${videocodectag}" == "avc1" ]] || [[ "${videocodectag}" == "hev1" ]] && [[ "${CONF_ENCODER}" == "libx265" ]]; then
+                command+=" -tag:v:${x} hvc1"
+                skip=false
+            fi
             if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
                 videolang=$(echo "${videodata,,}" | grep -i "TAG:LANGUAGE=" | sed 's/tag:language=//g')
                 if [[ -z "${videolang}" ]] || [[ "${videolang}" == "und" ]] || [[ "${videolang}" == "unk" ]]; then
