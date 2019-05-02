@@ -31,8 +31,12 @@
 # Background Mode (true, false).
 # Automatically pauses any active converting if a process (determined by Processes below) is found running.
 #
-# NOTE: To use this in Docker, please pass /tmp to the container like so -v /tmp:/tmp
+# NOTE: To use this in Docker pass the Manager file/folder to the container.
 #Background=false
+
+# Manager File (*).
+# This file is used even when background mode is disabled to check for other instances and to make sure those instances are not trying to process the same file.
+#Manfile=/tmp/m4v.tmp
 
 # Number of Threads (*).
 # This is how many threads FFMPEG will use for conversion.
@@ -63,7 +67,7 @@
 # Hardware Acceleration (intel, nvidia, mac, software).
 # This allows for hardware acceleration using intel or nvidia gpus.
 #
-# NOTE: EXPERIMENTAL!!
+# NOTE: EXPERIMENTAL!!.
 # NOTE: To use nvidia you must install drivers and have a ffmpeg compiled with --enable-nvenc. Docker also requires nvidia-docker-runtime.
 # NOTE: Hardware Acceleration typically scarifices quality for speed.
 #Acceleration=software
@@ -293,7 +297,7 @@ usage() {
     exit ${CONFIG}
 }
 
-while getopts hvdi:o:c:b-: opts; do
+while getopts hvdi:o:c:bm:-: opts; do
     case ${opts,,} in
         h) usage ;;
         v) CONF_VERBOSE=true ;;
@@ -302,6 +306,7 @@ while getopts hvdi:o:c:b-: opts; do
         o) CONF_OUTPUT="${OPTARG}" ;;
         c) CONFIG_FILE="${OPTARG}" ;;
         b) CONF_BACKGROUND=true ;;
+        m) CONF_MANFILE="${OPTARG}" ;;
         -) ARG="${OPTARG#*=}";
             case "${OPTARG,,}" in
                 help) usage ;;
@@ -338,6 +343,7 @@ while getopts hvdi:o:c:b-: opts; do
                 file-permission=*) CONF_FILE="${ARG}" ;;
                 directory-permission=*) CONF_DIRECTORY="${ARG}" ;;
                 background=*) CONF_BACKGROUND="${ARG}" ;;
+                manfile=*) CONF_MANFILE="${ARG}" ;;
                 processes=*) CONF_PROCESSES="${ARG}" ;;
                 *) usage ;;
             esac
@@ -674,6 +680,14 @@ case "${CONF_BACKGROUND}" in
     *) echo "Background is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
+CONF_MANFILE=${CONF_MANFILE:-${NZBPO_MANFILE:-${MANFILE}}}
+: "${CONF_MANFILE:=/tmp/m4v.tmp}"
+MANFILE="${CONF_MANFILE}"
+TMPFILES+=("${CONF_MANFILE}")
+if [[ -e "${MANFILE}" ]]; then
+    source "${MANFILE}"
+fi
+
 CONF_PROCESSES=${CONF_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
 : "${CONF_PROCESSES:=ffmpeg}"
 IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ /|/g')"
@@ -773,7 +787,7 @@ background() {
                 if [[ -z "${PID}" ]]; then
                     continue
                 fi
-                if [[ "${PROCESS}" == "ffmpeg" ]] && (( ${#PIDS[@]} == 1 )); then
+                if [[ "${PID}" == "${CONVERTER}" ]]; then
                     continue
                 fi
                 CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
@@ -1215,6 +1229,9 @@ for valid in "${VALID[@]}"; do
             audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
             audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
             audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+            if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "1" ]]; then
+                audioprofile="LC"
+            fi
             if ${CONF_DUALAUDIO}; then
                 aac=false ac3=false
                 if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
@@ -1253,6 +1270,9 @@ for valid in "${VALID[@]}"; do
                         fi
                         audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
                         audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+                        if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "1" ]]; then
+                            audioprofile="LC"
+                        fi
                         audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
                         if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
                             aac=true
@@ -1289,6 +1309,9 @@ for valid in "${VALID[@]}"; do
                         fi
                         audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
                         audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+                        if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "1" ]]; then
+                            audioprofile="LC"
+                        fi
                         audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
                         if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "LC" ]] && (( audiochannels == 2 )); then
                             aac=true
@@ -1411,6 +1434,9 @@ for valid in "${VALID[@]}"; do
                 audiomap=${audiomap%:}
                 audiocodec=$(echo "${audiodata}" | grep -x 'codec_name=.*' | sed 's/codec_name=//g')
                 audioprofile=$(echo "${audiodata}" | grep -x 'profile=.*' | sed 's/profile=//g')
+                if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "1" ]]; then
+                    audioprofile="LC"
+                fi
                 audiochannels=$(echo "${audiodata}" | grep -x 'channels=.*' | sed -E 's/[^0-9]//g')
                 audiolang=$(echo "${audiodata,,}" | grep -i 'TAG:LANGUAGE=' | sed 's/tag:language=//g')
                 if [[ ! -z "${CONF_DEFAULTLANGUAGE}" ]] && [[ "${CONF_DEFAULTLANGUAGE}" != "*" ]]; then
