@@ -34,7 +34,7 @@
 # NOTE: To use this in Docker pass the Manager file/folder to the container.
 #Background=false
 
-# Manager File (*).
+# Manager File.
 # This file is used even when background mode is disabled to check for other instances and to make sure those instances are not trying to process the same file.
 #Manfile=/tmp/m4v.tmp
 
