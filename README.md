@@ -1,6 +1,5 @@
 M4V-Converter
 ==============
-
 This script automates media conversion to a universal MP4 format with many options to customize. Avoid transcoding and support native playback across all devices when using Plex.
 
 Fully integrates with NZBGet so that media converts automatically on post-process! SABnzbd is also supported although it does not get a WebUI config, though can still be configured using a config file!
@@ -15,7 +14,7 @@ Requires `FFmpeg`, `FFprobe` and `Bash`
 
 Docker
 -------
-You can use this script almost anywhere, even on Windows (through virtualization) when using Docker. [Download Docker here!](https://store.docker.com/search?type=edition&offering=community) 
+[Download Docker](https://store.docker.com/search?type=edition&offering=community) 
 
 ```
 docker run -it --rm \
@@ -50,11 +49,9 @@ docker create \
 
 Manual Script Usage
 --------------------
-To run the script manually, (good for batch operations) follow this format:
+To run the script manually follow this format:
 ```
-Help output
-M4V-Converter.sh -h
-Usage: M4V-Converter.sh [-v] [-c CONFIG] [-i INPUT] [-o OUTPUT]
+Usage: M4V-Converter.sh [-i INPUT]
 
 This script automates media conversion to a universal MP4 format using FFmpeg.
 
@@ -66,7 +63,7 @@ optional arguments:
   -d, --debug
     Prints generated FFmpeg command ONLY, useful for debugging.
   -b, --background
-    Automatically pauses any active converting if a process (determined by --processes=) is found running, including itself.
+    Automatically pauses ffmpeg if a process (determined by --processes=) is found running.
   -i INPUT, --input=INPUT
     Sets a file or directory as INPUT.
   -o OUTPUT, --output=OUTPUT
@@ -76,109 +73,47 @@ optional arguments:
 
 advanced optional arguments: (Use ONLY if you know what you are doing)
   --ffmpeg=
-    Use this to specify a location to the ffmpeg binary when using a non-standard setup.
   --ffprobe=
-    Use this to specify a location to the ffprobe binary when using a non-standard setup.
   --threads=
-    This is how many threads FFMPEG will use for conversion.
   --languages=
-    This is the language(s) you prefer.
-      NOTE: This is used for audio and subtitles. The first listed is considered the default/preferred.
-      NOTE: Selecting "*" will allow all languages.
-      NOTE: Use 3 digit code language code, ISO 639-2.
-      NOTE: https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
   --encoder=[h.264, h.265, *]
-    This changes which encoder to use.
-      NOTE: Selecting "*" will allow H.264 or H.265, defaulting to H.264.
-      NOTE: H.264 offers siginificantly more compatbility with devices.
-      NOTE: H.265 offers 50-75% more compression efficiency.
+  --acceleration=[intel, nvidia, mac, software]
   --preset=[ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow]
-    This controls encoding speed to compression ratio.
-      NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Preset
   --profile=[baseline, main, high, *]
-    This defines the features / capabilities that the encoder can use.
-      NOTE: Selecting "*" will disable this check.
-      NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Profile
   --level=[3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *]
-    This is another form of constraints that define things like maximum bitrates, framerates and resolution etc.
-      NOTE: Selecting "*" will disable this check.
-      NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#Compatibility
-  --force-level=[false,true]
-    This forces video level to the specified setting above.
+  --force-level=[false, true]
   --crf=[0-51]
-    This controls maximum compression efficiency with a single pass.
-      NOTE: https://trac.ffmpeg.org/wiki/Encode/H.264#crf
+  --force-pixel=[false, true]
   --resolution=
-    This will resize the video maintaining aspect ratio.
-      NOTE: Ex. 'SD, HD, 720p, 1920x1080, 4K'
-      NOTE: https://trac.ffmpeg.org/wiki/Scaling
-      NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
   --rename=[true, false]
-    This will rename the file/folder when resolution is changed.
-      NOTE: Ex. 'Video.2018.4K.UHD.King' to 'Video.2018.1080p.King' (when using the above Video Resolution option)
-      NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
   --video-bitrate=
-    Use this to limit video bitrate, if exceeded then video will be converted and quality downgraded.
-      NOTE: This value is in Kilobytes, Ex. '8192' (8 Mbps)
   --force-video=[false, true]
-    Use this to force the video to convert, overriding all other checks.
   --dual-audio=[false, true]
-    This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
-      NOTE: AAC will be the default for better compatability with more devices.
   --force-audio=[false, true]
-    Use this to force the audio to convert, overriding all other checks.
   --normalize=[false, true]
-    This will normalize audio if needed due to downmixing.
   --force-normalize=[false, true]
-    This will force check audio levels for all supported audio streams.
   --subtitles=[true, false, extract]
-    This will copy/convert subtitles of your matching language(s) into the converted file or extract them into a srt file.
   --force-subtitles=[false, true]
-    Use this to force the subtitles to convert, overriding all other checks.
   --format=[mp4, mov]
-    MP4 is better supported universally. MOV is best with Apple devices and iTunes.
   --extension=[mp4, m4v]
-    The extension applied at the end of the file, such as video.mp4.
   --delete=[false, true]
-    If true then the original file will be deleted.
   --file-permission=
-    This will set file permissions in either decimal (493) or octal (leading zero: 0755).
   --directory-permission=
-    This will set directory permissions in either decimal (493) or octal (leading zero: 0755).
   --processes=
-    These are the processes background mode will look for and auto-pause any active converting if found.
-      NOTE: Use quotes when specifying more than one process. Ex. "ffmpeg, Plex Transcoder"
+  --manfile=
+  --regexes=
+  --commands=
 ```
-
-Examples
----------
-```
-./M4V-Converter.sh -i "/storage/movies/Movie (2018)/Movie (2018) - 1080p.mkv"
-This will convert the file "Movie (2018) - 1080p.mkv" into MP4 format.
-
-./M4V-Converter.sh -i /storage/movies
-This will process the every file and directory inside /storage/movies converting as needed based on file.
-
-./M4V-Converter.sh -d -i "/storage/movies/Movie (2018)/Movie (2018) - 1080p.mkv"
-This will output the FFmpeg command generated by the script, without actually modifying anything. Useful mainly to debug.
-
-./M4V-Converter.sh -v -i "/storage/movies/Movie (2018)/Movie (2018) - 1080p.mkv" -o /home/xzkingzxburnzx/videos/
-This will convert the file and output it into /home/xzkingzxburnzx/videos/ while displaying progress information and the generated command.
-
-./M4V-Converter.sh -v -b -i /storage/movies -i /storage/series --encoder=hevc --preset=fast --crf=23 --resolution=1080p --video-bitrate=8192 --languages=eng --dual-audio=true --normalize=true --force-normalize=true --delete=true --file-permission=644 --directory-permission=755
-This is the command I use for batch processing all my older media. This should explain itself though one special thing to note is I used -b (background mode), that means this instance of the script/ffmpeg will pause and wait for anything currently converting in NZBGet/SABnzbd.
-```
-
 Config File
 ------------
-
-Included is a `default.conf`, if you copy/paste it and edit the settings to you liking. Once done, rename it to match the script name exactly and it will be automatically used. This will allow you to avoid having to type long commands as seen in the last example above. You can also specify a location to this file by using `-c CONFIG` or `--config=CONIFG` replacing CONFIG with the path to your config file.
+Included is a `default.conf`, copy/paste it and edit the settings to you liking. Once done, rename it to match the script name exactly and it will be automatically used. This will allow you to avoid having to type long commands. You can also specify a location to this file by using `-c CONFIG` or `--config=CONIFG` replacing CONFIG with the path to your config file.
 
 Credits & Useful Links
 -------------------------
 This project makes use of the following projects:
 - https://github.com/linuxserver/docker-nzbget
 - https://github.com/linuxserver/docker-sabnzbd
+- https://github.com/jrottenberg/ffmpeg
 
 Useful links:
 - http://ffmpeg.org/documentation.html

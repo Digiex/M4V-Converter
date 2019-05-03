@@ -8,4 +8,4 @@ COPY default.conf /app/M4V-Converter/
 COPY README.md /app/M4V-Converter/
 COPY LICENSE /app/M4V-Converter/
 
-ENTRYPOINT ["/app/M4V-Converter/M4V-Converter.sh", "-i", "/process"]
+ENTRYPOINT ["/app/M4V-Converter/M4V-Converter.sh"]
