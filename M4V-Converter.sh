@@ -864,7 +864,7 @@ fi
 
 background() {
   echo "Running in background mode..."
-  while ps -p ${CONVERTER} &>/dev/null; do
+  while kill -0 ${CONVERTER} 2>/dev/null; do
     if [[ -e "${MANFILE}" ]]; then
       source "${MANFILE}"
     fi
@@ -938,7 +938,7 @@ progress() {
     1) local TYPE="Converting" ;;
     2) local TYPE="Normalizing" ;;
   esac
-  while ps -p ${CONVERTER} &>/dev/null; do
+  while kill -0 ${CONVERTER} 2>/dev/null; do
     sleep 2
     if [[ -e "${STATSFILE}" ]]; then
       FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
