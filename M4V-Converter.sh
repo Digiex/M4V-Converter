@@ -209,7 +209,7 @@
 # Regexes.
 # This can be used to change settings based on file/directory name.
 #
-# NOTE: Example: `^Game.?of.?Thrones|^Pokemon`.
+# NOTE: Example: `^Game.of.Thrones|^Pokemon`.
 # NOTE: You can specify multiple seperated by `|` delimiter.
 #Regexes=
 
