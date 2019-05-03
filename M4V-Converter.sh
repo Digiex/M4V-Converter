@@ -111,14 +111,14 @@
 # This will resize the video maintaining aspect ratio.
 #
 # NOTE: Examples: `SD, HD, 720p, 1920x1080, 4K`
+# NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release.
 # NOTE: http://bit.ly/2JDL0UR
-# NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release
 #Resolution=
 
 # File/Directory Rename (true, false).
 # This will rename the file/directory when resolution is changed.
 #
-# NOTE: Example: `Video.2018.4K.UHD.King` to `Video.2018.1080p.King` (when using the above Video Resolution option)
+# NOTE: Example: `Video.2018.4K.UHD.King` to `Video.2018.1080p.King`.
 # NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
 #Rename=false
 
