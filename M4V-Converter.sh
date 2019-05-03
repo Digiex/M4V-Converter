@@ -209,14 +209,14 @@
 # Regexes.
 # This can be used to change settings based on file/directory name.
 #
-# NOTE: Example: `^[Gg]ame.of.[Tt]hrones|^[Pp]okemon`.
+# NOTE: Example: `^Game.?of.?Thrones|^Pokemon`.
 # NOTE: You can specify multiple seperated by `|` delimiter.
 #Regexes=
 
 # Regex commands.
 # This is used to override settings based on matched regexes.
 #
-# NOTE: Example: `CONF_PRESET=veryslow CONF_CRF=0|CONF_PRESET=ultrafast CONF_CRF=51`.
+# NOTE: Example: `CONF_CRF=0|CONF_CRF=51`.
 # NOTE: You can specify multiple seperated by `|` delimiter.
 #Commands=
 
@@ -1041,9 +1041,9 @@ for DIRECTORY in "${VALID[@]}"; do
         RESET=false
         if [[ ! -z "${CONF_REGEXES}" ]] && [[ ! -z "${CONF_COMMANDS}" ]]; then
             for ((i = 0; i < ${#CONF_REGEXES[@]}; i++)) do
-                REGEX="${CONF_REGEXES[${i}]}"
-                if [[ "${DIRECTORY}" =~ ${REGEX} ]] || \
-                [[ "${file}" =~ ${REGEX} ]]; then
+                REGEX="${CONF_REGEXES[${i}],,}"
+                if [[ "${DIRECTORY,,}" =~ ${REGEX} ]] || \
+                [[ "${file,,}" =~ ${REGEX} ]]; then
                     echo "Detected Regex: ${REGEX}"
                     echo "Running Commands: ${CONF_COMMANDS[${i}]}"
                     eval "${CONF_COMMANDS[${i}]}" &>/dev/null
