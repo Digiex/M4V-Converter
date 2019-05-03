@@ -110,7 +110,7 @@
 # Video Resolution (*).
 # This will resize the video maintaining aspect ratio.
 #
-# NOTE: Examples: `SD, HD, 720p, 1920x1080, 4K`
+# NOTE: Examples: `SD, HD, 720p, 1920x1080, 4K`.
 # NOTE: Using this option MAY cause Radarr/Sonarr to need a manual import due to file quality not matching grabbed release.
 # NOTE: http://bit.ly/2JDL0UR
 #Resolution=
