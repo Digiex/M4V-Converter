@@ -405,10 +405,6 @@ loadconfig() {
     CONF_OUTPUT="${CMMD_OUTPUT:-${NZBPO_OUTPUT:-${OUTPUT}}}"
   fi
   CONF_OUTPUT="${CONF_OUTPUT%/}"
-  if [[ ! -z "${CONF_OUTPUT}" ]] && [[ ! -d "${CONF_OUTPUT}" ]]; then
-    echo "Output is incorrectly configured"
-    exit ${CONFIG}
-  fi
 
   if ! ${FIX}; then
     CONF_VERBOSE=${CMMD_VERBOSE:-${NZBPO_VERBOSE:-${VERBOSE}}}
@@ -978,20 +974,20 @@ for process in "${PROCESS[@]}"; do
 done
 readarray -t VALID < <(for file in "${VALID[@]}"; do echo "${file}"; done | sort)
 
-CURRENTDIRECTORY=0
-for DIRECTORY in "${VALID[@]}"; do
-    if [[ -z "${DIRECTORY}" ]]; then
+CURRENTINPUT=0
+for INPUT in "${VALID[@]}"; do
+    if [[ -z "${INPUT}" ]]; then
         continue
     fi
-    ((CURRENTDIRECTORY++))
-    if [[ -d "${DIRECTORY}" ]]; then
-        echo "Processing directory[${CURRENTDIRECTORY} of ${#DIRECTORY[@]}]: ${DIRECTORY}"
-    fi
-    if [[ ! -e "${DIRECTORY}" ]]; then
-        echo "Directory: ${DIRECTORY} no longer exists"
+    if [[ ! -e "${INPUT}" ]]; then
+        echo "Input: ${INPUT} no longer exists"
         continue
     fi
-    readarray -t files < <(for file in "$(find "${DIRECTORY}" -type f)"; do echo "${file}"; done | sort)
+    ((CURRENTINPUT++))
+    if [[ -d "${INPUT}" ]]; then
+        echo "Processing directory[${CURRENTINPUT} of ${#INPUT[@]}]: ${INPUT}"
+    fi
+    readarray -t files < <(for file in "$(find "${INPUT}" -type f)"; do echo "${file}"; done | sort)
     CURRENTFILE=0
     for file in "${files[@]}"; do
         if [[ -z "${file}" ]]; then
@@ -1056,7 +1052,9 @@ for DIRECTORY in "${VALID[@]}"; do
         else
             newname="${FILE_NAME//${FILE_NAME##*.}/${CONF_EXTENSION}}"
         fi
-        DIRECTORY="${CONF_OUTPUT:-${DIRECTORY}}"
+        [[ "${CONF_OUTPUT}" != "${INPUT}" ]] && \
+        DIRECTORY="${DIRECTORY//${INPUT%/}/${CONF_OUTPUT}}"
+        [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
         newfile="${DIRECTORY}/${newname}"
         command="${CONF_FFMPEG} -threads ${CONF_THREADS}"
         if [[ "${CONF_ACCELERATION}" == "intel" ]]; then
