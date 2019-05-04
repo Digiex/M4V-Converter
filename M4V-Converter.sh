@@ -65,7 +65,7 @@
 # NOTE: H.265 offers 50-75% more compression efficiency.
 #Encoder=H.264
 
-# Hardware Acceleration (software, intel, nvidia, mac, amd).
+# Hardware Acceleration (software, intel, nvidia, mac, amd, quicksync).
 # This allows for hardware acceleration using intel or nvidia gpus.
 #
 # NOTE: THIS IS EXPERIMENTAL.
@@ -504,10 +504,17 @@ loadconfig() {
       fi
     ;;
     amd)
-      if [[ "${CONF_ENCODER}" == libx265" ]]; then
+      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
         CONF_ENCODER="hevc_amf"
       else
         CONF_ENCODER="h264_amf"
+      fi
+    ;;
+    quicksync)
+      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
+        CONF_ENCODER="hevc_qsv"
+      else
+        CONF_ENCODER="h264_qsv"
       fi
     ;;
     software) ;;
