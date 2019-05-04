@@ -18,7 +18,7 @@ Docker
 
 ```
 docker run -it --rm \
-  -u <UID>:<GID>
+  -u <UID>:<GID> \
   -v </path/to/process>:/process \
   xzkingzxburnzx/m4v-converter
 ```
