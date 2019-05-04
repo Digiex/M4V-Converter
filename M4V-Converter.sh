@@ -65,12 +65,13 @@
 # NOTE: H.265 offers 50-75% more compression efficiency.
 #Encoder=H.264
 
-# Hardware Acceleration (intel, nvidia, mac, software).
+# Hardware Acceleration (software, intel, nvidia, mac, amd).
 # This allows for hardware acceleration using intel or nvidia gpus.
 #
 # NOTE: THIS IS EXPERIMENTAL.
-# NOTE: To use nvidia you must install drivers and have a ffmpeg compiled with --enable-nvenc. Docker also requires nvidia-docker-runtime.
+# NOTE: To use this you will likely need drivers and more.
 # NOTE: Hardware Acceleration typically scarifices quality for speed.
+# NOTE: https://bit.ly/2xNSZN1
 #Acceleration=software
 
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
@@ -500,6 +501,13 @@ loadconfig() {
         CONF_ENCODER="hevc_videotoolbox"
       else
         CONF_ENCODER="h264_videotoolbox"
+      fi
+    ;;
+    amd)
+      if [[ "${CONF_ENCODER}" == libx265" ]]; then
+        CONF_ENCODER="hevc_amf"
+      else
+        CONF_ENCODER="h264_amf"
       fi
     ;;
     software) ;;
