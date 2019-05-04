@@ -18,6 +18,7 @@ Docker
 
 ```
 docker run -it --rm \
+  -u <UID>:<GID>
   -v </path/to/process>:/process \
   xzkingzxburnzx/m4v-converter
 ```
@@ -27,7 +28,8 @@ Run the following command to install the script with NZBGet in Docker!
 docker create \
   --name nzbget \
   -p 6789:6789 \
-  -e PUID=<UID> -e PGID=<GID> \
+  -e PUID=<UID> \
+  -e PGID=<GID> \
   -e TZ=<timezone> \
   -v </path/to/appdata>:/config \
   -v </path/to/downloads>:/downloads \
@@ -38,8 +40,10 @@ If you prefer SABnzbd, you can get that to!
 ```
 docker create \
   --name sabnzbd \
-  -p 8080:8080 -p 9090:9090 \
-  -e PUID=<UID> -e PGID=<GID> \
+  -p 8080:8080 \
+  -p 9090:9090 \
+  -e PUID=<UID> \
+  -e PGID=<GID> \
   -e TZ=<timezone> \
   -v </path/to/appdata>:/config \
   -v </path/to/downloads>:/downloads \
