@@ -269,22 +269,19 @@ force() {
     disown ${CONVERTER}
     kill -9 ${CONVERTER} &>/dev/null
     unset MANAGER[${CONVERTER}]
-    declare -p MANAGER > "${MANFILE}"
+    [[ ! -z "${MANAGER[@]}" ]] && declare -p MANAGER > "${MANFILE}"
   fi
   exit ${SKIPPED}
 }
 
 clean() {
   for file in "${TMPFILES[@]}"; do
-    if [[ -e "${file}" ]]; then
-      if [[ "${file}" == "${MANFILE}" ]]; then
-        source "${file}"
-        if (( ${#MANAGER[@]} > 0 )); then
-          continue
-        fi
-      fi
-      rm -f "${file}"
+    [[ ! -e "${file}" ]] && continue
+    if [[ "${file}" == "${MANFILE}" ]]; then
+      source "${file}"
+      (( ${#MANAGER[@]} > 0 )) && continue
     fi
+    rm -f "${file}"
   done
 }
 
