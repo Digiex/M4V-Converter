@@ -2138,6 +2138,7 @@ for INPUT in "${VALID[@]}"; do
       fi
     fi
     echo "Conversion efficiency at $(echo $(wc -c "${file}" 2>&1 | awk '{print($1)}') $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') | awk '{printf("%.2f\n",($2-$1)/$1*100)}')%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
+    touch -r "${file}" "${tmpfile}"
     if ${CONF_DELETE}; then
       rm -f "${file}"
     fi
