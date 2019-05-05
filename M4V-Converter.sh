@@ -1063,6 +1063,7 @@ for INPUT in "${VALID[@]}"; do
     else
       newname="${FILE_NAME//${FILE_NAME##*.}/${CONF_EXTENSION}}"
     fi
+    [[ ! -z "${CONF_OUTPUT}" ]] && \
     [[ "${CONF_OUTPUT}" != "${INPUT}" ]] && \
     DIRECTORY="${DIRECTORY//${INPUT%/}/${CONF_OUTPUT}}"
     [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
