@@ -369,18 +369,20 @@ done
 loadconfig() {
   FIX=${1:-false}
 
-  if [[ ! -z "${CONFIG_FILE}" ]]; then
-    if [[ ! -f "${CONFIG_FILE}" ]]; then
-      echo "Config file is incorrectly configured."
-      exit ${CONFIG}
-    fi
-    source "${CONFIG_FILE}"
-  else
-    SOURCE_DIRECTORY=$(path "${BASH_SOURCE[0]}")
-    SOURCE_FILE=$(basename "${0}")
-    CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
-    if [[ -e "${CONFIG_FILE}" ]]; then
+  if ! ${FIX}; then
+    if [[ ! -z "${CONFIG_FILE}" ]]; then
+      if [[ ! -f "${CONFIG_FILE}" ]]; then
+        echo "Config file is incorrectly configured."
+        exit ${CONFIG}
+      fi
       source "${CONFIG_FILE}"
+    else
+      SOURCE_DIRECTORY=$(path "${BASH_SOURCE[0]}")
+      SOURCE_FILE=$(basename "${0}")
+      CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
+      if [[ -e "${CONFIG_FILE}" ]]; then
+        source "${CONFIG_FILE}"
+      fi
     fi
   fi
 
