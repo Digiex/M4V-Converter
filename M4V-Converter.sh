@@ -789,7 +789,7 @@ loadconfig() {
     CONF_PROCESSES=${CMMD_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
   fi
   : "${CONF_PROCESSES:=ffmpeg}"
-  IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed 's/,\ \?/|/g')"
+  IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed -E 's/,|,\ /|/g')"
   unset IFS
   [[ ! "${CONF_PROCESSES[@]}" =~ "ffmpeg" ]] && CONF_PROCESSES+=("ffmpeg")
 
