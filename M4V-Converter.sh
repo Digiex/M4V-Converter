@@ -37,12 +37,12 @@
 # Background Mode (true, false).
 # Automatically pauses ffmpeg if a process (determined by Processes below) is found running.
 #
-# NOTE: To use this in Docker pass the Manager file/folder to the container.
+# NOTE: To use this in Docker pass the managerfile to all container instances.
 #Background=false
 
 # Manager File.
-# This file is used even when background mode is disabled to check for other instances and to make sure those instances are not trying to process the same file.
-#Manfile=/tmp/m4v.tmp
+# This is the file background mode uses to share information between instances.
+#Managerfile=/tmp/m4v.tmp
 
 # Number of Threads (*).
 # This is how many threads FFMPEG will use for conversion.
@@ -261,15 +261,18 @@ if (( BASH_VERSINFO < 4 )); then
 fi
 
 declare -A MANAGER=()
-MANFILE="/tmp/m4v.tmp"
-TMPFILES+=("${MANFILE}")
+CONF_MANAGERFILE="/tmp/m4v.tmp"
+TMPFILES+=("${CONF_MANAGERFILE}")
 
 force() {
   if ps -p ${CONVERTER} &>/dev/null; then
     disown ${CONVERTER}
     kill -9 ${CONVERTER} &>/dev/null
-    unset MANAGER[${CONVERTER}]
-    [[ ! -z "${MANAGER[@]}" ]] && declare -p MANAGER > "${MANFILE}"
+    if ${CONF_BACKGROUND}; then
+      unset MANAGER[${CONVERTER}]
+      [[ ! -z "${MANAGER[@]}" ]] && \
+      declare -p MANAGER > "${CONF_MANAGERFILE}"
+    fi
   fi
   exit ${SKIPPED}
 }
@@ -277,9 +280,11 @@ force() {
 clean() {
   for file in "${TMPFILES[@]}"; do
     [[ ! -e "${file}" ]] && continue
-    if [[ "${file}" == "${MANFILE}" ]]; then
-      source "${file}"
-      (( ${#MANAGER[@]} > 0 )) && continue
+    if ${CONF_BACKGROUND}; then
+      if [[ "${file}" == "${CONF_MANAGERFILE}" ]]; then
+        source "${file}"
+        (( ${#MANAGER[@]} > 1 )) && continue
+      fi
     fi
     rm -f "${file}"
   done
@@ -318,7 +323,7 @@ while getopts hvdi:o:c:bm:-: opts; do
     o) CMMD_OUTPUT="${OPTARG}" ;;
     c) CONFIG_FILE="${OPTARG}" ;;
     b) CMMD_BACKGROUND=true ;;
-    m) CMMD_MANFILE="${OPTARG}" ;;
+    m) CMMD_MANAGERFILE="${OPTARG}" ;;
     -) ARG="${OPTARG#*=}";
       case "${OPTARG,,}" in
         help) usage ;;
@@ -355,7 +360,7 @@ while getopts hvdi:o:c:bm:-: opts; do
         file-permission=*) CMMD_FILE="${ARG}" ;;
         directory-permission=*) CMMD_DIRECTORY="${ARG}" ;;
         background=*) CMMD_BACKGROUND="${ARG}" ;;
-        manfile=*) CMMD_MANFILE="${ARG}" ;;
+        managerfile=*) CMMD_MANAGERFILE="${ARG}" ;;
         processes=*) CMMD_PROCESSES="${ARG}" ;;
         regexes=*) CMMD_REGEXES="${ARG}" ;;
         commands=*) CMMD_COMMANDS="${ARG}" ;;
@@ -776,13 +781,9 @@ loadconfig() {
     *) echo "Background is incorrectly configured"; exit ${CONFIG} ;;
   esac
 
-  CONF_MANFILE=${CMMD_MANFILE:-${NZBPO_MANFILE:-${MANFILE}}}
-  : "${CONF_MANFILE:=/tmp/m4v.tmp}"
-  MANFILE="${CONF_MANFILE}"
-  TMPFILES+=("${CONF_MANFILE}")
-  if [[ -e "${MANFILE}" ]]; then
-    source "${MANFILE}"
-  fi
+  CONF_MANAGERFILE=${CMMD_MANAGERFILE:-${NZBPO_MANGERFILE:-${MANAGERFILE}}}
+  : "${CONF_MANAGERFILE:=/tmp/m4v.tmp}"
+  TMPFILES+=("${CONF_MANAGERFILE}")
 
   if ! ${FIX}; then
     CONF_PROCESSES=${CMMD_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
@@ -874,23 +875,15 @@ fi
 background() {
   echo "Running in background mode..."
   while kill -0 ${CONVERTER} 2>/dev/null; do
-    if [[ -e "${MANFILE}" ]]; then
-      source "${MANFILE}"
+    if [[ -e "${CONF_MANAGERFILE}" ]]; then
+      source "${CONF_MANAGERFILE}"
     fi
     TOGGLE=false
     for PROCESS in "${CONF_PROCESSES[@]}"; do
       if [[ -z "${PROCESS}" ]]; then
         continue
       fi
-      readarray -t PIDS <<< "$(pgrep "${PROCESS}")"
-      if [[ "${PROCESS}" == "ffmpeg" ]]; then
-        for KEY in ${!MANAGER[@]}; do
-          if [[ "${KEY}" == "${CONVERTER}" ]]; then
-            continue
-          fi
-          PIDS+=("${KEY}")
-        done
-      fi
+      readarray -t PIDS < <(pgrep "${PROCESS}")
       for PID in "${PIDS[@]}"; do
         if [[ -z "${PID}" ]]; then
           continue
@@ -900,8 +893,10 @@ background() {
         fi
         CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
         PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
-        if (( CONVERTERELAPSED > PIDELAPSED )); then
-          continue
+        if [[ ! -z "${MANAGER[${PID}]}" ]]; then
+          if (( CONVERTERELAPSED > PIDELAPSED )); then
+            continue
+          fi
         fi
         PROCESS="${PROCESS}"
         PID="${PID}"
@@ -1027,26 +1022,26 @@ for INPUT in "${VALID[@]}"; do
         fi
       ;;
     esac
-    if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
-      echo "File is in use"
-      skipped=true && continue
-    fi
     USE=false
-    if [[ -e "${MANFILE}" ]]; then
-      source "${MANFILE}"
-      for KEY in ${!MANAGER[@]}; do
-        if [[ "${KEY}" == "${CONVERTER}" ]]; then
-          continue
-        fi
-        if [[ "${MANAGER[${KEY}]}" == "${file}" ]]; then
-          echo "File is in use in another instance"
+    MODIFIED=false
+    if [[ -e "${CONF_MANAGERFILE}" ]]; then
+      source "${CONF_MANAGERFILE}"
+    fi
+    for KEY in "${!MANAGER[@]}"; do
+      [[ -z "${KEY}" ]] && continue
+      [[ "${KEY}" == "${CONVERTER}" ]] && continue
+      if [[ "${MANAGER[${KEY}]}" == "${file}" ]]; then
+        if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
+          echo "File is in use"
           USE=true skipped=true && break
+        else
+          MODIFIED=true
+          unset MANAGER["${KEY}"]
         fi
-      done
-    fi
-    if ${USE}; then
-      continue
-    fi
+      fi
+    done
+    ${USE} && continue
+    ${MODIFIED} && declare -p MANAGER > "${CONF_MANAGERFILE}"
     RESET=false
     if [[ ! -z "${CONF_REGEXES}" ]] && [[ ! -z "${CONF_COMMANDS}" ]]; then
       for ((i = 0; i < ${#CONF_REGEXES[@]}; i++)) do
@@ -2002,7 +1997,7 @@ for INPUT in "${VALID[@]}"; do
     if [[ "${FILE_NAME}" != "${newname}" ]]; then
       skip=false
     fi
-    tmpfile="${newfile}.tmp"
+    tmpfile="${newfile}.$$.tmp"
     if [[ -e "${tmpfile}" ]]; then
       rm "${tmpfile}"
     fi
@@ -2022,9 +2017,9 @@ for INPUT in "${VALID[@]}"; do
     TMPFILES+=("${tmpfile}")
     eval "${command} &" &>/dev/null
     CONVERTER=${!}
-    MANAGER["${CONVERTER}"]="${file}"
-    declare -p MANAGER > "${MANFILE}"
     if ${CONF_BACKGROUND}; then
+      MANAGER["${CONVERTER}"]="${file}"
+      declare -p MANAGER > "${CONF_MANAGERFILE}"
       background &
     fi
     progress 1 "${total}"
@@ -2038,8 +2033,10 @@ for INPUT in "${VALID[@]}"; do
     if ${PROGRESSED}; then
       echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
     fi
-    unset MANAGER["${CONVERTER}"]
-    declare -p MANAGER > "${MANFILE}"
+    if ${CONF_BACKGROUND}; then
+      unset MANAGER["${CONVERTER}"]
+      declare -p MANAGER > "${CONF_MANAGERFILE}"
+    fi
     if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
       echo "Checking audio levels..."
       normalizedfile="${tmpfile}.old" data="$(${CONF_FFPROBE} "${tmpfile}" 2>&1)" normalize=false
@@ -2118,9 +2115,9 @@ for INPUT in "${VALID[@]}"; do
         echo "Normalizing..."
         eval "${command} &" &>/dev/null
         CONVERTER=${!}
-        MANAGER["${CONVERTER}"]="${file}"
-        declare -p MANAGER > "${MANFILE}"
         if ${CONF_BACKGROUND}; then
+          MANAGER["${CONVERTER}"]="${file}"
+          declare -p MANAGER > "${CONF_MANAGERFILE}"
           background &
         fi
         progress 2 "${total}"
@@ -2135,8 +2132,10 @@ for INPUT in "${VALID[@]}"; do
         if ${PROGRESSED}; then
           echo "Time taken: ${ELAPSED}"
         fi
-        unset MANAGER["${CONVERTER}"]
-        declare -p MANAGER > "${MANFILE}"
+        if ${CONF_BACKGROUND}; then
+          unset MANAGER["${CONVERTER}"]
+          declare -p MANAGER > "${CONF_MANAGERFILE}"
+        fi
       fi
     fi
     echo "Conversion efficiency at $(echo $(wc -c "${file}" 2>&1 | awk '{print($1)}') $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') | awk '{printf("%.2f\n",($2-$1)/$1*100)}')%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
