@@ -878,6 +878,11 @@ background() {
     if [[ -e "${CONF_MANAGERFILE}" ]]; then
       source "${CONF_MANAGERFILE}"
     fi
+    if [[ -z "${MANAGER[${CONVERTER}]}" ]] || \
+    [[ "${MANAGER[${CONVERTER}]}" != "${file}" ]]; then
+      MANAGER[${CONVERTER}]="${file}"
+      declare -p MANAGER > "${CONF_MANAGERFILE}"
+    fi
     TOGGLE=false
     for PROCESS in "${CONF_PROCESSES[@]}"; do
       if [[ -z "${PROCESS}" ]]; then
@@ -1034,10 +1039,10 @@ for INPUT in "${VALID[@]}"; do
         if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
           echo "File is in use"
           USE=true skipped=true && break
-        else
-          MODIFIED=true
-          unset MANAGER["${KEY}"]
         fi
+      else
+        unset MANAGER["${KEY}"]
+        MODIFIED=true
       fi
     done
     ${USE} && continue
@@ -2017,11 +2022,7 @@ for INPUT in "${VALID[@]}"; do
     TMPFILES+=("${tmpfile}")
     eval "${command} &" &>/dev/null
     CONVERTER=${!}
-    if ${CONF_BACKGROUND}; then
-      MANAGER["${CONVERTER}"]="${file}"
-      declare -p MANAGER > "${CONF_MANAGERFILE}"
-      background &
-    fi
+    ${CONF_BACKGROUND} && background &
     progress 1 "${total}"
     wait ${CONVERTER} &>/dev/null
     if [[ ${?} -ne 0 ]]; then
@@ -2115,11 +2116,7 @@ for INPUT in "${VALID[@]}"; do
         echo "Normalizing..."
         eval "${command} &" &>/dev/null
         CONVERTER=${!}
-        if ${CONF_BACKGROUND}; then
-          MANAGER["${CONVERTER}"]="${file}"
-          declare -p MANAGER > "${CONF_MANAGERFILE}"
-          background &
-        fi
+        ${CONF_BACKGROUND} && background &
         progress 2 "${total}"
         wait ${CONVERTER} &>/dev/null
         if [[ ${?} -eq 0 ]]; then
