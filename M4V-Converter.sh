@@ -57,6 +57,12 @@
 # NOTE: http://bit.ly/2nT8wUj
 #Languages=
 
+# Require Languages (true, false).
+# This marks the nzb as bad or fails, if the language(s) are not available.
+#
+# NOTE: You must also enable Mark Bad below.
+#Required=false
+
 # Video Encoder (H.264, H.265, *).
 # This changes which encoder to use.
 #
@@ -364,6 +370,7 @@ while getopts hvdi:o:c:bm:-: opts; do
         processes=*) CMMD_PROCESSES="${ARG}" ;;
         regexes=*) CMMD_REGEXES="${ARG}" ;;
         commands=*) CMMD_COMMANDS="${ARG}" ;;
+        required=*) CMMND_REQUIRED="${ARG}" ;;
         *) usage ;;
       esac
     ;;
@@ -462,6 +469,16 @@ loadconfig() {
       fi
     done
   fi
+
+  if ! ${FIX}; then
+    CONF_REQUIRED="${CMMD_REQUIRED:-${NZBPO_REQUIRED:-${REQUIRED}}}"
+  fi
+  : "${CONF_REQUIRED:=false}"
+  CONF_REQUIRED=${CONF_REQUIRED,,}
+  case ${CONF_REQUIRED} in
+    true|false) ;;
+    *) echo "Required is incorrectly configured"; exit ${CONFIG} ;;
+  esac
 
   if ! ${FIX}; then
     CONF_ENCODER=${CMMD_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
@@ -1289,6 +1306,7 @@ for INPUT in "${VALID[@]}"; do
       fi
       ((x++))
     done
+    HAS=false
     filtered=()
     for ((i = 0; i < ${#audio[@]}; i++)); do
       if [[ -z "${audio[${i}]}" ]]; then
@@ -1312,7 +1330,7 @@ for INPUT in "${VALID[@]}"; do
             continue
           fi
           if [[ "${audiolang}" == "${language}" ]]; then
-            allow=true
+            allow=true HAS=true
             break
           fi
         done
@@ -1322,6 +1340,13 @@ for INPUT in "${VALID[@]}"; do
         fi
       fi
     done
+    if ! ${HAS} && ${CONF_REQUIRED} && [[ ! -z "${CONF_LANGUAGES}" ]]; then
+      echo "File does not have required language"
+      if ${NZBGET} && ${NZBPO_BAD}; then
+        echo "[NZB] MARK=BAD"
+      fi
+      skipped=true && continue
+    fi
     audiostreams=()
     declare -A dualaudio=()
     for ((i = 0; i < ${#audio[@]}; i++)); do
