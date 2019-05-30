@@ -370,7 +370,7 @@ while getopts hvdi:o:c:bm:-: opts; do
         processes=*) CMMD_PROCESSES="${ARG}" ;;
         regexes=*) CMMD_REGEXES="${ARG}" ;;
         commands=*) CMMD_COMMANDS="${ARG}" ;;
-        required=*) CMMND_REQUIRED="${ARG}" ;;
+        required=*) CMMD_REQUIRED="${ARG}" ;;
         *) usage ;;
       esac
     ;;
@@ -459,7 +459,7 @@ loadconfig() {
   fi
   : "${CONF_LANGUAGES:=unk}"
   CONF_LANGUAGES="${CONF_LANGUAGES,,}"
-  read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed 's/,\ \?/\ /g')"
+  read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed -E 's/,|,\ /\ /g')"
   CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
   if [[ "${CONF_LANGUAGES}" != "*" ]]; then
     for language in "${CONF_LANGUAGES[@]}"; do
@@ -859,11 +859,15 @@ if ${NZBGET}; then
       done
     fi
   fi
-  read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed 's/,\ \?/\ /g')"
+  read -r -a extensions <<< "$(echo "${NZBPO_CLEANUP}" | sed -E 's/,|,\ /\ /g')"
   if [[ ! -z "${extensions[*]}" ]]; then
     readarray -t files <<< "$(find "${DIRECTORY}" -type f)"
     if [[ ! -z "${files[*]}" ]]; then
       for file in "${files[@]}"; do
+        if [[ "${file}" =~ sample ]]; then
+          rm -f "${file}"
+          continue
+        fi
         for ext in "${extensions[@]}"; do
           if [[ "${file##*.}" == "${ext//./}" ]]; then
             rm -f "${file}"
