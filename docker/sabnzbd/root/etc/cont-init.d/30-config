@@ -15,6 +15,10 @@
 [[ ! -e "${script_dir}" ]] && \
   mkdir -p "${script_dir}"
 
+FILE="${script_dir}/sabnzbd.sh"
+[[ ! -L "${FILE}" ]] && \
+  ln -s /app/M4V-Converter/sabnzbd.sh "${FILE}"
+
 chown abc:abc -R \
   /app/M4V-Converter \
   /config/M4V-Converter.conf \
