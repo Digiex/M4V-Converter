@@ -9,7 +9,7 @@ if ! (( SAB_PP_STATUS == 0 )); then
     exit 0
 fi
 
-/app/M4V-Converter/M4V-Converter.sh -c /config/M4V-Converter.conf -i "${SAB_COMPLETE_DIR}"
+/app/M4V-Converter/M4V-Converter.sh -c /config/M4V-Converter.conf
 
 case ${?} in
     0) exit 0; ;;
