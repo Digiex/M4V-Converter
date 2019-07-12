@@ -15,7 +15,7 @@
 [[ ! -e "${script_dir}" ]] && \
   mkdir -p "${script_dir}"
 
-FILE="${script_dir}/sabnzbd.sh"
+FILE="${script_dir}/M4V-Converter.sh"
 [[ ! -L "${FILE}" ]] && \
   ln -s /app/M4V-Converter/sabnzbd.sh "${FILE}"
 
