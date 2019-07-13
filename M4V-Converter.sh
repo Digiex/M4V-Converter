@@ -124,11 +124,11 @@
 # Use this to force the video to convert, overriding all other checks.
 #Force Video=false
 
-# Create Dual Audio Streams (true, false).
-# This will create two audio streams, if possible. AAC 2.0 and AC3 5.1.
+# Audio Mode (aac, ac3, dual, source).
+# Use this to set an audio mode.
 #
-# NOTE: AAC will be the default for better compatability with more devices.
-#Dual Audio=false
+# NOTE: Dual gives both AAC 2.0 (default) and AC3 5.1
+#Audio Mode=aac
 
 # Force Audio Convert (true, false).
 # Use this to force the audio to convert, overriding all other checks.
@@ -308,7 +308,7 @@ while getopts hvdi:o:c:b-: opts; do
         rename=*) CMMD_RENAME="${ARG}" ;;
         video-bitrate=*) CMMD_VIDEOBITRATE="${ARG}" ;;
         force-video=*) CMMD_FORCE_VIDEO="${ARG}" ;;
-        dual-audio=*) CMMD_DUALAUDIO="${ARG}" ;;
+        audio-mode=*) CMMD_AUDIOMODE="${ARG}" ;;
         force-audio=*) CMMD_FORCE_AUDIO="${ARG}" ;;
         normalize=*) CMMD_NORMALIZE="${ARG}" ;;
         force-normalize=*) CMMD_FORCE_NORMALIZE="${ARG}" ;;
@@ -527,11 +527,11 @@ case "${CONF_FORCE_VIDEO}" in
   *) echo "Force Video is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
-CONF_DUALAUDIO=${CMMD_DUALAUDIO:-${NZBPO_DUAL_AUDIO:-${DUAL_AUDIO}}}
-: "${CONF_DUALAUDIO:=false}"
-CONF_DUALAUDIO=${CONF_DUALAUDIO,,}
-case "${CONF_DUALAUDIO}" in
-  true|false) ;;
+CONF_AUDIOMODE=${CMMD_AUDIOMODE:-${NZBPO_AUDIO_MODE:-${AUDIO_MODE}}}
+: "${CONF_AUDIOMODE:=aac}"
+CONF_AUDIOMODE=${CONF_AUDIOMODE,,}
+case "${CONF_AUDIOMODE}" in
+  aac|ac3|dual|source) ;;
   *) echo "Dual Audio is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
@@ -733,9 +733,6 @@ background() {
         if [[ -z "${PID}" ]]; then
           continue
         fi
-        #if (( ${#PIDS[@]} == 1 )) && [[ "${PID}" == "${CONVERTER}" ]]; then
-        #  continue
-        #fi
         case "${OSTYPE}" in
           linux*)
             if hash getconf; then
@@ -1169,7 +1166,7 @@ for INPUT in "${VALID[@]}"; do
           continue
         fi
       fi
-      if ! ${CONF_DUALAUDIO}; then
+      if ! [[ "${CONF_AUDIOMODE}" == "dual" ]]; then
         if (( ${#audiostreams[@]} == 1 )); then
           continue
         fi
@@ -1187,7 +1184,7 @@ for INPUT in "${VALID[@]}"; do
       if [[ "${audiocodec}" == "aac" ]] && [[ "${audioprofile}" == "1" ]]; then
         audioprofile="LC"
       fi
-      if ${CONF_DUALAUDIO}; then
+      if [[ "${CONF_AUDIOMODE}" == "dual" ]]; then
         aac=false ac3=false
         if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
           aac=${dualaudio[${audiolang}]%%:*}
@@ -1314,7 +1311,7 @@ for INPUT in "${VALID[@]}"; do
       audiostreams=("${streams[@]}")
       skip=false
     fi
-    if ${CONF_DUALAUDIO}; then
+    if [[ "${CONF_AUDIOMODE}" == "dual" ]]; then
       streams=()
       declare -A swap=()
       for ((s = 0; s < ${#audiostreams[@]}; s++)); do
@@ -1403,7 +1400,7 @@ for INPUT in "${VALID[@]}"; do
           fi
         fi
         audiobitrate=$(echo "${audiodata}" | grep -x 'bit_rate=.*' | sed -E 's/[^0-9]//g')
-        if ${CONF_DUALAUDIO}; then
+        if [[ "${CONF_AUDIOMODE}" == "dual" ]]; then
           aac=false ac3=false
           if [[ ! -z "${dualaudio[${audiolang}]}" ]]; then
             aac=${dualaudio[${audiolang}]%%:*}
@@ -1558,7 +1555,7 @@ for INPUT in "${VALID[@]}"; do
               skip=false
             fi
           fi
-        else
+        elif [[ "${CONF_AUDIOMODE}" == "aac" ]]; then
           if [[ "${audiocodec}" == "aac" ]]; then
             if [[ "${audioprofile}" == "LC" ]]; then
               if (( audiochannels > 2 )) || ${CONF_FORCE_AUDIO}; then
@@ -1599,6 +1596,23 @@ for INPUT in "${VALID[@]}"; do
             fi
             skip=false
           fi
+        elif [[ "${CONF_AUDIOMODE}" == "ac3" ]]; then
+          if [[ "${audiocodec}" == "ac3" ]]; then
+            if (( audiochannels > 6 )) || ${CONF_FORCE_AUDIO}; then
+              command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
+              skip=false
+            else
+              command+=" -map ${audiomap} -c:a:${x} copy"
+            fi
+          else
+            command+=" -map ${audiomap} -c:a:${x} ac3"
+            if (( audiochannels > 6 )); then
+              command+=" -ac:a:${x} 6"
+            fi
+            skip=false
+          fi
+        elif [[ "${CONF_AUDIOMODE}" == "source" ]]; then
+          command+=" -c:a:${x} copy"
         fi
         if [[ ! -z "${audiolang}" ]]; then
           command+=" -metadata:s:a:${x} \"language=${audiolang}\""
