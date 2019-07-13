@@ -91,7 +91,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --rename=[true, false]
   --video-bitrate=
   --force-video=[false, true]
-  --dual-audio=[false, true]
+  --audio-mode=[aac, ac3, dual, source]
   --force-audio=[false, true]
   --normalize=[false, true]
   --force-normalize=[false, true]
@@ -103,7 +103,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --file-permission=
   --directory-permission=
   --processes=
-  --required=
+  --required=[false, true]
 ```
 Config File
 ------------
