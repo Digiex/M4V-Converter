@@ -81,7 +81,6 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --threads=
   --languages=
   --encoder=[h.264, h.265, *]
-  --acceleration=[intel, nvidia, mac, software]
   --preset=[ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow]
   --profile=[baseline, main, high, *]
   --level=[3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 5.0, 5.1, 5.2, *]
@@ -104,9 +103,7 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --file-permission=
   --directory-permission=
   --processes=
-  --manfile=
-  --regexes=
-  --commands=
+  --required=
 ```
 Config File
 ------------
@@ -117,7 +114,6 @@ Credits & Useful Links
 This project makes use of the following projects:
 - https://github.com/linuxserver/docker-nzbget
 - https://github.com/linuxserver/docker-sabnzbd
-- https://github.com/jrottenberg/ffmpeg
 
 Useful links:
 - http://ffmpeg.org/documentation.html

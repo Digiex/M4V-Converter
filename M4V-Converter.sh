@@ -36,13 +36,7 @@
 
 # Background Mode (true, false).
 # Automatically pauses ffmpeg if a process (determined by Processes below) is found running.
-#
-# NOTE: To use this in Docker pass the managerfile to all container instances.
 #Background=false
-
-# Manager File.
-# This is the file background mode uses to share information between instances.
-#Managerfile=/tmp/m4v.tmp
 
 # Number of Threads (*).
 # This is how many threads FFMPEG will use for conversion.
@@ -70,15 +64,6 @@
 # NOTE: H.264 offers siginificantly more compatibility with devices.
 # NOTE: H.265 offers 50-75% more compression efficiency.
 #Encoder=H.264
-
-# Hardware Acceleration (software, intel, nvidia, mac, amd, quicksync).
-# This allows for hardware acceleration using intel or nvidia gpus.
-#
-# NOTE: THIS IS EXPERIMENTAL.
-# NOTE: To use this you will likely need drivers and more.
-# NOTE: Hardware Acceleration typically scarifices quality for speed.
-# NOTE: https://bit.ly/2xNSZN1
-#Acceleration=software
 
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
 # This controls encoding speed to compression ratio.
@@ -213,20 +198,6 @@
 # NOTE: You can specify multiple seperated by `,` delimiter.
 #Processes=ffmpeg
 
-# Regexes.
-# This can be used to change settings based on file/directory name.
-#
-# NOTE: Example: `Game.of.Thrones|Pokemon`.
-# NOTE: You can specify multiple seperated by `|` delimiter.
-#Regexes=
-
-# Regex commands.
-# This is used to override settings based on matched regexes.
-#
-# NOTE: Example: `CONF_CRF=0|CONF_CRF=51`.
-# NOTE: You can specify multiple seperated by `|` delimiter.
-#Commands=
-
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
 
@@ -266,32 +237,17 @@ if (( BASH_VERSINFO < 4 )); then
   exit ${DEPEND}
 fi
 
-declare -A MANAGER=()
-CONF_MANAGERFILE="/tmp/m4v.tmp"
-TMPFILES+=("${CONF_MANAGERFILE}")
-
 force() {
-  if ps -p ${CONVERTER} &>/dev/null; then
-    disown ${CONVERTER}
-    kill -9 ${CONVERTER} &>/dev/null
-    if ${CONF_BACKGROUND}; then
-      unset MANAGER[${CONVERTER}]
-      [[ ! -z "${MANAGER[@]}" ]] && \
-      declare -p MANAGER > "${CONF_MANAGERFILE}"
-    fi
-  fi
+  case "${OSTYPE}" in
+    linux*) pkill -P $$ ;;
+    darwin*) kill $(ps -o pid= --ppid $$) ;;
+  esac
   exit ${SKIPPED}
 }
 
 clean() {
   for file in "${TMPFILES[@]}"; do
     [[ ! -e "${file}" ]] && continue
-    if ${CONF_BACKGROUND}; then
-      if [[ "${file}" == "${CONF_MANAGERFILE}" ]]; then
-        source "${file}"
-        (( ${#MANAGER[@]} > 1 )) && continue
-      fi
-    fi
     rm -f "${file}"
   done
 }
@@ -320,7 +276,7 @@ usage() {
   exit ${CONFIG}
 }
 
-while getopts hvdi:o:c:bm:-: opts; do
+while getopts hvdi:o:c:b-: opts; do
   case ${opts,,} in
     h) usage ;;
     v) CMMD_VERBOSE=true ;;
@@ -329,7 +285,6 @@ while getopts hvdi:o:c:bm:-: opts; do
     o) CMMD_OUTPUT="${OPTARG}" ;;
     c) CONFIG_FILE="${OPTARG}" ;;
     b) CMMD_BACKGROUND=true ;;
-    m) CMMD_MANAGERFILE="${OPTARG}" ;;
     -) ARG="${OPTARG#*=}";
       case "${OPTARG,,}" in
         help) usage ;;
@@ -343,7 +298,6 @@ while getopts hvdi:o:c:bm:-: opts; do
         threads=*) CMMD_THREADS="${ARG}" ;;
         languages=*) CMMD_LANGUAGES="${ARG}" ;;
         encoder=*) CMMD_ENCODER="${ARG}" ;;
-        acceleration=*) CMMD_ACCELERATION="${ARG}" ;;
         preset=*) CMMD_PRESET="${ARG}" ;;
         profile=*) CMMD_PROFILE="${ARG}" ;;
         level=*) CMMD_LEVEL="${ARG}" ;;
@@ -366,10 +320,7 @@ while getopts hvdi:o:c:bm:-: opts; do
         file-permission=*) CMMD_FILE="${ARG}" ;;
         directory-permission=*) CMMD_DIRECTORY="${ARG}" ;;
         background=*) CMMD_BACKGROUND="${ARG}" ;;
-        managerfile=*) CMMD_MANAGERFILE="${ARG}" ;;
         processes=*) CMMD_PROCESSES="${ARG}" ;;
-        regexes=*) CMMD_REGEXES="${ARG}" ;;
-        commands=*) CMMD_COMMANDS="${ARG}" ;;
         required=*) CMMD_REQUIRED="${ARG}" ;;
         *) usage ;;
       esac
@@ -378,447 +329,323 @@ while getopts hvdi:o:c:bm:-: opts; do
   esac
 done
 
-loadconfig() {
-  FIX=${1:-false}
-
-  if ! ${FIX}; then
-    if [[ ! -z "${CONFIG_FILE}" ]]; then
-      if [[ ! -f "${CONFIG_FILE}" ]]; then
-        echo "Config file is incorrectly configured."
-        exit ${CONFIG}
-      fi
-      source "${CONFIG_FILE}"
-    else
-      SOURCE_DIRECTORY=$(path "${BASH_SOURCE[0]}")
-      SOURCE_FILE=$(basename "${0}")
-      CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
-      if [[ -e "${CONFIG_FILE}" ]]; then
-        source "${CONFIG_FILE}"
-      fi
-    fi
+if [[ ! -z "${CONFIG_FILE}" ]]; then
+  if [[ ! -f "${CONFIG_FILE}" ]]; then
+    echo "Config file is incorrectly configured."
+    exit ${CONFIG}
   fi
-
-  CONF_FFMPEG="${CMMD_FFMPEG:-${NZBPO_FFMPEG:-${FFMPEG}}}"
-  : "${CONF_FFMPEG:=ffmpeg}"
-  if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
-    echo "Sorry, you do not have FFmpeg"
-    exit ${DEPEND}
+  source "${CONFIG_FILE}"
+else
+  SOURCE_DIRECTORY=$(path "${BASH_SOURCE[0]}")
+  SOURCE_FILE=$(basename "${0}")
+  CONFIG_FILE="${SOURCE_DIRECTORY}/${SOURCE_FILE//${SOURCE_FILE##*.}/conf}"
+  if [[ -e "${CONFIG_FILE}" ]]; then
+    source "${CONFIG_FILE}"
   fi
+fi
 
-  CONF_FFPROBE="${CMMD_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}"
-  : "${CONF_FFPROBE:=ffprobe}"
-  if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
-    echo "Sorry, you do not have FFprobe"
-    exit ${DEPEND}
-  fi
+CONF_FFMPEG="${CMMD_FFMPEG:-${NZBPO_FFMPEG:-${FFMPEG}}}"
+: "${CONF_FFMPEG:=ffmpeg}"
+if ! hash "${CONF_FFMPEG}" 2>/dev/null; then
+  echo "Sorry, you do not have FFmpeg"
+  exit ${DEPEND}
+fi
 
-  if ! ${FIX}; then
-    CONF_OUTPUT="${CMMD_OUTPUT:-${NZBPO_OUTPUT:-${OUTPUT}}}"
-  fi
-  CONF_OUTPUT="${CONF_OUTPUT%/}"
+CONF_FFPROBE="${CMMD_FFPROBE:-${NZBPO_FFPROBE:-${FFPROBE}}}"
+: "${CONF_FFPROBE:=ffprobe}"
+if ! hash "${CONF_FFPROBE}" 2>/dev/null; then
+  echo "Sorry, you do not have FFprobe"
+  exit ${DEPEND}
+fi
 
-  if ! ${FIX}; then
-    CONF_VERBOSE=${CMMD_VERBOSE:-${NZBPO_VERBOSE:-${VERBOSE}}}
-  fi
-  : "${CONF_VERBOSE:=false}"
-  CONF_VERBOSE=${CONF_VERBOSE,,}
-  case "${CONF_VERBOSE}" in
-    true|false) ;;
-    *) echo "Verbose is incorrectly configured"; exit ${CONFIG} ;;
+CONF_OUTPUT="${CMMD_OUTPUT:-${NZBPO_OUTPUT:-${OUTPUT}}}"
+CONF_OUTPUT="${CONF_OUTPUT%/}"
+
+CONF_VERBOSE=${CMMD_VERBOSE:-${NZBPO_VERBOSE:-${VERBOSE}}}
+: "${CONF_VERBOSE:=false}"
+CONF_VERBOSE=${CONF_VERBOSE,,}
+case "${CONF_VERBOSE}" in
+  true|false) ;;
+  *) echo "Verbose is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_DEBUG=${CMMD_DEBUG:-${NZBPO_DEBUG:-${DEBUG}}}
+: "${CONF_DEBUG:=false}"
+CONF_DEBUG=${CONF_DEBUG,,}
+case "${CONF_DEBUG}" in
+  true|false) ;;
+  *) echo "Debug is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_THREADS=${CMMD_THREADS:-${NZBPO_THREADS:-${THREADS}}}
+: "${CONF_THREADS:=auto}"
+CONF_THREADS=${CONF_THREADS,,}
+if [[ "${CONF_THREADS}" != "auto" ]]; then
+  case "${OSTYPE}" in
+    linux*) MAX_CORES="$(nproc)" ;;
+    darwin*) MAX_CORES="$(sysctl -n hw.ncpu)" ;;
   esac
-
-  if ! ${FIX}; then
-    CONF_DEBUG=${CMMD_DEBUG:-${NZBPO_DEBUG:-${DEBUG}}}
+  if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || \
+  (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > MAX_CORES )); then
+    echo "Threads is incorrectly configured"
+    exit ${CONFIG}
   fi
-  : "${CONF_DEBUG:=false}"
-  CONF_DEBUG=${CONF_DEBUG,,}
-  case "${CONF_DEBUG}" in
-    true|false) ;;
-    *) echo "Debug is incorrectly configured"; exit ${CONFIG} ;;
-  esac
+fi
 
-  if ! ${FIX}; then
-    CONF_THREADS=${CMMD_THREADS:-${NZBPO_THREADS:-${THREADS}}}
-  fi
-  : "${CONF_THREADS:=auto}"
-  CONF_THREADS=${CONF_THREADS,,}
-  if [[ "${CONF_THREADS}" != "auto" ]]; then
-    case "${OSTYPE}" in
-      linux*) MAX_CORES="$(nproc)" ;;
-      darwin*) MAX_CORES="$(sysctl -n hw.ncpu)" ;;
-    esac
-    if [[ ! "${CONF_THREADS}" =~ ^-?[0-9]+$ ]] || \
-    (( "${CONF_THREADS}" == 0 || "${CONF_THREADS}" > MAX_CORES )); then
-      echo "Threads is incorrectly configured"
+CONF_LANGUAGES="${CMMD_LANGUAGES:-${NZBPO_LANGUAGES:-${LANGUAGES}}}"
+: "${CONF_LANGUAGES:=unk}"
+CONF_LANGUAGES="${CONF_LANGUAGES,,}"
+read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed -E 's/,|,\ /\ /g')"
+CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
+if [[ "${CONF_LANGUAGES}" != "*" ]]; then
+  for language in "${CONF_LANGUAGES[@]}"; do
+    if ! (( ${#language} == 3 )); then
+      echo "Languages is incorrectly configured"
       exit ${CONFIG}
     fi
-  fi
+  done
+fi
 
-  if ! ${FIX}; then
-    CONF_LANGUAGES="${CMMD_LANGUAGES:-${NZBPO_LANGUAGES:-${LANGUAGES}}}"
+CONF_REQUIRED="${CMMD_REQUIRED:-${NZBPO_REQUIRED:-${REQUIRED}}}"
+: "${CONF_REQUIRED:=false}"
+CONF_REQUIRED=${CONF_REQUIRED,,}
+case ${CONF_REQUIRED} in
+  true|false) ;;
+  *) echo "Required is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_ENCODER=${CMMD_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
+: "${CONF_ENCODER:=H.264}"
+CONF_ENCODER=${CONF_ENCODER,,}
+case "${CONF_ENCODER}" in
+  h.264|h264|x264|libx264)
+    CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264"
+  ;;
+  h.265|h265|x265|hevc|libx265)
+    CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265"
+  ;;
+  "*") ;;
+  *) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_PRESET=${CMMD_PRESET:-${NZBPO_PRESET:-${PRESET}}}
+: "${CONF_PRESET:=medium}"
+CONF_PRESET=${CONF_PRESET,,}
+case "${CONF_PRESET}" in
+  ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow) ;;
+  *) echo "Preset is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_PROFILE=${CMMD_PROFILE:-${NZBPO_PROFILE:-${PROFILE}}}
+: "${CONF_PROFILE:=main}"
+CONF_PROFILE=${CONF_PROFILE,,}
+case "${CONF_PROFILE}" in
+  baseline|main|high|"*") ;;
+  *) echo "Profile is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_LEVEL=${CMMD_LEVEL:-${NZBPO_LEVEL:-${LEVEL}}}
+: "${CONF_LEVEL:=4.1}"
+CONF_LEVEL=${CONF_LEVEL,,}
+case "${CONF_LEVEL}" in
+  3.0|3.1|3.2|4.0|4.1|4.2|5.0|5.1|5.2|"*") ;;
+  *) echo "Level is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_LEVEL=${CMMD_FORCE_LEVEL:-${NZBPO_FORCE_LEVEL:-${FORCE_LEVEL}}}
+: "${CONF_FORCE_LEVEL:=false}"
+CONF_FORCE_LEVEL=${CONF_FORCE_LEVEL,,}
+case "${CONF_FORCE_LEVEL}" in
+  true|false) ;;
+  *) echo "Force Level is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_CRF=${CMMD_CRF:-${NZBPO_CRF:-${CRF}}}
+case "${CONF_ENCODER_NAME}" in
+  h264) : "${CONF_CRF:=23}" ;;
+  hevc) : "${CONF_CRF:=28}" ;;
+esac
+CONF_CRF=${CONF_CRF,,}
+if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || \
+(( "${CONF_CRF}" < 0 )) || \
+(( "${CONF_CRF}" > 51 )); then
+  echo "CRF is incorrectly configured"
+  exit ${CONFIG}
+fi
+
+CONF_FORCE_PIXEL=${CMMD_FORCE_PIXEL:-${NZBPO_FORCE_PIXEL:-${FORCE_PIXEL}}}
+: "${CONF_FORCE_PIXEL:=false}"
+CONF_FORCE_PIXEL=${CONF_FORCE_PIXEL,,}
+case "${CONF_FORCE_PIXEL}" in
+  true|false) ;;
+  *) echo "Force Pixel is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_RESOLUTION=${CMMD_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
+CONF_RESOLUTION=${CONF_RESOLUTION,,}
+if [[ ! -z "${CONF_RESOLUTION}" ]]; then
+  case "${CONF_RESOLUTION,,}" in
+    480p|sd) CONF_RESOLUTION=640x480; OPTIONAL+=("sd") ;;
+    720p|hd) CONF_RESOLUTION=1280x720; OPTIONAL+=("hd") ;;
+    1080p) CONF_RESOLUTION=1920x1080 ;;
+    1440p|2k) CONF_RESOLUTION=2560x1440; OPTIONAL+=("2k") ;;
+    2160p|4k|uhd) CONF_RESOLUTION=3840x2160; OPTIONAL+=("4k"); OPTIONAL+=("uhd") ;;
+  esac
+  if [[ ! "${CONF_RESOLUTION}" =~ [x|:] ]] || [[ ! "${CONF_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
+    echo "Resolution is incorrectly configured"
+    exit ${CONFIG}
   fi
-  : "${CONF_LANGUAGES:=unk}"
-  CONF_LANGUAGES="${CONF_LANGUAGES,,}"
-  read -r -a CONF_LANGUAGES <<< "$(echo "${CONF_LANGUAGES}" | sed -E 's/,|,\ /\ /g')"
-  CONF_DEFAULTLANGUAGE="${CONF_LANGUAGES[0]}"
-  if [[ "${CONF_LANGUAGES}" != "*" ]]; then
-    for language in "${CONF_LANGUAGES[@]}"; do
-      if ! (( ${#language} == 3 )); then
-        echo "Languages is incorrectly configured"
+  WIDTH=${CONF_RESOLUTION//[x|:]*/}
+  HEIGHT=${CONF_RESOLUTION//*[x|:]/}
+  if (( WIDTH < HEIGHT )); then
+    WIDTH=${CONF_RESOLUTION//*[x|:]/}
+    HEIGHT=${CONF_RESOLUTION//[x|:]*/}
+  fi
+fi
+
+CONF_RENAME=${CMMD_RENAME:-${NZBPO_RENAME:-${RENAME}}}
+: "${CONF_RENAME:=false}"
+CONF_RENAME=${CONF_RENAME,,}
+case "${CONF_RENAME}" in
+  true|false) ;;
+  *) echo "Rename is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_VIDEOBITRATE=${CMMD_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEO_BITRATE}}}
+: "${CONF_VIDEOBITRATE:=0}"
+CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE,,}
+if [[ ! "${CONF_VIDEOBITRATE}" =~ ^-?[0-9]+$ ]]; then
+  echo "Video Bitrate is incorrectly configured"
+  exit ${CONFIG}
+fi
+
+CONF_FORCE_VIDEO=${CMMD_FORCE_VIDEO:-${NZBPO_FORCE_VIDEO:-${FORCE_VIDEO}}}
+: "${CONF_FORCE_VIDEO:=false}"
+CONF_FORCE_VIDEO=${CONF_FORCE_VIDEO,,}
+case "${CONF_FORCE_VIDEO}" in
+  true|false) ;;
+  *) echo "Force Video is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_DUALAUDIO=${CMMD_DUALAUDIO:-${NZBPO_DUAL_AUDIO:-${DUAL_AUDIO}}}
+: "${CONF_DUALAUDIO:=false}"
+CONF_DUALAUDIO=${CONF_DUALAUDIO,,}
+case "${CONF_DUALAUDIO}" in
+  true|false) ;;
+  *) echo "Dual Audio is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_AUDIO=${CMMD_FORCE_AUDIO:-${NZBPO_FORCE_AUDIO:-${FORCE_AUDIO}}}
+: "${CONF_FORCE_AUDIO:=false}"
+CONF_FORCE_AUDIO=${CONF_FORCE_AUDIO,,}
+case "${CONF_FORCE_AUDIO}" in
+  true|false) ;;
+  *) echo "Force Audio is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_NORMALIZE=${CMMD_NORMALIZE:-${NZBPO_NORMALIZE:-${NORMALIZE}}}
+: "${CONF_NORMALIZE:=false}"
+CONF_NORMALIZE=${CONF_NORMALIZE,,}
+case "${CONF_NORMALIZE}" in
+  true|false) ;;
+  *) echo "Normalize is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_NORMALIZE=${CMMD_FORCE_NORMALIZE:-${NZBPO_FORCE_NORMALIZE:-${FORCE_NORMALIZE}}}
+: "${CONF_FORCE_NORMALIZE:=false}"
+CONF_FORCE_NORMALIZE=${CONF_FORCE_NORMALIZE,,}
+case "${CONF_FORCE_NORMALIZE}" in
+  true|false) ;;
+  *) echo "Force Normalize is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_SUBTITLES=${CMMD_SUBTITLES:-${NZBPO_SUBTITLES:-${SUBTITLES}}}
+: "${CONF_SUBTITLES:=true}"
+CONF_SUBTITLES=${CONF_SUBTITLES,,}
+case "${CONF_SUBTITLES}" in
+  true|false|extract) ;;
+  *) echo "Subtitles is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORCE_SUBTITLES=${CMMD_FORCE_SUBTITLES:-${NZBPO_FORCE_SUBTITLES:-${FORCE_SUBTITLES}}}
+: "${CONF_FORCE_SUBTITLES:=false}"
+CONF_FORCE_SUBTITLES=${CONF_FORCE_SUBTITLES,,}
+case "${CONF_FORCE_SUBTITLES}" in
+  true|false) ;;
+  *) echo "Force Subtitles is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FORMAT=${CMMD_FORMAT:-${NZBPO_FORMAT:-${FORMAT}}}
+: "${CONF_FORMAT:=mp4}"
+CONF_FORMAT=${CONF_FORMAT,,}
+if [[ "${CONF_FORMAT}" != "mp4" ]] && \
+[[ "${CONF_FORMAT}" != "mov" ]]; then
+  echo "Format is incorrectly configured"
+  exit ${CONFIG}
+fi
+
+CONF_EXTENSION=${CMMD_EXTENSION:-${NZBPO_EXTENSION:-${EXTENSION}}}
+: "${CONF_EXTENSION:=mp4}"
+CONF_EXTENSION=${CONF_EXTENSION,,}
+if [[ "${CONF_EXTENSION}" != "mp4" ]] && \
+[[ "${CONF_EXTENSION}" != "m4v" ]]; then
+  echo "Extension is incorrectly configured"
+  exit ${CONFIG}
+fi
+
+CONF_DELETE=${CMMD_DELETE:-${NZBPO_DELETE:-${DELETE}}}
+: "${CONF_DELETE:=false}"
+CONF_DELETE=${CONF_DELETE,,}
+case "${CONF_DELETE}" in
+  true|false) ;;
+  *) echo "Delete is incorrectly configured"; exit ${CONFIG} ;;
+esac
+
+CONF_FILE=${CMMD_FILE:-${NZBPO_FILE_PERMISSION:-${FILE_PERMISSION}}}
+if [[ ! -z "${CONF_FILE}" ]]; then
+  if [[ ! "${CONF_FILE}" =~ ^-?[0-9]+$ ]] || \
+  (( ${#CONF_FILE} > 4 || ${#CONF_FILE} < 3 )); then
+    echo "File is incorrectly configured"
+    exit ${CONFIG}
+  else
+    for ((i = 0; i < ${#CONF_FILE}; i++)); do
+      if (( ${CONF_FILE:${i}:1} < 0 || ${CONF_FILE:${i}:1} > 7 )); then
+        echo "File is incorrectly configured"
         exit ${CONFIG}
       fi
     done
   fi
+fi
 
-  if ! ${FIX}; then
-    CONF_REQUIRED="${CMMD_REQUIRED:-${NZBPO_REQUIRED:-${REQUIRED}}}"
-  fi
-  : "${CONF_REQUIRED:=false}"
-  CONF_REQUIRED=${CONF_REQUIRED,,}
-  case ${CONF_REQUIRED} in
-    true|false) ;;
-    *) echo "Required is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_ENCODER=${CMMD_ENCODER:-${NZBPO_ENCODER:-${ENCODER}}}
-  fi
-  : "${CONF_ENCODER:=H.264}"
-  CONF_ENCODER=${CONF_ENCODER,,}
-  case "${CONF_ENCODER}" in
-    h.264|h264|x264|libx264)
-      CONF_ENCODER_NAME="h264"; CONF_ENCODER="libx264"
-    ;;
-    h.265|h265|x265|hevc|libx265)
-      CONF_ENCODER_NAME="hevc"; CONF_ENCODER="libx265"
-    ;;
-    "*") ;;
-    *) echo "Encoder is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_ACCELERATION=${CMMD_ACCELERATION:-${NZBPO_ACCELERATION:-${ACCELERATION}}}
-  fi
-  : "${CONF_ACCELERATION:=software}"
-  CONF_ACCELERATION=${CONF_ACCELERATION,,}
-  case "${CONF_ACCELERATION}" in
-    intel)
-      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
-        CONF_ENCODER="hevc_vaapi"
-      else
-        CONF_ENCODER="h264_vaapi"
-      fi
-    ;;
-    nvidia)
-      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
-        CONF_ENCODER="nvenc_hevc"
-      else
-        CONF_ENCODER="h264_nvenc"
-      fi
-    ;;
-    mac)
-      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
-        CONF_ENCODER="hevc_videotoolbox"
-      else
-        CONF_ENCODER="h264_videotoolbox"
-      fi
-    ;;
-    amd)
-      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
-        CONF_ENCODER="hevc_amf"
-      else
-        CONF_ENCODER="h264_amf"
-      fi
-    ;;
-    quicksync)
-      if [[ "${CONF_ENCODER}" == "libx265" ]]; then
-        CONF_ENCODER="hevc_qsv"
-      else
-        CONF_ENCODER="h264_qsv"
-      fi
-    ;;
-    software) ;;
-    *) echo "Acceleration is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_PRESET=${CMMD_PRESET:-${NZBPO_PRESET:-${PRESET}}}
-  fi
-  : "${CONF_PRESET:=medium}"
-  CONF_PRESET=${CONF_PRESET,,}
-  case "${CONF_PRESET}" in
-    ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow) ;;
-    *) echo "Preset is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_PROFILE=${CMMD_PROFILE:-${NZBPO_PROFILE:-${PROFILE}}}
-  fi
-  : "${CONF_PROFILE:=main}"
-  CONF_PROFILE=${CONF_PROFILE,,}
-  case "${CONF_PROFILE}" in
-    baseline|main|high|"*") ;;
-    *) echo "Profile is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_LEVEL=${CMMD_LEVEL:-${NZBPO_LEVEL:-${LEVEL}}}
-  fi
-  : "${CONF_LEVEL:=4.1}"
-  CONF_LEVEL=${CONF_LEVEL,,}
-  case "${CONF_LEVEL}" in
-    3.0|3.1|3.2|4.0|4.1|4.2|5.0|5.1|5.2|"*") ;;
-    *) echo "Level is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FORCE_LEVEL=${CMMD_FORCE_LEVEL:-${NZBPO_FORCE_LEVEL:-${FORCE_LEVEL}}}
-  fi
-  : "${CONF_FORCE_LEVEL:=false}"
-  CONF_FORCE_LEVEL=${CONF_FORCE_LEVEL,,}
-  case "${CONF_FORCE_LEVEL}" in
-    true|false) ;;
-    *) echo "Force Level is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_CRF=${CMMD_CRF:-${NZBPO_CRF:-${CRF}}}
-  fi
-  case "${CONF_ENCODER_NAME}" in
-    h264) : "${CONF_CRF:=23}" ;;
-    hevc) : "${CONF_CRF:=28}" ;;
-  esac
-  CONF_CRF=${CONF_CRF,,}
-  if [[ ! "${CONF_CRF}" =~ ^-?[0-9]+$ ]] || \
-  (( "${CONF_CRF}" < 0 )) || \
-  (( "${CONF_CRF}" > 51 )); then
-    echo "CRF is incorrectly configured"
+CONF_DIRECTORY=${CMMD_DIRECTORY:-${NZBPO_DIRECTORY_PERMISSION:-${DIRECTORY_PERMISSION}}}
+if [[ ! -z "${CONF_DIRECTORY}" ]]; then
+  if [[ ! "${CONF_DIRECTORY}" =~ ^-?[0-9]+$ ]] || \
+  (( ${#CONF_DIRECTORY} > 4 || ${#CONF_DIRECTORY} < 3 )); then
+    echo "Directory is incorrectly configured"
     exit ${CONFIG}
+  else
+    for ((i = 0; i < ${#CONF_DIRECTORY}; i++)); do
+      if (( ${CONF_DIRECTORY:${i}:1} < 0 || ${CONF_DIRECTORY:${i}:1} > 7 )); then
+        echo "Directory is incorrectly configured"
+        exit ${CONFIG}
+      fi
+    done
   fi
+fi
 
-  if ! ${FIX}; then
-    CONF_FORCE_PIXEL=${CMMD_FORCE_PIXEL:-${NZBPO_FORCE_PIXEL:-${FORCE_PIXEL}}}
-  fi
-  : "${CONF_FORCE_PIXEL:=false}"
-  CONF_FORCE_PIXEL=${CONF_FORCE_PIXEL,,}
-  case "${CONF_FORCE_PIXEL}" in
-    true|false) ;;
-    *) echo "Force Pixel is incorrectly configured"; exit ${CONFIG} ;;
-  esac
+CONF_BACKGROUND=${CMMD_BACKGROUND:-${NZBPO_BACKGROUND:-${BACKGROUND}}}
+: "${CONF_BACKGROUND:=false}"
+CONF_BACKGROUND=${CONF_BACKGROUND,,}
+case "${CONF_BACKGROUND}" in
+  true|false) ;;
+  *) echo "Background is incorrectly configured"; exit ${CONFIG} ;;
+esac
 
-  if ! ${FIX}; then
-    CONF_RESOLUTION=${CMMD_RESOLUTION:-${NZBPO_RESOLUTION:-${RESOLUTION}}}
-  fi
-  CONF_RESOLUTION=${CONF_RESOLUTION,,}
-  if [[ ! -z "${CONF_RESOLUTION}" ]]; then
-    case "${CONF_RESOLUTION,,}" in
-      480p|sd) CONF_RESOLUTION=640x480; OPTIONAL+=("sd") ;;
-      720p|hd) CONF_RESOLUTION=1280x720; OPTIONAL+=("hd") ;;
-      1080p) CONF_RESOLUTION=1920x1080 ;;
-      1440p|2k) CONF_RESOLUTION=2560x1440; OPTIONAL+=("2k") ;;
-      2160p|4k|uhd) CONF_RESOLUTION=3840x2160; OPTIONAL+=("4k"); OPTIONAL+=("uhd") ;;
-    esac
-    if [[ ! "${CONF_RESOLUTION}" =~ [x|:] ]] || [[ ! "${CONF_RESOLUTION//[x|:]/}" =~ ^-?[0-9]+$ ]]; then
-      echo "Resolution is incorrectly configured"
-      exit ${CONFIG}
-    fi
-    WIDTH=${CONF_RESOLUTION//[x|:]*/}
-    HEIGHT=${CONF_RESOLUTION//*[x|:]/}
-    if (( WIDTH < HEIGHT )); then
-      WIDTH=${CONF_RESOLUTION//*[x|:]/}
-      HEIGHT=${CONF_RESOLUTION//[x|:]*/}
-    fi
-  fi
-
-  if ! ${FIX}; then
-    CONF_RENAME=${CMMD_RENAME:-${NZBPO_RENAME:-${RENAME}}}
-  fi
-  : "${CONF_RENAME:=false}"
-  CONF_RENAME=${CONF_RENAME,,}
-  case "${CONF_RENAME}" in
-    true|false) ;;
-    *) echo "Rename is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_VIDEOBITRATE=${CMMD_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEO_BITRATE}}}
-  fi
-  : "${CONF_VIDEOBITRATE:=0}"
-  CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE,,}
-  if [[ ! "${CONF_VIDEOBITRATE}" =~ ^-?[0-9]+$ ]]; then
-    echo "Video Bitrate is incorrectly configured"
-    exit ${CONFIG}
-  fi
-
-  if ! ${FIX}; then
-    CONF_FORCE_VIDEO=${CMMD_FORCE_VIDEO:-${NZBPO_FORCE_VIDEO:-${FORCE_VIDEO}}}
-  fi
-  : "${CONF_FORCE_VIDEO:=false}"
-  CONF_FORCE_VIDEO=${CONF_FORCE_VIDEO,,}
-  case "${CONF_FORCE_VIDEO}" in
-    true|false) ;;
-    *) echo "Force Video is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_DUALAUDIO=${CMMD_DUALAUDIO:-${NZBPO_DUAL_AUDIO:-${DUAL_AUDIO}}}
-  fi
-  : "${CONF_DUALAUDIO:=false}"
-  CONF_DUALAUDIO=${CONF_DUALAUDIO,,}
-  case "${CONF_DUALAUDIO}" in
-    true|false) ;;
-    *) echo "Dual Audio is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FORCE_AUDIO=${CMMD_FORCE_AUDIO:-${NZBPO_FORCE_AUDIO:-${FORCE_AUDIO}}}
-  fi
-  : "${CONF_FORCE_AUDIO:=false}"
-  CONF_FORCE_AUDIO=${CONF_FORCE_AUDIO,,}
-  case "${CONF_FORCE_AUDIO}" in
-    true|false) ;;
-    *) echo "Force Audio is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_NORMALIZE=${CMMD_NORMALIZE:-${NZBPO_NORMALIZE:-${NORMALIZE}}}
-  fi
-  : "${CONF_NORMALIZE:=false}"
-  CONF_NORMALIZE=${CONF_NORMALIZE,,}
-  case "${CONF_NORMALIZE}" in
-    true|false) ;;
-    *) echo "Normalize is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FORCE_NORMALIZE=${CMMD_FORCE_NORMALIZE:-${NZBPO_FORCE_NORMALIZE:-${FORCE_NORMALIZE}}}
-  fi
-  : "${CONF_FORCE_NORMALIZE:=false}"
-  CONF_FORCE_NORMALIZE=${CONF_FORCE_NORMALIZE,,}
-  case "${CONF_FORCE_NORMALIZE}" in
-    true|false) ;;
-    *) echo "Force Normalize is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_SUBTITLES=${CMMD_SUBTITLES:-${NZBPO_SUBTITLES:-${SUBTITLES}}}
-  fi
-  : "${CONF_SUBTITLES:=true}"
-  CONF_SUBTITLES=${CONF_SUBTITLES,,}
-  case "${CONF_SUBTITLES}" in
-    true|false|extract) ;;
-    *) echo "Subtitles is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FORCE_SUBTITLES=${CMMD_FORCE_SUBTITLES:-${NZBPO_FORCE_SUBTITLES:-${FORCE_SUBTITLES}}}
-  fi
-  : "${CONF_FORCE_SUBTITLES:=false}"
-  CONF_FORCE_SUBTITLES=${CONF_FORCE_SUBTITLES,,}
-  case "${CONF_FORCE_SUBTITLES}" in
-    true|false) ;;
-    *) echo "Force Subtitles is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FORMAT=${CMMD_FORMAT:-${NZBPO_FORMAT:-${FORMAT}}}
-  fi
-  : "${CONF_FORMAT:=mp4}"
-  CONF_FORMAT=${CONF_FORMAT,,}
-  if [[ "${CONF_FORMAT}" != "mp4" ]] && \
-  [[ "${CONF_FORMAT}" != "mov" ]]; then
-    echo "Format is incorrectly configured"
-    exit ${CONFIG}
-  fi
-
-  if ! ${FIX}; then
-    CONF_EXTENSION=${CMMD_EXTENSION:-${NZBPO_EXTENSION:-${EXTENSION}}}
-  fi
-  : "${CONF_EXTENSION:=mp4}"
-  CONF_EXTENSION=${CONF_EXTENSION,,}
-  if [[ "${CONF_EXTENSION}" != "mp4" ]] && \
-  [[ "${CONF_EXTENSION}" != "m4v" ]]; then
-    echo "Extension is incorrectly configured"
-    exit ${CONFIG}
-  fi
-
-  if ! ${FIX}; then
-    CONF_DELETE=${CMMD_DELETE:-${NZBPO_DELETE:-${DELETE}}}
-  fi
-  : "${CONF_DELETE:=false}"
-  CONF_DELETE=${CONF_DELETE,,}
-  case "${CONF_DELETE}" in
-    true|false) ;;
-    *) echo "Delete is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  if ! ${FIX}; then
-    CONF_FILE=${CMMD_FILE:-${NZBPO_FILE_PERMISSION:-${FILE_PERMISSION}}}
-  fi
-  if [[ ! -z "${CONF_FILE}" ]]; then
-    if [[ ! "${CONF_FILE}" =~ ^-?[0-9]+$ ]] || \
-    (( ${#CONF_FILE} > 4 || ${#CONF_FILE} < 3 )); then
-      echo "File is incorrectly configured"
-      exit ${CONFIG}
-    else
-      for ((i = 0; i < ${#CONF_FILE}; i++)); do
-        if (( ${CONF_FILE:${i}:1} < 0 || ${CONF_FILE:${i}:1} > 7 )); then
-          echo "File is incorrectly configured"
-          exit ${CONFIG}
-        fi
-      done
-    fi
-  fi
-
-  if ! ${FIX}; then
-    CONF_DIRECTORY=${CMMD_DIRECTORY:-${NZBPO_DIRECTORY_PERMISSION:-${DIRECTORY_PERMISSION}}}
-  fi
-  if [[ ! -z "${CONF_DIRECTORY}" ]]; then
-    if [[ ! "${CONF_DIRECTORY}" =~ ^-?[0-9]+$ ]] || \
-    (( ${#CONF_DIRECTORY} > 4 || ${#CONF_DIRECTORY} < 3 )); then
-      echo "Directory is incorrectly configured"
-      exit ${CONFIG}
-    else
-      for ((i = 0; i < ${#CONF_DIRECTORY}; i++)); do
-        if (( ${CONF_DIRECTORY:${i}:1} < 0 || ${CONF_DIRECTORY:${i}:1} > 7 )); then
-          echo "Directory is incorrectly configured"
-          exit ${CONFIG}
-        fi
-      done
-    fi
-  fi
-
-  if ! ${FIX}; then
-    CONF_BACKGROUND=${CMMD_BACKGROUND:-${NZBPO_BACKGROUND:-${BACKGROUND}}}
-  fi
-  : "${CONF_BACKGROUND:=false}"
-  CONF_BACKGROUND=${CONF_BACKGROUND,,}
-  case "${CONF_BACKGROUND}" in
-    true|false) ;;
-    *) echo "Background is incorrectly configured"; exit ${CONFIG} ;;
-  esac
-
-  CONF_MANAGERFILE=${CMMD_MANAGERFILE:-${NZBPO_MANGERFILE:-${MANAGERFILE}}}
-  : "${CONF_MANAGERFILE:=/tmp/m4v.tmp}"
-  TMPFILES+=("${CONF_MANAGERFILE}")
-
-  if ! ${FIX}; then
-    CONF_PROCESSES=${CMMD_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
-  fi
-  : "${CONF_PROCESSES:=ffmpeg}"
-  IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed -E 's/,|,\ /|/g')"
-  unset IFS
-  [[ ! "${CONF_PROCESSES[@]}" =~ "ffmpeg" ]] && CONF_PROCESSES+=("ffmpeg")
-
-  CONF_REGEXES=${CMMD_REGEXES:-${NZBPO_REGEXES:-${REGEXES}}}
-  IFS='|' read -r -a CONF_REGEXES <<< "${CONF_REGEXES}"
-  unset IFS
-
-  CONF_COMMANDS=${CMMD_COMMANDS:-${NZBPO_COMMANDS:-${COMMANDS}}}
-  IFS='|' read -r -a CONF_COMMANDS <<< "${CONF_COMMANDS}"
-  unset IFS
-}
-loadconfig
+CONF_PROCESSES=${CMMD_PROCESSES:-${NZBPO_PROCESSES:-${PROCESSES}}}
+: "${CONF_PROCESSES:=ffmpeg}"
+IFS='|' read -r -a CONF_PROCESSES <<< "$(echo "${CONF_PROCESSES}" | sed -E 's/,|,\ /|/g')"
+unset IFS
+[[ ! "${CONF_PROCESSES[@]}" =~ "ffmpeg" ]] && CONF_PROCESSES+=("ffmpeg")
 
 if ${NZBGET}; then
   if [[ -z "${NZBOP_VERSION}" ]]; then
@@ -896,14 +723,6 @@ fi
 background() {
   echo "Running in background mode..."
   while kill -0 ${CONVERTER} 2>/dev/null; do
-    if [[ -e "${CONF_MANAGERFILE}" ]]; then
-      source "${CONF_MANAGERFILE}"
-    fi
-    if [[ -z "${MANAGER[${CONVERTER}]}" ]] || \
-    [[ "${MANAGER[${CONVERTER}]}" != "${file}" ]]; then
-      MANAGER[${CONVERTER}]="${file}"
-      declare -p MANAGER > "${CONF_MANAGERFILE}"
-    fi
     TOGGLE=false
     for PROCESS in "${CONF_PROCESSES[@]}"; do
       if [[ -z "${PROCESS}" ]]; then
@@ -914,15 +733,26 @@ background() {
         if [[ -z "${PID}" ]]; then
           continue
         fi
-        if [[ "${PID}" == "${CONVERTER}" ]]; then
+        #if (( ${#PIDS[@]} == 1 )) && [[ "${PID}" == "${CONVERTER}" ]]; then
+        #  continue
+        #fi
+        case "${OSTYPE}" in
+          linux*)
+            if hash getconf; then
+              HZ=$(getconf CLK_TCK)
+            fi
+            : "${HZ:=100}"
+            UPTIME=$(awk '{print($1)}' < /proc/uptime)
+            CONVERTERELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < /proc/${CONVERTER}/stat) / HZ ))
+            PIDELAPSED=$(( ${UPTIME%.*} - $(awk '{print($22)}' < /proc/${PID}/stat) / HZ ))
+          ;;
+          darwin*)
+            CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
+            PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
+          ;;
+        esac
+        if (( CONVERTERELAPSED >= PIDELAPSED )); then
           continue
-        fi
-        CONVERTERELAPSED=$(ps -o etime= -p ${CONVERTER} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
-        PIDELAPSED=$(ps -o etime= -p ${PID} 2>&1 | awk -F: '{print ($1*3600) + ($2*60) + $3}')
-        if [[ ! -z "${MANAGER[${PID}]}" ]]; then
-          if (( CONVERTERELAPSED > PIDELAPSED )); then
-            continue
-          fi
         fi
         PROCESS="${PROCESS}"
         PID="${PID}"
@@ -933,7 +763,10 @@ background() {
         break
       fi
     done
-    STATE=$(ps -o state= -p ${CONVERTER})
+    case "${OSTYPE}" in
+      linux*) STATE=$(awk '{print($3)}' < /proc/${CONVERTER}/stat) ;;
+      darwin*) STATE=$(ps -o state= -p ${CONVERTER}) ;;
+    esac
     if ${TOGGLE}; then
       case "${STATE}" in
         R*|S)
@@ -1048,38 +881,9 @@ for INPUT in "${VALID[@]}"; do
         fi
       ;;
     esac
-    USE=false
-    MODIFIED=false
-    if [[ -e "${CONF_MANAGERFILE}" ]]; then
-      source "${CONF_MANAGERFILE}"
-    fi
-    for KEY in "${!MANAGER[@]}"; do
-      [[ -z "${KEY}" ]] && continue
-      [[ "${KEY}" == "${CONVERTER}" ]] && continue
-      if [[ "${MANAGER[${KEY}]}" == "${file}" ]]; then
-        if lsof "${file}" 2>&1 | grep -q COMMAND &>/dev/null; then
-          echo "File is in use"
-          USE=true skipped=true && break
-        fi
-      else
-        unset MANAGER["${KEY}"]
-        MODIFIED=true
-      fi
-    done
-    ${USE} && continue
-    ${MODIFIED} && declare -p MANAGER > "${CONF_MANAGERFILE}"
-    RESET=false
-    if [[ ! -z "${CONF_REGEXES}" ]] && [[ ! -z "${CONF_COMMANDS}" ]]; then
-      for ((i = 0; i < ${#CONF_REGEXES[@]}; i++)) do
-        REGEX="${CONF_REGEXES[${i}],,}"
-        if [[ "${DIRECTORY,,}" =~ ${REGEX} ]] || \
-        [[ "${file,,}" =~ ${REGEX} ]]; then
-          echo "Detected Regex: ${REGEX}"
-          echo "Running Commands: ${CONF_COMMANDS[${i}]}"
-          eval "${CONF_COMMANDS[${i}]}" &>/dev/null
-          RESET=true loadconfig true
-        fi
-      done
+    if lsof 2>&1 | grep "${file}" &>/dev/null; then
+      echo "File is in use"
+      skipped=true && continue
     fi
     if [[ "${FILE_NAME}" == "${FILE_NAME##*.}" ]]; then
       newname="${FILE_NAME}.${CONF_EXTENSION}"
@@ -1091,11 +895,7 @@ for INPUT in "${VALID[@]}"; do
     DIRECTORY="${DIRECTORY//${INPUT%/}/${CONF_OUTPUT}}"
     [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
     newfile="${DIRECTORY}/${newname}"
-    command="${CONF_FFMPEG} -threads ${CONF_THREADS}"
-    if [[ "${CONF_ACCELERATION}" == "intel" ]]; then
-      command+=" -vaapi_device /dev/dri/renderD128"
-    fi
-    command+=" -i \"${file}\""
+    command="${CONF_FFMPEG} -threads ${CONF_THREADS} -i \"${file}\""
     data="$(${CONF_FFPROBE} "${file}" 2>&1)"
     video="$(echo "${data}" | grep 'Stream.*Video:' | sed 's/.*Stream/Stream/g')"
     if [[ -z "${video}" ]]; then
@@ -1256,7 +1056,7 @@ for INPUT in "${VALID[@]}"; do
           total=$(echo "${dur}" "${fps}" | awk '{printf("%3.0f\n",($1*$2))}' | head -1)
         fi
         if (( total > 0 )); then
-          STATSFILE="${newfile}.stats"
+          STATSFILE="${newfile}.$$.stats"
           if [[ -e "${STATSFILE}" ]]; then
             rm -f "${STATSFILE}"
           fi
@@ -2063,10 +1863,6 @@ for INPUT in "${VALID[@]}"; do
     if ${PROGRESSED}; then
       echo "Time taken: ${ELAPSED} at an average rate of ${RATE}fps"
     fi
-    if ${CONF_BACKGROUND}; then
-      unset MANAGER["${CONVERTER}"]
-      declare -p MANAGER > "${CONF_MANAGERFILE}"
-    fi
     if ${CONF_NORMALIZE} && [[ ! -z "${NORMALIZE[*]}" ]]; then
       echo "Checking audio levels..."
       normalizedfile="${tmpfile}.old" data="$(${CONF_FFPROBE} "${tmpfile}" 2>&1)" normalize=false
@@ -2158,10 +1954,6 @@ for INPUT in "${VALID[@]}"; do
         if ${PROGRESSED}; then
           echo "Time taken: ${ELAPSED}"
         fi
-        if ${CONF_BACKGROUND}; then
-          unset MANAGER["${CONVERTER}"]
-          declare -p MANAGER > "${CONF_MANAGERFILE}"
-        fi
       fi
     fi
     echo "Conversion efficiency at $(echo $(wc -c "${file}" 2>&1 | awk '{print($1)}') $(wc -c "${tmpfile}" 2>&1 | awk '{print($1)}') | awk '{printf("%.2f\n",($2-$1)/$1*100)}')%; Original=$(du -sh "${file}" 2>&1 | awk '{print($1)}')B; Converted=$(du -sh "${tmpfile}" 2>&1 | awk '{print($1)}')B"
@@ -2175,9 +1967,6 @@ for INPUT in "${VALID[@]}"; do
     fi
     if [[ ! -z "${CONF_DIRECTORY}" ]]; then
       chmod "${CONF_DIRECTORY}" "${DIRECTORY}"
-    fi
-    if ${RESET}; then
-      loadconfig
     fi
     clean
   done
