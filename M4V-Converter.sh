@@ -1612,7 +1612,7 @@ for INPUT in "${VALID[@]}"; do
             skip=false
           fi
         elif [[ "${CONF_AUDIOMODE}" == "source" ]]; then
-          command+=" -c:a:${x} copy"
+          command+=" -map ${audiomap} -c:a:${x} copy"
         fi
         if [[ ! -z "${audiolang}" ]]; then
           command+=" -metadata:s:a:${x} \"language=${audiolang}\""
