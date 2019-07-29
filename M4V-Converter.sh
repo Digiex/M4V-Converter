@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##############################################################################
-### NZBGET SCAN/POST-PROCESSING SCRIPT                                     ###
+### NZBGET POST-PROCESSING SCRIPT                                          ###
 
 # Convert media to mp4 format.
 #
@@ -107,13 +107,6 @@
 # NOTE: http://bit.ly/2JDL0UR
 #Resolution=
 
-# File/Directory Rename (true, false).
-# This will rename the file/directory when resolution is changed.
-#
-# NOTE: Example: `Video.2018.4K.UHD.King` to `Video.2018.1080p.King`.
-# NOTE: You must allow the script to run as a global extension (applies to all nzbs in queue) for this to work on NZBGet.
-#Rename=false
-
 # Video Bitrate (KB).
 # Use this to limit video bitrate, if exceeded then video will be converted and quality downgraded.
 #
@@ -136,7 +129,7 @@
 
 # Normalize Audio (true, false).
 # This will normalize audio if needed due to downmixing.
-#Normalize=false
+#Normalize=true
 
 # Force Normalize (true, false).
 # This will force check audio levels for all supported audio streams.
@@ -305,7 +298,6 @@ while getopts hvdi:o:c:b-: opts; do
         crf=*) CMMD_CRF="${ARG}" ;;
         force-pixel=*) CMMD_FORCE_PIXEL="${ARG}" ;;
         resolution=*) CMMD_RESOLUTION="${ARG}" ;;
-        rename=*) CMMD_RENAME="${ARG}" ;;
         video-bitrate=*) CMMD_VIDEOBITRATE="${ARG}" ;;
         force-video=*) CMMD_FORCE_VIDEO="${ARG}" ;;
         audio-mode=*) CMMD_AUDIOMODE="${ARG}" ;;
@@ -503,14 +495,6 @@ if [[ ! -z "${CONF_RESOLUTION}" ]]; then
   fi
 fi
 
-CONF_RENAME=${CMMD_RENAME:-${NZBPO_RENAME:-${RENAME}}}
-: "${CONF_RENAME:=false}"
-CONF_RENAME=${CONF_RENAME,,}
-case "${CONF_RENAME}" in
-  true|false) ;;
-  *) echo "Rename is incorrectly configured"; exit ${CONFIG} ;;
-esac
-
 CONF_VIDEOBITRATE=${CMMD_VIDEOBITRATE:-${NZBPO_VIDEO_BITRATE:-${VIDEO_BITRATE}}}
 : "${CONF_VIDEOBITRATE:=0}"
 CONF_VIDEOBITRATE=${CONF_VIDEOBITRATE,,}
@@ -651,22 +635,6 @@ if ${NZBGET}; then
   if [[ -z "${NZBOP_VERSION}" ]]; then
     echo "Sorry, you do not have NZBGet version 11.1 or later."
     exit ${DEPEND}
-  fi
-  if [[ ! -z "${NZBNP_NZBNAME}" ]]; then
-    if ${CONF_RENAME}; then
-      NAME=$(echo "${NZBNP_NZBNAME}")
-      for OPT in "${OPTIONAL[@]}"; do
-        NAME=$(echo "${NAME}" | sed -i -E "s/${OPTIONAL}//g")
-      done
-      RESOLUTION=$(echo "${NZBNP_NZBNAME}" | grep -oE "[0-9]{3,4}[p|P]")
-      if [[ ! -z "${RESOLUTION}" ]] && (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
-        NAME=$(echo "${NAME}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
-      fi
-      if [[ "${NZBNP_NZBNAME}" != "${NAME}" ]]; then
-        echo "[NZB] NZBNAME=${NAME}"
-      fi
-    fi
-    exit 0
   fi
   if [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]]; then
     exit ${SKIPPED}
@@ -907,9 +875,7 @@ for INPUT in "${VALID[@]}"; do
     fi
     readarray -t audio <<< "${audio}"
     subtitle="$(echo "${data}" | grep 'Stream.*Subtitle:' | sed 's/.*Stream/Stream/g')"
-    if [[ ! -z "${subtitle}" ]]; then
-      readarray -t subtitle <<< "${subtitle}"
-    fi
+    readarray -t subtitle <<< "${subtitle}"
     DRM=false
     for ((i = 0; i < ${#video[@]}; i++)); do
       if [[ -z "${video[${i}]}" ]]; then
@@ -1013,30 +979,6 @@ for INPUT in "${VALID[@]}"; do
           convert=true
           resize=true
         fi
-        if ${CONF_RENAME}; then
-          if ! ${SABNZBD}; then
-            RESOLUTION=$(echo "${DIRECTORY}" | grep -oE "[0-9]{3,4}[p|P]")
-            if [[ ! -z "${RESOLUTION}" ]] && \
-            (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
-              DIRECTORY=$(echo "${DIRECTORY}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
-              for OPT in "${OPTIONAL[@]}"; do
-                DIRECTORY=$(echo "${DIRECTORY}" | sed -i -E "s/${OPTIONAL}//g")
-              done
-              if [[ ! -e "${DIRECTORY}" ]]; then
-                mkdir "${DIRECTORY}"
-              fi
-            fi
-          fi
-          RESOLUTION=$(echo "${newname}" | grep -oE "[0-9]{3,4}[p|P]")
-          if [[ ! -z "${RESOLUTION}" ]] && \
-          (( ${RESOLUTION//[p|P]/} > HEIGHT )); then
-            newname=$(echo "${newname}" | sed -E "s/${RESOLUTION}/${HEIGHT}p/g")
-            for OPT in "${OPTIONAL[@]}"; do
-              newname=$(echo "${newname}" | sed -i -E "s/${OPTIONAL}//g")
-            done
-          fi
-        fi
-        newfile="${DIRECTORY}/${newname}"
       fi
       pixel=false
       videopixel=$(echo "${videodata}" | grep -x 'pix_fmt=.*' | sed 's/pix_fmt=//g')
@@ -1412,10 +1354,11 @@ for INPUT in "${VALID[@]}"; do
                 command+=" -map ${audiomap} -c:a:${x} aac"
                 if (( audiochannels > 2 )); then
                   command+=" -ac:a:${x} 2"
-                  if (( audiobitrate > 128000 )); then
-                    command+=" -ab:a:${x} 128k"
-                  fi
+				fi
+                if (( audiobitrate > 128000 )); then
+                  command+=" -ab:a:${x} 128k"
                 fi
+				command+=" -max_muxing_queue_size 1024"
                 skip=false
               elif [[ "${audiocodec}" == "ac3" ]]; then
                 command+=" -map ${audiomap} -c:a:${x} ac3"
@@ -1449,6 +1392,7 @@ for INPUT in "${VALID[@]}"; do
                   else
                     command+=" -disposition:a:${x} 0"
                   fi
+				  command+=" -max_muxing_queue_size 1024"
                   ((x++))
                   command+=" -map ${audiomap} -c:a:${x} ac3"
                   if (( audiochannels > 6 )); then
@@ -1477,6 +1421,7 @@ for INPUT in "${VALID[@]}"; do
                   else
                     command+=" -disposition:a:${x} 0"
                   fi
+				  command+=" -max_muxing_queue_size 1024"
                   ((x++))
                   command+=" -map ${audiomap} -c:a:${x} ac3"
                   if (( audiochannels > 6 )); then
@@ -1508,6 +1453,7 @@ for INPUT in "${VALID[@]}"; do
                 else
                   command+=" -disposition:a:${x} 0"
                 fi
+				command+=" -max_muxing_queue_size 1024"
                 ((x++))
                 if (( audiochannels > 6 )) || ${CONF_FORCE_AUDIO}; then
                   command+=" -map ${audiomap} -c:a:${x} ac3 -ac:a:${x} 6"
@@ -1539,6 +1485,7 @@ for INPUT in "${VALID[@]}"; do
                 else
                   command+=" -disposition:a:${x} 0"
                 fi
+				command+=" -max_muxing_queue_size 1024"
                 ((x++))
                 command+=" -map ${audiomap} -c:a:${x} ac3"
                 if (( audiochannels > 6 )); then
@@ -1577,6 +1524,7 @@ for INPUT in "${VALID[@]}"; do
               if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
                 command+=" -ab:a:${x} 128k"
               fi
+			  command+=" -max_muxing_queue_size 1024"
               if ${CONF_FORCE_NORMALIZE}; then
                 NORMALIZE+=("${x}")
               fi
@@ -1591,6 +1539,7 @@ for INPUT in "${VALID[@]}"; do
             if (( audiobitrate > 128000 )) || (( audiobitrate == 0 )); then
               command+=" -ab:a:${x} 128k"
             fi
+			command+=" -max_muxing_queue_size 1024"
             if ${CONF_FORCE_NORMALIZE}; then
               NORMALIZE+=("${x}")
             fi

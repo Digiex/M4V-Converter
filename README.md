@@ -88,7 +88,6 @@ advanced optional arguments: (Use ONLY if you know what you are doing)
   --crf=[0-51]
   --force-pixel=[false, true]
   --resolution=
-  --rename=[true, false]
   --video-bitrate=
   --force-video=[false, true]
   --audio-mode=[aac, ac3, dual, source]
