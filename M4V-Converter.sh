@@ -1393,10 +1393,12 @@ for INPUT in "${VALID[@]}"; do
                     command+=" -disposition:a:${x} 0"
                   fi
 				  command+=" -max_muxing_queue_size 1024"
-                  ((x++))
-                  command+=" -map ${audiomap} -c:a:${x} ac3"
-                  if (( audiochannels > 6 )); then
-                    command+=" -ac:a:${x} 6"
+                  if (( audiochannels > 2 )); then
+				    ((x++))
+				    command+=" -map ${audiomap} -c:a:${x} ac3"
+					if (( audiochannels > 6 )); then
+                      command+=" -ac:a:${x} 6"
+					fi
                   fi
                   skip=false
                 else
@@ -1422,10 +1424,12 @@ for INPUT in "${VALID[@]}"; do
                     command+=" -disposition:a:${x} 0"
                   fi
 				  command+=" -max_muxing_queue_size 1024"
-                  ((x++))
-                  command+=" -map ${audiomap} -c:a:${x} ac3"
-                  if (( audiochannels > 6 )); then
-                    command+=" -ac:a:${x} 6"
+                  if (( audiochannels > 2 )); then
+				    ((x++))
+				    command+=" -map ${audiomap} -c:a:${x} ac3"
+					if (( audiochannels > 6 )); then
+                      command+=" -ac:a:${x} 6"
+					fi
                   fi
                 else
                   if (( audiobitrate > 128000 )); then
