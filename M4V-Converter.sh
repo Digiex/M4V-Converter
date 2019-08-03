@@ -838,13 +838,7 @@ for INPUT in "${VALID[@]}"; do
     case "${file,,}" in
       *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg) ;;
       *.srt | *.tmp | *.stats | .ds_store) echo "File skipped" && continue ;;
-      *)
-        if [[ "$(${CONF_FFPROBE} "${file}" 2>&1)" =~ "Invalid data found when processing input" ]]; then
-          echo "File is not convertable" && continue
-        else
-          echo "File does not have the expected extension, attempting..."
-        fi
-      ;;
+      *) echo "File is not convertable" && continue ;;
     esac
     if lsof 2>&1 | grep "${file}" &>/dev/null; then
       echo "File is in use"
