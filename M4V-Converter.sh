@@ -1878,7 +1878,7 @@ for INPUT in "${VALID[@]}"; do
             elif (( ${dB%.*} > 0 )); then
               dB=-${dB}
             fi
-            command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB}dB\""
+            command+=" -map ${audiomap} -c:a:${i} ${audiocodec} -filter:a:${i} \"volume=${dB}dB\" -max_muxing_queue_size 1024"
             normalize=true
           fi
         done
