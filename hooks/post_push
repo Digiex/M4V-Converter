@@ -5,7 +5,7 @@ set -ex
 DOCKER_REPO=${DOCKER_REPO//index.docker.io\//}
 export DOCKER_CLI_EXPERIMENTAL=enabled
 
-COMMAND=${IMAGE_NAME}
+COMMAND=${DOCKER_REPO}:${DOCKER_TAG}
 for ARCH in amd64 arm32v7 arm64v8; do
   COMMAND+=" ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}"
 done
@@ -17,9 +17,9 @@ for ARCH in arm32v7 arm64v8; do
     arm32v7) COMMAND+=" --os linux --arch arm" ;;
     arm64v8) COMMAND+=" --os linux --arch arm64 --variant armv8" ;;
   esac
-  ./docker manifest annotate ${IMAGE_NAME} ${COMMAND}
+  ./docker manifest annotate ${DOCKER_REPO}:${DOCKER_TAG} ${COMMAND}
 done
 
-./docker manifest push --purge ${IMAGE_NAME}
+./docker manifest push --purge ${DOCKER_REPO}:${DOCKER_TAG}
 
 exit 0
