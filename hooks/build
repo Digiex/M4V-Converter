@@ -15,6 +15,7 @@ for ARCH in ${!BUILD_ARCH[@]}; do
   docker build \
   --file ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]} \
   --tag ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} \
+  --tag ${IMAGE_NAME} \
   .
 done
 
