@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -ex
+
+declare -A BUILD_ARCH=(\
+["amd64"]="x86_64" \
+["arm32v7"]="arm" \
+["arm64v8"]="aarch64")
+
+for ARCH in ${!BUILD_ARCH[@]}; do
+  cp ${DOCKERFILE_PATH} ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
+  sed -i "/^FROM/c\FROM ${ARCH}/alpine:${DOCKER_TAG}" ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
+  [ $(uname -m) != ${BUILD_ARCH[${ARCH}]} ] && \
+  sed -i "/^RUN/i COPY qemu-${BUILD_ARCH[${ARCH}]}-static /usr/bin/"  ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
+  docker build \
+  --file ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]} \
+  --tag ${IMAGE_NAME} \
+  --tag ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} \
+  .
+done
+
+exit 0

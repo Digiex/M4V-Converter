@@ -2,8 +2,8 @@ FROM alpine:latest
 MAINTAINER xzKinGzxBuRnzx
 
 RUN \
-  mkdir -p /app/M4V-Converter && \
+  mkdir /mp4 && \
   apk add --no-cache bash ffmpeg
 
-COPY M4V-Converter.sh default.conf README.md LICENSE /app/M4V-Converter/
-ENTRYPOINT ["/app/M4V-Converter/M4V-Converter.sh"]
+COPY mp4.sh default.conf README.md LICENSE /mp4/
+ENTRYPOINT ["/mp4/mp4.sh"]

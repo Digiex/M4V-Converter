@@ -14,7 +14,7 @@ Requires `FFmpeg`, `FFprobe` and `Bash`
 
 Docker
 -------
-[Download Docker](https://store.docker.com/search?type=edition&offering=community) 
+[Download Docker](https://store.docker.com/search?type=edition&offering=community)
 
 ```
 docker run -it --rm \

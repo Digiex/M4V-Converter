@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -ex
+
+docker push ${IMAGE_NAME}
+for ARCH in amd64 arm32v7 arm64v8; do
+  docker push ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
+done
+
+exit 0
