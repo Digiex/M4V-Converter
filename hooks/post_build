@@ -11,7 +11,7 @@ tempdir=$(mktemp -d -t yolo.XXXXXXXX)
 cd $tempdir
 
 for ARCH in ${!BUILD_ARCH[@]}; do
-  docker save ${DOCKER_REPO}:${ARCH}:${DOCKER_TAG} | tar xv
+  docker save ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} | tar xv
   for filename in */json; do
     [ -e "$filename" ] || continue
     jq --compact-output 'del(.architecture)' < "$filename" | sponge "$filename"
