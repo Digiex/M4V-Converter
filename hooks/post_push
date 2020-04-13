@@ -6,6 +6,8 @@ export DOCKER_CLI_EXPERIMENTAL=enabled
 
 COMMAND=${IMAGE_NAME}
 for ARCH in amd64 arm32v7 arm64v8; do
+  #./docker manifest create \
+  #${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
   COMMAND+=" ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}"
 done
 ./docker manifest create ${COMMAND}
@@ -17,8 +19,12 @@ for ARCH in arm32v7 arm64v8; do
     arm64v8) COMMAND+=" --os linux --arch arm64 --variant armv8" ;;
   esac
   ./docker manifest annotate ${IMAGE_NAME} ${COMMAND}
+  #./docker manifest annotate ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} ${COMMAND}
 done
 
 ./docker manifest push ${IMAGE_NAME}
+#for ARCH in amd64 arm32v7 arm64v8; do
+#  ./docker manifest push ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
+#done
 
 exit 0
