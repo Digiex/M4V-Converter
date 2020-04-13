@@ -17,6 +17,7 @@ for ARCH in ${!BUILD_ARCH[@]}; do
     jq --compact-output 'del(.architecture)' < "$filename" | sponge "$filename"
   done
   for filename in *.json; do
+    [ -e "$filename" ] || continue
     ! [ $filename = "manifest.json" ] || continue
     jq --arg architecture "${BUILD_ARCH[${ARCH}]}" \
        --compact-output '.architecture=$architecture' < "$filename" | sponge "$filename"
