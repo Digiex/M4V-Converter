@@ -14,7 +14,6 @@ for ARCH in ${!BUILD_ARCH[@]}; do
   sed -i "/^RUN/i COPY qemu-${BUILD_ARCH[${ARCH}]}-static /usr/bin/"  ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
   docker build \
   --file ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]} \
-  --tag ${IMAGE_NAME} \
   --tag ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} \
   .
 done
