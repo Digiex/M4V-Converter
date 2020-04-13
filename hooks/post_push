@@ -24,9 +24,9 @@ for ARCH in arm32v7 arm64v8; do
   ./docker manifest annotate ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} ${COMMAND}
 done
 
-./docker manifest push --purge ${IMAGE_NAME}
+./docker manifest push ${IMAGE_NAME}
 for ARCH in amd64 arm32v7 arm64v8; do
-  ./docker manifest push --purge ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
+  ./docker manifest push ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
 done
 
 exit 0
