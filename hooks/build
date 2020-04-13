@@ -11,10 +11,10 @@ for ARCH in ${!BUILD_ARCH[@]}; do
   cp ${DOCKERFILE_PATH} ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
   sed -i "/^FROM/c\FROM ${ARCH}/alpine:latest" ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
   [ $(uname -m) != ${BUILD_ARCH[${ARCH}]} ] && \
-  sed -i "/^RUN/i COPY qemu-${BUILD_ARCH[${ARCH}]}-static /usr/bin/"  ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
-  docker build \
+  sed -i "/^RUN/i COPY qemu-${BUILD_ARCH[${ARCH}]}-static /usr/bin/" ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]}
+  ./docker build \
   --file ${DOCKERFILE_PATH}.${BUILD_ARCH[${ARCH}]} \
-  --tag ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG} \
+  --tag ${DOCKER_REPO//index.docker.io\//}:${ARCH}-${DOCKER_TAG} \
   .
 done
 

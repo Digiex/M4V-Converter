@@ -2,6 +2,6 @@
 
 set -ex
 
-docker run --rm --privileged multiarch/qemu-user-static:register
+./docker run --rm --privileged multiarch/qemu-user-static:register
 
 exit 0

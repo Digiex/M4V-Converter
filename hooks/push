@@ -3,7 +3,7 @@
 set -ex
 
 for ARCH in amd64 arm32v7 arm64v8; do
-  docker push ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
+  ./docker push ${DOCKER_REPO//index.docker.io\//}:${ARCH}-${DOCKER_TAG}
 done
 
 exit 0

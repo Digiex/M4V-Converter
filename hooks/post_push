@@ -2,6 +2,7 @@
 
 set -ex
 
+DOCKER_REPO=${DOCKER_REPO//index.docker.io\//}
 export DOCKER_CLI_EXPERIMENTAL=enabled
 
 COMMAND=${IMAGE_NAME}
