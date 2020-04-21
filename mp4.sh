@@ -59,7 +59,7 @@
 # Video Constant Rate Factor (0-51).
 #CRF=23
 
-# Pixel Format (true, false).
+# Pixel Format (*).
 #Pixel Format=yuv420p
 
 # Video Resolution (*).
