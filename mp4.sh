@@ -37,7 +37,7 @@
 # Preferred Languages (*).
 #Languages=eng
 
-# Encoder (VAAPI, NVIDIA, SOFTWARE)
+# Encoder (VAAPI, NVIDIA, SOFTWARE).
 #Encoder=SOFTWARE
 
 # Video Codec (source, H.264, H.265).
@@ -117,16 +117,16 @@
 # Background Processes.
 #Processes=ffmpeg
 
-### NZBGet Extras ###
+### Extras ###
 
 # Mark bad (true, false).
 #BAD=true
 
-# Cleanup files (*).
-#EXTS=.nfo,.nzb
-
 # Cleanup files (MB).
 #SIZE=200
+
+# Cleanup files.
+#EXTS=.nfo,.nzb
 
 ### NZBGET POST-PROCESSING SCRIPT                                            ###
 ################################################################################
