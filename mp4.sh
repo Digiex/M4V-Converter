@@ -603,7 +603,7 @@ for INPUT in "${VALID[@]}"; do
     for ((i = 0; i < ${TOTAL}; i++)); do MAP="0:${i}"
       CODEC_TYPE=$(jq -r ".streams[${i}].codec_type" <<< "${DATA}")
       CODEC_NAME=$(jq -r ".streams[${i}].codec_name" <<< "${DATA}")
-      [[ "${CODEC_NAME}" == "none" ]] && continue
+      [[ "${CODEC_NAME}" == "null" ]] && continue
       LANGUAGE=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
       case "${LANGUAGE,,}" in
         null|unk|und) LANGUAGE="${CONFIG_DEFAULT_LANGUAGE}";;
