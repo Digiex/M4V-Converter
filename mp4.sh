@@ -195,10 +195,20 @@ PATH=/usr/local/sbin/:/usr/local/bin:${PATH} && bash "${0}" "${@}" && exit ${?}
 echo "It is NOT recommended that you run this script as root"
 
 loadConfig() {
-  [[ ! -z "${1}" ]] && local FILE="${1}" || local FILE="${CONFIG[FILE]}"
+  [[ -e "${1}" ]] && \
+  local COMMAND=$(cat "${1}") || local COMMAND=$(cat "${CONFIG[FILE]}")
+  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
+  local COMMAND=$(declare -p | grep "NZBPO_")
   while read -r LINE; do
-    echo "${LINE}" | grep -F = &>/dev/null && CONFIG["${LINE%%=*}"]="${LINE##*=}"
-  done < "${FILE}"
+    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
+    LINE="${LINE#*_}" && LINE="${LINE//\"/}"
+    VAR="${LINE%%=*}"; VAL="${LINE##*=}";
+    case "${VAR^^}" in
+      INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
+      CONFIG["${VAR^^}"]="${VAL}" ;;
+      *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
+    esac
+  done <<< ${COMMAND}
 }
 
 CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
@@ -275,9 +285,6 @@ if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
   echo "Outdated; NZBGet version 13.0 or later" && exit "${SKIPPED}"
   [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]] && exit "${SKIPPED}"
-  while read -r LINE; do
-    LINE="${LINE#*_}"; LINE="${LINE//\"/}"; CONFIG["${LINE%%=*}"]="${LINE##*=}"
-  done <<< $(declare -p | grep "NZBPO_")
   [[ ! -z "${NZBPP_FINALDIR}" ]] && \
   DIRECTORY="${NZBPP_FINALDIR}" || DIRECTORY="${NZBPP_DIRECTORY}"
   if (( ${NZBPO_SIZE:=0} > 0 )); then
@@ -413,7 +420,7 @@ esac
 echo "CRF is incorrectly configured" && exit "${SKIPPED}"
 
 if [[ ! -z "${CONFIG[RESOLUTION]}" ]]; then
-  case "${CONFIG[RESOLUTION],,}" in
+  case "${CONFIG[RESOLUTION]}" in
     480p|sd) CONFIG[RESOLUTION]=640x480;;
     720p|hd) CONFIG[RESOLUTION]=1280x720;;
     1080p) CONFIG[RESOLUTION]=1920x1080;;
