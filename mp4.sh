@@ -16,7 +16,7 @@
 # PATH to FFprobe.
 #FFprobe=ffprobe
 
-# PATH to MediaInfo
+# PATH to MediaInfo.
 #MediaInfo=mediainfo
 
 # Output Directory.
@@ -132,9 +132,9 @@
 ################################################################################
 
 (( BASH_VERSINFO < 4 )) && \
-echo "Missing dependency; Bash version 4 or later" && exit ${SKIPPED}
+echo "Missing dependency; Bash version 4 or later" && exit "${SKIPPED}"
 
-CONFIG_NAME=$(basename ${0})
+CONFIG_NAME=$(basename "${0}")
 if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
   CONFIG_NAME="${CONFIG_NAME}.conf"
 else
@@ -197,13 +197,13 @@ echo "It is NOT recommended that you run this script as root"
 loadConfig() {
   [[ ! -z "${1}" ]] && local FILE="${1}" || local FILE="${CONFIG[FILE]}"
   while read -r LINE; do
-    echo ${LINE} | grep -F = &>/dev/null && CONFIG["${LINE%%=*}"]="${LINE##*=}"
+    echo "${LINE}" | grep -F = &>/dev/null && CONFIG["${LINE%%=*}"]="${LINE##*=}"
   done < "${FILE}"
 }
 
-CONFIG[FILE]=$(find . -maxdepth 1 -name ${CONFIG_NAME} | grep -m 1 .conf$)
+CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
 [[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}" && \
-for VAR in ${!CONFIG[@]}; do
+for VAR in "${!CONFIG[@]}"; do
   echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}"
 done || loadConfig
 
@@ -273,8 +273,8 @@ done
 
 if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
-  echo "Outdated; NZBGet version 13.0 or later" && exit ${SKIPPED}
-  [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]] && exit ${SKIPPED}
+  echo "Outdated; NZBGet version 13.0 or later" && exit "${SKIPPED}"
+  [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]] && exit "${SKIPPED}"
   while read -r LINE; do
     LINE="${LINE#*_}"; LINE="${LINE//\"/}"; CONFIG["${LINE%%=*}"]="${LINE##*=}"
   done <<< $(declare -p | grep "NZBPO_")
@@ -284,16 +284,16 @@ if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
     NZBPO_SIZE=$(( ${NZBPO_SIZE//[!0-9]/} * 1024 * 1024 ))
     readarray -t CLEANUP <<< \
     "$(find "${DIRECTORY}" -type f -size -"${NZBPO_SIZE}"c)"
-    [[ ! -z "${CLEANUP[@]}" ]] && \
+    [[ ! -z "${CLEANUP[*]}" ]] && \
     for FILE in "${CLEANUP[@]}"; do rm -f "${FILE}"; done
   fi
   readarray -t FILES <<< "$(find "${DIRECTORY}" -type f)"
-  if [[ ! -z "${FILES[@]}" ]]; then
+  if [[ ! -z "${FILES[*]}" ]]; then
     read -r -a EXTENSIONS <<< "$(echo "${NZBPO_EXTS}" | \
     sed -E 's/,|,\ /\ /g')"
     for FILE in "${FILES[@]}"; do
       [[ "${FILE,,}" =~ sample ]] && rm -f "${FILE}" && continue
-      [[ ! -z "${EXTENSIONS[@]}" ]] && \
+      [[ ! -z "${EXTENSIONS[*]}" ]] && \
       for EXT in "${EXTENSIONS[@]}"; do
         [[ "${FILE##*.}" == "${EXT//./}" ]] && \
         rm -f "${FILE}" && break
@@ -305,14 +305,14 @@ fi
 
 if [[ ! -z "${SAB_COMPLETE_DIR}" ]]; then
   [[ -z "${SAB_PP_STATUS}" ]] && \
-  echo "Outdated; SABnzbd version 2.0.0 or later" && exit ${SKIPPED}
+  echo "Outdated; SABnzbd version 2.0.0 or later" && exit "${SKIPPED}"
   (( SAB_PP_STATUS == 0 )) && \
-  INPUTS+=("${SAB_COMPLETE_DIR}") || exit ${SKIPPED}
+  INPUTS+=("${SAB_COMPLETE_DIR}") || exit "${SKIPPED}"
 fi
 
 INPUTS+=("${CONFIG[INPUT]}")
 (( ${#INPUTS[@]} == 0 )) && \
-echo "Please specify a file or directory to process" && exit ${SKIPPED}
+echo "Please specify a file or directory to process" && exit "${SKIPPED}"
 
 for INPUT in "${INPUTS[@]}"; do
   [ -z "${INPUT}" ] && continue
@@ -323,10 +323,10 @@ done
 readarray -t VALID < <(for INPUT in "${VALID[@]}"; do echo "${INPUT}"; done | sort)
 
 checkBoolean() {
-  for VAR in ${@}; do
+  for VAR in "${@}"; do
     case "${CONFIG[${VAR}]}" in
       true|false) ;;
-      *) echo "${VAR} is incorrectly configured" && exit ${SKIPPED}
+      *) echo "${VAR} is incorrectly configured" && exit "${SKIPPED}"
     esac
   done
 }
@@ -336,19 +336,19 @@ NORMALIZE FORCE_SUBTITLES DELETE MOOV_ATOM
 ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
-echo "Missing dependency; FFmpeg" && exit ${SKIPPED}
+echo "Missing dependency; FFmpeg" && exit "${SKIPPED}"
 
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
-echo "Missing dependency; FFprobe" && exit ${SKIPPED}
+echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
 
 ! hash "${CONFIG[MEDIAINFO]}" 2>/dev/null && \
 echo "Missing optional dependency; MediaInfo"
 
 ! hash jq 2>/dev/null && \
-echo "Missing dependency; jq" && exit ${SKIPPED}
+echo "Missing dependency; jq" && exit "${SKIPPED}"
 
 ! hash bc 2>/dev/null && \
-echo "Missing dependency; bc" && exit ${SKIPPED}
+echo "Missing dependency; bc" && exit "${SKIPPED}"
 
 if [[ "${CONFIG[THREADS]}" != "auto" ]]; then
   case "${OSTYPE}" in
@@ -358,7 +358,7 @@ if [[ "${CONFIG[THREADS]}" != "auto" ]]; then
   [[ ! "${CONFIG[THREADS]}" =~ ^-?[0-9]+$ ]] || \
   (( "${CONFIG[THREADS]}" == 0 )) || \
   (( "${CONFIG[THREADS]}" > MAX_CORES )) && \
-  echo "THREADS is incorrectly configured" && exit ${SKIPPED}
+  echo "THREADS is incorrectly configured" && exit "${SKIPPED}"
 fi
 
 read -r -a CONFIG_LANGUAGES <<< "$(echo "${CONFIG[LANGUAGES]}" | \
@@ -366,7 +366,7 @@ sed -E 's/,|,\ /\ /g')"; CONFIG_DEFAULT_LANGUAGE="${CONFIG_LANGUAGES[0]}"
 if [[ "${CONFIG_LANGUAGES}" != "*" ]]; then
   for LANGUAGE in "${CONFIG_LANGUAGES[@]}"; do
     (( ${#LANGUAGE} != 3 )) && \
-    echo "LANGUAGES is incorrectly configured" && exit ${SKIPPED}
+    echo "LANGUAGES is incorrectly configured" && exit "${SKIPPED}"
   done
 fi
 
@@ -376,7 +376,7 @@ case "${CONFIG[VIDEO_CODEC]}" in
   h.265|h265|x265|hevc|libx265)
   CONFIG_VIDEO_CODEC="hevc"; CONFIG[VIDEO_CODEC]="libx265";;
   source);;
-  *) echo "VIDEO_CODEC is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "VIDEO_CODEC is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 case "${CONFIG[ENCODER]}" in
@@ -392,25 +392,25 @@ esac
 
 case "${CONFIG[PRESET]}" in
   ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow);;
-  *) echo "PRESET is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "PRESET is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 CONFIG[PROFILE]="${CONFIG[PROFILE]//\ /}"
 case "${CONFIG[PROFILE]}" in
   source|baseline|main|main10|main12|high);;
-  *) echo "PROFILE is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "PROFILE is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 CONFIG[LEVEL]="${CONFIG[LEVEL]//./}"
 case "${CONFIG[LEVEL]}" in
   source|30|31|32|40|41|42|50|51|52);;
-  *) echo "LEVEL is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "LEVEL is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 [[ ! "${CONFIG[CRF]}" =~ ^-?[0-9]+$ ]] || \
 (( "${CONFIG[CRF]}" < 0 )) || \
 (( "${CONFIG[CRF]}" > 51 )) && \
-echo "CRF is incorrectly configured" && exit ${SKIPPED}
+echo "CRF is incorrectly configured" && exit "${SKIPPED}"
 
 if [[ ! -z "${CONFIG[RESOLUTION]}" ]]; then
   case "${CONFIG[RESOLUTION],,}" in
@@ -424,63 +424,63 @@ if [[ ! -z "${CONFIG[RESOLUTION]}" ]]; then
   [[ "${CONFIG[RESOLUTION]}" != source ]] && \
   [[ ! "${CONFIG[RESOLUTION]}" =~ x || \
   ! "${CONFIG[RESOLUTION]//x/}" =~ ^-?[0-9]+$ ]] && \
-  echo "RESOLUTION is incorrectly configured" && exit ${SKIPPED}
+  echo "RESOLUTION is incorrectly configured" && exit "${SKIPPED}"
 fi
 
 [[ "${CONFIG[VIDEO_BITRATE]}" != source ]] && \
 [[ ! "${CONFIG[VIDEO_BITRATE]}" =~ ^-?[0-9]+$ ]] && \
-echo "VIDEO_BITRATE is incorrectly configured" && exit ${SKIPPED}
+echo "VIDEO_BITRATE is incorrectly configured" && exit "${SKIPPED}"
 
 case "${CONFIG[TUNE]}" in
   film|animation|grain|stillimage|fastdecode|zerolatency|source) ;;
-  *) echo "TUNE is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 case "${CONFIG[AUDIO_CODEC]}" in
   aac|ac3|source);;
-  *) echo "AUDIO_MODE is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "AUDIO_MODE is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 case "${CONFIG[SUBTITLES]}" in
   true|false|extract);;
-  *) echo "SUBTITLES is incorrectly configured"; exit ${SKIPPED};;
+  *) echo "SUBTITLES is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 [[ "${CONFIG[FORMAT]}" != "mp4" ]] && \
 [[ "${CONFIG[FORMAT]}" != "mov" ]] && \
-echo "FORMAT is incorrectly configured" && exit ${SKIPPED}
+echo "FORMAT is incorrectly configured" && exit "${SKIPPED}"
 
 [[ "${CONFIG[EXTENSION]}" != "mp4" ]] && \
 [[ "${CONFIG[EXTENSION]}" != "m4v" ]] && \
-echo "EXTENSION is incorrectly configured" && exit ${SKIPPED}
+echo "EXTENSION is incorrectly configured" && exit "${SKIPPED}"
 
 if [[ ! "${CONFIG[FILE_PERMISSION]}" =~ ^-?[0-9]+$ ]] || \
   (( ${#CONFIG[FILE_PERMISSION]} > 4 || \
   ${#CONFIG[FILE_PERMISSION]} < 3 )); then
-    echo "FILE_PERMISSION is incorrectly configured"; exit ${SKIPPED}
+    echo "FILE_PERMISSION is incorrectly configured"; exit "${SKIPPED}"
 else
   for ((i = 0; i < ${#CONFIG[FILE_PERMISSION]}; i++)); do
     (( ${CONFIG[FILE_PERMISSION]:${i}:1} < 0 || \
     ${CONFIG[FILE_PERMISSION]:${i}:1} > 7 )) && \
-    echo "FILE_PERMISSION is incorrectly configured" && exit ${SKIPPED}
+    echo "FILE_PERMISSION is incorrectly configured" && exit "${SKIPPED}"
   done
 fi
 
 if [[ ! "${CONFIG[DIRECTORY_PERMISSION]}" =~ ^-?[0-9]+$ ]] || \
   (( ${#CONFIG[DIRECTORY_PERMISSION]} > 4 || \
   ${#CONFIG[DIRECTORY_PERMISSION]} < 3 )); then
-    echo "DIRECTORY_PERMISSION is incorrectly configured"; exit ${SKIPPED}
+    echo "DIRECTORY_PERMISSION is incorrectly configured"; exit "${SKIPPED}"
 else
   for ((i = 0; i < ${#CONFIG[DIRECTORY_PERMISSION]}; i++)); do
     (( ${CONFIG[DIRECTORY_PERMISSION]:${i}:1} < 0 || \
     ${CONFIG[DIRECTORY_PERMISSION]:${i}:1} > 7 )) && \
-    echo "DIRECTORY_PERMISSION is incorrectly configured" && exit ${SKIPPED}
+    echo "DIRECTORY_PERMISSION is incorrectly configured" && exit "${SKIPPED}"
   done
 fi
 
 IFS='|' read -r -a CONFIG_PROCESSES <<< "$(echo "${CONFIG[PROCESSES]}" | \
 sed -E 's/,|,\ /|/g')"; unset IFS
-[[ ! "${CONFIG_PROCESSES[@]}" =~ ffmpeg ]] && CONFIG_PROCESSES+=("ffmpeg")
+[[ ! "${CONFIG_PROCESSES[*]}" =~ ffmpeg ]] && CONFIG_PROCESSES+=("ffmpeg")
 
 log() {
   ${CONFIG[VERBOSE]} && echo "${1}" || true
@@ -488,7 +488,7 @@ log() {
 
 background() {
   echo "Running in background mode..."
-  while kill -0 ${CONVERTER} 2>/dev/null; do
+  while kill -0 "${CONVERTER}" 2>/dev/null; do
     local TOGGLE=false
     for PROCESS in "${CONFIG_PROCESSES[@]}"; do
       [[ -z "${PROCESS}" ]] && continue
@@ -502,16 +502,16 @@ background() {
     done
     case "${OSTYPE}" in
       linux*) [[ -d /proc/${CONVERTER} ]] && \
-      local STATE=$(awk '{print($3)}' < /proc/${CONVERTER}/stat) || break;;
-      darwin*) local STATE=$(ps -o state= -p ${CONVERTER});;
+      local STATE=$(awk '{print($3)}' < /proc/"${CONVERTER}"/stat) || break;;
+      darwin*) local STATE=$(ps -o state= -p "${CONVERTER}");;
     esac
     if ${TOGGLE}; then
       [[ "${STATE}" == R* ]] || [[ "${STATE}" == S ]] && \
       log "Detected running process: ${PROCESS}; PID: ${PID}" && \
-      echo "Pausing..." && kill -STOP ${CONVERTER}
+      echo "Pausing..." && kill -STOP "${CONVERTER}"
     else
       [[ "${STATE}" == T* ]] && \
-      echo "Resuming..." && kill -CONT ${CONVERTER}
+      echo "Resuming..." && kill -CONT "${CONVERTER}"
     fi; sleep 5
   done
 }
@@ -525,7 +525,7 @@ formatDate() {
 
 progress() {
   local START=$(date +%s)
-  while kill -0 ${CONVERTER} 2>/dev/null; do
+  while kill -0 "${CONVERTER}" 2>/dev/null; do
     sleep 2; [[ ! -f "${STATSFILE}" ]] && break
     local FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | \
     sed -E 's/[^0-9]//g')
@@ -547,7 +547,7 @@ progress() {
 force() {
   case "${OSTYPE}" in
     linux*) pkill -P $$;; darwin*) kill $(ps -o pid= --ppid $$);;
-  esac; exit ${SKIPPED}
+  esac; exit "${SKIPPED}"
 }
 
 clean() {
@@ -626,7 +626,7 @@ for INPUT in "${VALID[@]}"; do
         fi
       done
       ((STREAMS > 1)) && \
-      [[ ! "${CONFIG_LANGUAGES[@]}" =~ "${LANGUAGE}" ]] && continue
+      [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       if [[ "${BIT_RATE}" == "null" ]]; then
         BIT_RATE=0; if hash mediainfo 2>/dev/null; then
@@ -809,7 +809,7 @@ for INPUT in "${VALID[@]}"; do
     if [[ ${?} -ne 0 ]]; then
       echo "Result: failure";
       [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
-      ${NZBPO_BAD} && echo "[NZB] MARK=BAD"; exit ${FAILURE}
+      ${NZBPO_BAD} && echo "[NZB] MARK=BAD"; exit "${FAILURE}"
     fi; echo "Result: success"
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
@@ -828,4 +828,4 @@ for INPUT in "${VALID[@]}"; do
   done
 done
 
-exit ${SUCCESS}
+exit "${SUCCESS}"
