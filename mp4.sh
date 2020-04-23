@@ -202,11 +202,10 @@ loadConfig() {
   while read -r LINE; do
     [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
     LINE="${LINE#*_}" && LINE="${LINE//\"/}"
-    VAR="${LINE%%=*}"; VAL="${LINE##*=}";
+    VAR="${LINE%%=*}"; VAL="${LINE##*=}"
     case "${VAR^^}" in
       INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
-      CONFIG["${VAR^^}"]="${VAL}" ;;
-      *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
+      CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
     esac
   done <<< ${COMMAND}
 }
@@ -699,7 +698,7 @@ for INPUT in "${VALID[@]}"; do
           if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
             (( LEVEL > CONFIG[LEVEL] )) || \
             ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
-            log "Level mismatch; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
+            log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
             COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
           fi
           COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
@@ -811,7 +810,8 @@ for INPUT in "${VALID[@]}"; do
     COMMAND+=" -strict -2 -y \"${TMP_FILE}\""
     ${SKIP} && echo "File does not need to be converted" && continue
     log "${COMMAND}"; echo "Converting..."; TMPFILES+=("${TMP_FILE}")
-    eval "${COMMAND} &" &>/dev/null; CONVERTER=${!}; progress
+    eval "${COMMAND} &" &>/dev/null; CONVERTER=${!};
+    ${CONFIG[VERBOSE]} && progress &
     ${CONFIG[BACKGROUND]} && background &
     wait ${CONVERTER} &>/dev/null
     if [[ ${?} -ne 0 ]]; then
