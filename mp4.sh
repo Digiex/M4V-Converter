@@ -518,7 +518,7 @@ background() {
     else
       [[ "${STATE}" == T* ]] && \
       echo "Resuming..." && kill -CONT "${CONVERTER}"
-    fi; sleep 5
+    fi; sleep 60
   done
 }
 
@@ -532,7 +532,7 @@ formatDate() {
 progress() {
   local START=$(date +%s)
   while kill -0 "${CONVERTER}" 2>/dev/null; do
-    sleep 2; [[ ! -f "${STATSFILE}" ]] && break
+    sleep 30; [[ ! -f "${STATSFILE}" ]] && break
     local FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | \
     sed -E 's/[^0-9]//g')
     (( FRAME > CURRENTFRAME )) && local CURRENTFRAME=${FRAME} && \
