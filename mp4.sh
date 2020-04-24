@@ -214,7 +214,7 @@ CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
 [[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}" && \
 for VAR in "${!CONFIG[@]}"; do
   echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}"
-done || loadConfig
+done; loadConfig
 
 usage() {
   echo "Usage: ${0} [-c CONFIG] [-i INPUT] [ -o OUTPUT]"
