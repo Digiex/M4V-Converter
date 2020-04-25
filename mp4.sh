@@ -737,8 +737,9 @@ for INPUT in "${VALID[@]}"; do
               COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
               (( AUDIO == 0 )) && \
               COMMAND+=" -disposition:a:${AUDIO} default" || \
-              COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
+              COMMAND+=" -disposition:a:${AUDIO} 0"
             fi
+            ((AUDIO++)) || true
           fi
           if ${AC3}; then
             COMMAND+=" -map 0:${AC3_INDEX} -c:a:${AUDIO} copy"
