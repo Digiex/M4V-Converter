@@ -270,7 +270,7 @@ while (( ${#} > 0 )); do
     -v|--verbose) CONFIG[VERBOSE]=true; shift;;
     -d|--debug) CONFIG[DEBUG]=true; set -ex; shift;;
     -b|--background) CONFIG[BACKGROUND]=true; shift;;
-    -i|--input) CONFIG[INPUT]="${2}"; shift 2;;
+    -i|--input) INPUTS+=("${2}"); shift 2;;
     -o|--output) CONFIG[OUTPUT]="${2}"; shift 2;;
     -c|--config) CONFIG[FILE]="${2}"; loadConfig; shift 2;;
     --config=*) CONFIG[FILE]="${1##*=}"; loadConfig; shift;;
@@ -569,7 +569,7 @@ for INPUT in "${VALID[@]}"; do
   echo "Input: ${INPUT} no longer exists" && continue
   ((CURRENTINPUT++)) || true
   [[ -d "${INPUT}" ]] && \
-  echo "Processing directory[${CURRENTINPUT} of ${#INPUT[@]}]: ${INPUT}"
+  echo "Processing directory[${CURRENTINPUT} of ${#VALID[@]}]: ${INPUT}"
   readarray -t FILES < <(for FILE in "$(find "${INPUT}" -type f)"; do echo "${FILE}"; done | sort)
   CURRENTFILE=0; CUSTOM=false
   for FILE in "${FILES[@]}"; do
@@ -614,32 +614,13 @@ for INPUT in "${VALID[@]}"; do
       case "${LANGUAGE,,}" in
         null|unk|und) LANGUAGE="${CONFIG_DEFAULT_LANGUAGE}";;
       esac
-      STREAMS=0; AAC=false; AC3=false
-      for ((a = 0; a < ${TOTAL}; a++)); do
-        TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
-        [[ "${TYPE}" != "${CODEC_TYPE}" ]] && continue
-        LANG=$(jq -r ".streams[${a}].tags.language" <<< "${DATA}")
-        case "${LANG,,}" in
-          null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}" ;;
-        esac
-        [[ "${LANG}" != "${LANGUAGE}" ]] && continue
-        ((STREAMS++)) || true
-        if [[ "${TYPE}" == "audio" ]]; then
-          NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
-          [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX=${a}
-          [[ "${NAME}" =~ ac3 ]] && \
-          (( $(jq -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
-          AC3=true && AC3_INDEX=${a}
-        fi
-      done
-      ((STREAMS > 1)) && \
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       if [[ "${BIT_RATE}" == "null" ]]; then
         BIT_RATE=0; if hash mediainfo 2>/dev/null; then
-          BIT_RATE=$(mediainfo --output=JSON "${FILE}" | jq -r ".media.track[$((${i}+1))].BitRate")
-          BIT_RATE=$((BIT_RATE / 1024))
-        fi
+          BIT_RATE=$(mediainfo --output=JSON "${FILE}" | \
+          jq -r ".media.track[$((${i}+1))].BitRate")
+          BIT_RATE=$((BIT_RATE / 1024)); fi
       fi
       MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
       [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
@@ -724,6 +705,24 @@ for INPUT in "${VALID[@]}"; do
         [[ "${CODEC_NAME}" != "aac" || ! "${CODEC_NAME}" =~ ac3 ]] && CODEC="aac"
         CHANNELS=$(jq -r ".streams[${i}].channels" <<< "${DATA}");
         if ${CONFIG[DUAL_AUDIO]}; then
+          STREAMS=0; AAC=false; AC3=false
+          for ((a = 0; a < ${TOTAL}; a++)); do
+            TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
+            [[ "${TYPE}" != "${CODEC_TYPE}" ]] && continue
+            LANG=$(jq -r ".streams[${a}].tags.language" <<< "${DATA}")
+            case "${LANG,,}" in
+              null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}" ;;
+            esac
+            [[ "${LANG}" != "${LANGUAGE}" ]] && continue
+            if [[ "${TYPE}" == "audio" ]]; then
+              ((STREAMS++)) || true
+              NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
+              [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX=${a}
+              [[ "${NAME}" =~ ac3 ]] && \
+              (( $(jq -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
+              AC3=true && AC3_INDEX=${a}
+            fi
+          done
           (( AUDIO == STREAMS )) && continue
           if ${AAC}; then
             COMMAND+=" -map 0:${AAC_INDEX} -c:a:${AUDIO} copy"
