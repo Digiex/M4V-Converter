@@ -227,7 +227,7 @@ usage() {
   echo "optional arguments:"
   echo "-h, --help  Shows this help message."
   echo "-v, --verbose  Prints extra details."
-  echo "-d, --debug  This acts as a dry-run; prints even more details than verbose."
+  echo "-d, --debug  Prints even more details than verbose."
   echo "-b, --background  Automatically pauses ffmpeg when needed."
   echo "-i INPUT, --input=INPUT  Sets a file or directory as INPUT."
   echo "-o OUTPUT, --output=OUTPUT  Sets a directory as OUTPUT."
