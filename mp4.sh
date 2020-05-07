@@ -114,6 +114,9 @@
 # Delete Original File (true, false).
 #Delete=false
 
+# MOOV ATOM (true, false).
+#Moov Atom=true
+
 # Background Processes.
 #Processes=ffmpeg
 
