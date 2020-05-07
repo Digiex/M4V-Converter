@@ -705,46 +705,50 @@ for INPUT in "${VALID[@]}"; do
         [[ "${CODEC_NAME}" != "aac" || ! "${CODEC_NAME}" =~ ac3 ]] && CODEC="aac"
         CHANNELS=$(jq -r ".streams[${i}].channels" <<< "${DATA}");
         if ${CONFIG[DUAL_AUDIO]}; then
-          STREAMS=0; AAC=false; AC3=false
-          for ((a = 0; a < ${TOTAL}; a++)); do
+          (( AUDIO == ((${#CONFIG_LANGUAGES[@]} * 2)) )) && continue
+          AAC=false; AC3=false; for ((a = 0; a < ${TOTAL}; a++)); do
             TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
-            [[ "${TYPE}" != "${CODEC_TYPE}" ]] && continue
-            LANG=$(jq -r ".streams[${a}].tags.language" <<< "${DATA}")
-            case "${LANG,,}" in
-              null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}" ;;
-            esac
-            [[ "${LANG}" != "${LANGUAGE}" ]] && continue
             if [[ "${TYPE}" == "audio" ]]; then
-              ((STREAMS++)) || true
               NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
-              [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX=${a}
+              [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX="0:${a}"
               [[ "${NAME}" =~ ac3 ]] && \
               (( $(jq -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
-              AC3=true && AC3_INDEX=${a}
+              AC3=true && AC3_INDEX="0:${a}"
             fi
           done
-          (( AUDIO == STREAMS )) && continue
           if ${AAC}; then
-            COMMAND+=" -map 0:${AAC_INDEX} -c:a:${AUDIO} copy"
+            if ((BIT_RATE > 128000)) || ((CHANNELS > 2)); then
+              SKIP=false; COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} aac"
+              ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
+              ((BIT_RATE > 128000)) && COMMAND+=" -b:a:${AUDIO} 128k"
+              ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
+            else
+              COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} copy"
+            fi
+            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+            (( AUDIO == 0 )) && \
+            COMMAND+=" -disposition:a:${AUDIO} default" || \
+            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
           elif ! ${AAC} && ((CHANNELS >= 2)); then
             log "Dual audio; creating missing AAC from stream"
-            COMMAND+=" -map ${MAP} -c:a:${AUDIO} aac"
+            SKIP=false; COMMAND+=" -map ${MAP} -c:a:${AUDIO} aac"
             ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-            ((BIT_RATE > 128)) && COMMAND+=" -ab:a:${AUDIO} 128k"
-            ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2";
-            if ((STREAMS == 1)); then
-              COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-              (( AUDIO == 0 )) && \
-              COMMAND+=" -disposition:a:${AUDIO} default" || \
-              COMMAND+=" -disposition:a:${AUDIO} 0"
-            fi
-            ((AUDIO++)) || true
+            ((BIT_RATE > 128000)) && COMMAND+=" -b:a:${AUDIO} 128k"
+            ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
+            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+            (( AUDIO == 0 )) && \
+            COMMAND+=" -disposition:a:${AUDIO} default" || \
+            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
           fi
           if ${AC3}; then
-            COMMAND+=" -map 0:${AC3_INDEX} -c:a:${AUDIO} copy"
+            COMMAND+=" -map ${AC3_INDEX} -c:a:${AUDIO} copy"
+            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
           elif ! ${AC3} && ((CHANNELS > 2)); then
             log "Dual audio; creating missing AC3 from stream"
-            COMMAND+=" -map ${MAP} -c:a:${AUDIO} ac3";
+            SKIP=false; COMMAND+=" -map ${MAP} -c:a:${AUDIO} ac3"
+            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
           fi
         else
           (( AUDIO == ${#CONFIG_LANGUAGES[@]} )) && continue
@@ -753,18 +757,18 @@ for INPUT in "${VALID[@]}"; do
             ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
             ((BIT_RATE > CONFIG[AUDIO_BITRATE])) && \
             log "Bit rate exceeded; config=${CONFIG[AUDIO_BITRATE]}; stream=${BIT_RATE}" && \
-            COMMAND+=" -ab:a:${AUDIO} ${CONFIG[AUDIO_BITRATE]}k"
+            COMMAND+=" -b:a:${AUDIO} ${CONFIG[AUDIO_BITRATE]}k"
             ((CHANNELS > CONFIG[AUDIO_CHANNELS])) && \
             log "Channels exceeded; config=${CONFIG[AUDIO_CHANNELS]}; stream=${CHANNELS}" && \
             COMMAND+=" -ac:a:${AUDIO} ${CONFIG[AUDIO_CHANNELS]}"; SKIP=false
           else
             COMMAND+=" -map ${MAP} -c:a:${AUDIO} copy"
           fi
+          COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+          (( AUDIO == 0 )) && \
+          COMMAND+=" -disposition:a:${AUDIO} default" || \
+          COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
         fi
-        COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-        (( AUDIO == 0 )) && \
-        COMMAND+=" -disposition:a:${AUDIO} default" || \
-        COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
       elif [[ "${CODEC_TYPE}" == "subtitle" ]]; then
         (( SUBTITLE == ${#CONFIG_LANGUAGES[@]} )) && continue
         case "${CODEC_NAME}" in
