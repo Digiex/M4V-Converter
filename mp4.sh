@@ -716,6 +716,11 @@ for INPUT in "${VALID[@]}"; do
             [[ "${FILTER,,}" =~ commentary ]] && continue
             TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
             if [[ "${TYPE}" == "audio" ]]; then
+              LANG=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
+              case "${LANG,,}" in
+                null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}";;
+              esac
+              [[ "${LANG}" != "${LANGUAGE}" ]] && continue
               NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
               [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX="0:${a}"
               [[ "${NAME}" =~ ac3 ]] && \
