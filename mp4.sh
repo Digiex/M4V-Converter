@@ -729,10 +729,10 @@ for INPUT in "${VALID[@]}"; do
             fi
           done
           if ${AAC}; then
-            if ((BIT_RATE > 128000)) || ((CHANNELS > 2)); then
+            if ((BIT_RATE > 131072)) || ((CHANNELS > 2)); then
               SKIP=false; COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} aac"
               ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-              ((BIT_RATE > 128000)) && COMMAND+=" -b:a:${AUDIO} 128k"
+              ((BIT_RATE > 131072)) && COMMAND+=" -b:a:${AUDIO} 128k"
               ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
             else
               COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} copy"
@@ -745,7 +745,7 @@ for INPUT in "${VALID[@]}"; do
             log "Dual audio; creating missing AAC from stream"
             SKIP=false; COMMAND+=" -map ${MAP} -c:a:${AUDIO} aac"
             ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-            ((BIT_RATE > 128000)) && COMMAND+=" -b:a:${AUDIO} 128k"
+            ((BIT_RATE > 131072)) && COMMAND+=" -b:a:${AUDIO} 128k"
             ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
             COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
             (( AUDIO == 0 )) && \
