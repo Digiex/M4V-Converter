@@ -700,6 +700,8 @@ for INPUT in "${VALID[@]}"; do
         [[ "${CONFIG_VIDEO_CODEC}" == "hevc" ]] && COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
+        FILTER=$(jq -r ".streams[${i}]" <<< "${DATA}")
+        [[ "${FILTER,,}" =~ commentary ]] && continue
         CODEC="${CONFIG[AUDIO_CODEC]}"
         [[ "${CODEC}" == "source" ]] && \
         [[ "${CODEC_NAME}" != "aac" || ! "${CODEC_NAME}" =~ ac3 ]] && CODEC="aac"
@@ -707,6 +709,8 @@ for INPUT in "${VALID[@]}"; do
         if ${CONFIG[DUAL_AUDIO]}; then
           (( AUDIO == ((${#CONFIG_LANGUAGES[@]} * 2)) )) && continue
           AAC=false; AC3=false; for ((a = 0; a < ${TOTAL}; a++)); do
+            FILTER=$(jq -r ".streams[${a}]" <<< "${DATA}")
+            [[ "${FILTER,,}" =~ commentary ]] && continue
             TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
             if [[ "${TYPE}" == "audio" ]]; then
               NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
