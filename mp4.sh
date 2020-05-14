@@ -847,7 +847,7 @@ for INPUT in "${VALID[@]}"; do
     ${CONFIG[DELETE]} && rm -f "${FILE}" && mv "${TMP_FILE}" "${NEW_FILE}" || \
     TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}")
     chmod "${CONFIG[FILE_PERMISSION]}" "${NEW_FILE}"
-    chmod "${CONFIG[DIRECTORY_PERMISSION]}" "${DIRECTORY}"
+    chmod "${CONFIG[DIRECTORY_PERMISSION]}" "${DIRECTORY}"; clean
     ${CUSTOM} && (( CURRENTFILE < ${#FILES} )) && loadConfig && CUSTOM=false
   done
 done
