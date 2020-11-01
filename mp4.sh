@@ -114,8 +114,8 @@
 # Delete Original File (true, false).
 #Delete=false
 
-# MOOV ATOM (true, false).
-#Moov Atom=true
+# Fast Start (true, false).
+#Fast=true
 
 # Background Processes.
 #Processes=ffmpeg
@@ -181,7 +181,7 @@ declare -A CONFIG=(
   [FILE_PERMISSION]=0644
   [DIRECTORY_PERMISSION]=0755
   [DELETE]=false
-  [MOOV_ATOM]=true
+  [FAST]=true
   [PROCESSES]=ffmpeg
 )
 
@@ -263,7 +263,7 @@ usage() {
   echo "--file-permission="
   echo "--directory-permission="
   echo "--delete="
-  echo "--moov-atom="
+  echo "--fast="
   echo "--processes="
 }
 
@@ -341,7 +341,7 @@ checkBoolean() {
 }
 
 checkBoolean VERBOSE DEBUG BACKGROUND FORCE_LEVEL FORCE_VIDEO FORCE_AUDIO \
-NORMALIZE FORCE_SUBTITLES DELETE MOOV_ATOM
+NORMALIZE FORCE_SUBTITLES DELETE FAST
 ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
@@ -822,7 +822,7 @@ for INPUT in "${VALID[@]}"; do
     [[ -e "${TMP_FILE}" ]] && rm -f "${TMP_FILE}"
     COMMAND+=" -max_muxing_queue_size 1024 -map_metadata -1"
     COMMAND+=" -f ${CONFIG[FORMAT]} -flags +global_header"
-    ${CONFIG[MOOV_ATOM]} && COMMAND+=" -movflags +faststart"
+    ${CONFIG[FAST]} && COMMAND+=" -movflags +faststart"
     COMMAND+=" -strict -2 -y \"${TMP_FILE}\""
     ${SKIP} && echo "File does not need to be converted" && continue
     log "${COMMAND}"; echo "Converting..."; TMPFILES+=("${TMP_FILE}")
