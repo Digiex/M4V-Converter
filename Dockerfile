@@ -6,4 +6,7 @@ RUN \
   apk add --no-cache bash jq bc mediainfo ffmpeg
 
 COPY mp4.sh README.md LICENSE /mp4/
+
+RUN chmod +x /mp4/mp4.sh
+
 ENTRYPOINT ["/mp4/mp4.sh"]
