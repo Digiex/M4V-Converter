@@ -137,15 +137,7 @@
 (( BASH_VERSINFO < 4 )) && \
 echo "Missing dependency; Bash version 4 or later" && exit "${SKIPPED}"
 
-CONFIG_NAME=$(basename "${0}")
-if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
-  CONFIG_NAME="${CONFIG_NAME}.conf"
-else
-  CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
-fi
-
 declare -A CONFIG=(
-  [FILE]=${CONFIG_NAME}
   [FFMPEG]=$(which ffmpeg)
   [FFPROBE]=$(which ffprobe)
   [MEDIAINFO]=$(which mediainfo)
@@ -197,28 +189,6 @@ PATH=/usr/local/sbin/:/usr/local/bin:${PATH} && bash "${0}" "${@}" && exit ${?}
 [[ $(whoami) = "root" ]] && \
 echo "It is NOT recommended that you run this script as root"
 
-loadConfig() {
-  [[ -e "${1}" ]] && \
-  local COMMAND=$(cat "${1}") || local COMMAND=$(cat "${CONFIG[FILE]}")
-  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
-  local COMMAND=$(declare -p | grep "NZBPO_")
-  while read -r LINE; do
-    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
-    LINE="${LINE#*_}" && LINE="${LINE//\"/}"
-    VAR="${LINE%%=*}"; VAL="${LINE##*=}"
-    case "${VAR^^}" in
-      INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
-      CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
-    esac
-  done <<< ${COMMAND}
-}
-
-CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
-[[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}" && \
-for VAR in "${!CONFIG[@]}"; do
-  echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}"
-done; loadConfig
-
 usage() {
   echo "Usage: ${0} [-c CONFIG] [-i INPUT] [ -o OUTPUT]"
   echo
@@ -267,6 +237,14 @@ usage() {
   echo "--processes="
 }
 
+CONFIG_NAME=$(basename "${0}")
+if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
+  CONFIG_NAME="${CONFIG_NAME}.conf"
+else
+  CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
+fi
+CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
+
 while (( ${#} > 0 )); do
   case "${1}" in
     -h|--help) usage; shift;;
@@ -275,13 +253,40 @@ while (( ${#} > 0 )); do
     -b|--background) CONFIG[BACKGROUND]=true; shift;;
     -i|--input) INPUTS+=("${2}"); shift 2;;
     -o|--output) CONFIG[OUTPUT]="${2}"; shift 2;;
-    -c|--config) CONFIG[FILE]="${2}"; loadConfig; shift 2;;
-    --config=*) CONFIG[FILE]="${1##*=}"; loadConfig; shift;;
+    -c|--config) CONFIG[FILE]="${2}"; shift 2;;
+    --config=*) CONFIG[FILE]="${1##*=}"; shift;;
     --*=*) VAR="${1#--}"; VAR="${VAR%=*}"; VAR="${VAR//-/_}";
     CONFIG[${VAR^^}]="${1#--*=}"; shift;;
     *) usage; shift;;
   esac
 done
+
+loadConfig() {
+  if [[ ! -z "${1}" ]]; then
+    local COMMAND=$(cat "${1}")
+  elif [[ ! -z "${NZBPP_TOTALSTATUS}" ]]; then
+    local COMMAND=$(declare -p | grep "NZBPO_")
+  elif [[ -e "${CONFIG[FILE]}" ]]; then
+    local COMMAND=$(cat "${CONFIG[FILE]}")
+  fi
+  [[ ! -z "${COMAND}" ]] && while read -r LINE; do
+    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
+    LINE="${LINE#*_}" && LINE="${LINE//\"/}"
+    VAR="${LINE%%=*}"; VAL="${LINE##*=}"
+    case "${VAR^^}" in
+      INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
+      CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
+    esac
+  done <<< ${COMMAND}
+}
+
+writeConfig() {
+  for VAR in "${!CONFIG[@]}"; do
+    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}"
+  done
+}
+
+[[ ! -e "${CONFIG[FILE]}" ]] && writeConfig || loadConfig
 
 if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
