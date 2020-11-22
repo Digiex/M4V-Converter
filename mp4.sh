@@ -183,9 +183,6 @@ setExitCodes() {
 [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]] && \
 setExitCodes 93 94 95 || setExitCodes 0 1 0
 
-[[ ! "${PATH}" =~ /usr/local/sbin:/usr/local/bin ]] && \
-PATH=/usr/local/sbin/:/usr/local/bin:${PATH} && bash "${0}" "${@}" && exit ${?}
-
 [[ $(whoami) = "root" ]] && \
 echo "It is NOT recommended that you run this script as root"
 
