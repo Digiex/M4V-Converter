@@ -241,6 +241,7 @@ else
   CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
 fi
 CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
+[[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}"
 
 while (( ${#} > 0 )); do
   case "${1}" in
@@ -266,7 +267,7 @@ loadConfig() {
   elif [[ -e "${CONFIG[FILE]}" ]]; then
     local COMMAND=$(cat "${CONFIG[FILE]}")
   fi
-  [[ ! -z "${COMAND}" ]] && while read -r LINE; do
+  [[ ! -z "${COMMAND}" ]] && while read -r LINE; do
     [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
     LINE="${LINE#*_}" && LINE="${LINE//\"/}"
     VAR="${LINE%%=*}"; VAL="${LINE##*=}"
@@ -274,16 +275,12 @@ loadConfig() {
       INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
       CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
     esac
-  done <<< ${COMMAND}
-}
-
-writeConfig() {
+  done <<< ${COMMAND} || \
   for VAR in "${!CONFIG[@]}"; do
-    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}"
+    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}";
   done
 }
-
-[[ ! -e "${CONFIG[FILE]}" ]] && writeConfig || loadConfig
+loadConfig
 
 if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
