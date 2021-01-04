@@ -586,7 +586,7 @@ for INPUT in "${VALID[@]}"; do
     FILE="${DIRECTORY}/${FILE_NAME}"
     echo "Processing file[${CURRENTFILE} of ${#FILES[@]}]: ${FILE}"
     case "${FILE,,}" in
-      *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg);;
+      *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg | *.iso);;
       *.srt | *.tmp | *.stats | .ds_store) echo "File skipped" && continue;;
       *) echo "File is not convertable" && continue;;
     esac
