@@ -662,42 +662,43 @@ for INPUT in "${VALID[@]}"; do
             esac
           fi
         fi
-        if [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] || ${CONFIG[FORCE_VIDEO]}; then
-          log "Codec mismatch; config=${CONFIG_VIDEO_CODEC}"
-          SKIP=false; COMMAND+=" -map ${MAP} -c:v:${VIDEO} ${CODEC}"
-          WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
-          HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
-          [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
-          (( WIDTH > ${CONFIG[RESOLUTION]%%x*} || HEIGHT > ${CONFIG[RESOLUTION]##*x} )) && \
-          log "Resolution exceeded; config=${CONFIG[RESOLUTION]}; stream=${WIDTH}x${HEIGHT}" && \
-          COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
-          COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
-          PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
-          [[ "${CONFIG[PROFILE]}" != "source" ]] && \
-          [[ "${PROFILE}" != "${CONFIG[PROFILE]}" ]] && \
-          log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
-          COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
-          LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
-          if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
-            (( LEVEL > CONFIG[LEVEL] )) || \
-            ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
-            log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
-            COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
-          fi
-          COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
-          PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
-          [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
-          [[ ! "${PIX_FMT}" =~ ${CONFIG[PIXEL_FORMAT]} ]] && \
-          log "Pixel format mismatch; config=${CONFIG[PIXEL_FORMAT]}; stream=${PIX_FMT}" && \
-          COMMAND+=" -pix_fmt:${VIDEO} ${CONFIG[PIXEL_FORMAT]}"
-          [[ "${CONFIG[VIDEO_BITRATE]}" != "source" ]] && \
-          (( BIT_RATE > ${CONFIG[VIDEO_BITRATE]} )) && \
-          log "Bit rate exceeded; config=${CONFIG[VIDEO_BITRATE]}; stream=${BIT_RATE}" && \
-          COMMAND+=" -maxrate:${VIDEO} ${CONFIG[VIDEO_BITRATE]}k -bufsize:${VIDEO} $((CONFIG[VIDEO_BITRATE] * 2))k"
+        COMMAND+=" -map ${MAP}"; [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] && \
+        log "Codec mismatch; config=${CONFIG_VIDEO_CODEC}" && SKIP=false
+        WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
+        HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
+        [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
+        (( WIDTH > ${CONFIG[RESOLUTION]%%x*} || HEIGHT > ${CONFIG[RESOLUTION]##*x} )) && \
+        log "Resolution exceeded; config=${CONFIG[RESOLUTION]}; stream=${WIDTH}x${HEIGHT}" && \
+        SKIP=false && COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
+        PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
+        [[ "${CONFIG[PROFILE]}" != "source" ]] && \
+        [[ "${CONFIG[PROFILE]}" =~ "${PROFILE}" ]] && \
+        log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
+        SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
+        LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
+        if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
+          (( LEVEL > CONFIG[LEVEL] )) || \
+          ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
+          log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
+          SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
+        fi
+        PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
+        [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
+        [[ ! "${PIX_FMT}" =~ ${CONFIG[PIXEL_FORMAT]} ]] && \
+        log "Pixel format mismatch; config=${CONFIG[PIXEL_FORMAT]}; stream=${PIX_FMT}" && \
+        SKIP=false && COMMAND+=" -pix_fmt:${VIDEO} ${CONFIG[PIXEL_FORMAT]}"
+        [[ "${CONFIG[VIDEO_BITRATE]}" != "source" ]] && \
+        (( BIT_RATE > ${CONFIG[VIDEO_BITRATE]} )) && \
+        log "Bit rate exceeded; config=${CONFIG[VIDEO_BITRATE]}; stream=${BIT_RATE}" && \
+        SKIP=false && COMMAND+=" -maxrate:${VIDEO} ${CONFIG[VIDEO_BITRATE]}k -bufsize:${VIDEO} $((CONFIG[VIDEO_BITRATE] * 2))k"
+        if ${CONFIG[FORCE_VIDEO]} || ! ${SKIP}; then
+          SKIP=false; COMMAND+=" -c:v:${VIDEO} ${CODEC}"
           [[ "${CONFIG[TUNE]}" != "source" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
+          COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
+          COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
         else
-          COMMAND+=" -map ${MAP} -c:v:${VIDEO} copy"
+          COMMAND+=" -c:v:${VIDEO} copy"
         fi
         [[ "${CONFIG_VIDEO_CODEC}" == "hevc" ]] && COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
