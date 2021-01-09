@@ -386,7 +386,7 @@ case "${CONFIG[ENCODER]}" in
 esac
 
 [[ "${CONFIG[ENCODER]}" != "software" ]] && \
-[[ ! $(ffmpeg -hwaccels) =~ "${CONFIG[ENCODER]}" ]] && \
+[[ ! $(ffmpeg -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
 echo "ENCODER selected is not available" && exit ${CONFIG}
 
 case "${CONFIG[PRESET]}" in
