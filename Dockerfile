@@ -3,7 +3,7 @@ MAINTAINER xzKinGzxBuRnzx
 
 RUN \
   mkdir /mp4 && \
-  apk add --no-cache bash jq bc mediainfo ffmpeg
+  apk add --no-cache bash jq ffmpeg
 
 COPY mp4.sh README.md LICENSE /mp4/
 
