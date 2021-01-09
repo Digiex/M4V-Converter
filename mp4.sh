@@ -16,9 +16,6 @@
 # PATH to FFprobe.
 #FFprobe=ffprobe
 
-# PATH to MediaInfo.
-#MediaInfo=mediainfo
-
 # Output Directory.
 #Output=
 
@@ -37,7 +34,7 @@
 # Preferred Languages (*).
 #Languages=eng
 
-# Encoder (VAAPI, NVIDIA, SOFTWARE).
+# Encoder (VAAPI, VDPAU, CUDA, SOFTWARE).
 #Encoder=SOFTWARE
 
 # Video Codec (source, H.264, H.265).
@@ -135,12 +132,11 @@
 ################################################################################
 
 (( BASH_VERSINFO < 4 )) && \
-echo "Missing dependency; Bash version 4 or later" && exit "${SKIPPED}"
+echo "Outdated; Bash version 4 or later required" && exit "${SKIPPED}"
 
 declare -A CONFIG=(
   [FFMPEG]=$(which ffmpeg)
   [FFPROBE]=$(which ffprobe)
-  [MEDIAINFO]=$(which mediainfo)
   [INPUT]=
   [OUTPUT]=
   [VERBOSE]=false
@@ -203,7 +199,6 @@ usage() {
   echo "advanced optional arguments: (Use ONLY if you know what you are doing)"
   echo "--ffmpeg="
   echo "--ffprobe="
-  echo "--mediainfo="
   echo "--threads="
   echo "--languages="
   echo "--encoder="
@@ -272,7 +267,7 @@ loadConfig() {
     LINE="${LINE#*_}" && LINE="${LINE//\"/}"
     VAR="${LINE%%=*}"; VAL="${LINE##*=}"
     case "${VAR^^}" in
-      INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|MEDIAINFO|PROCESSES)
+      INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|PROCESSES)
       CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
     esac
   done <<< ${COMMAND} || \
@@ -284,7 +279,7 @@ loadConfig
 
 if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
-  echo "Outdated; NZBGet version 13.0 or later" && exit "${SKIPPED}"
+  echo "Outdated; NZBGet version 13.0 or later required" && exit "${SKIPPED}"
   [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]] && exit "${SKIPPED}"
   [[ ! -z "${NZBPP_FINALDIR}" ]] && \
   DIRECTORY="${NZBPP_FINALDIR}" || DIRECTORY="${NZBPP_DIRECTORY}"
@@ -349,14 +344,8 @@ echo "Missing dependency; FFmpeg" && exit "${SKIPPED}"
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
 echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
 
-! hash "${CONFIG[MEDIAINFO]}" 2>/dev/null && \
-echo "Missing optional dependency; MediaInfo"
-
 ! hash jq 2>/dev/null && \
 echo "Missing dependency; jq" && exit "${SKIPPED}"
-
-! hash bc 2>/dev/null && \
-echo "Missing dependency; bc" && exit "${SKIPPED}"
 
 if [[ "${CONFIG[THREADS]}" != "auto" ]]; then
   case "${OSTYPE}" in
@@ -388,15 +377,17 @@ case "${CONFIG[VIDEO_CODEC]}" in
 esac
 
 case "${CONFIG[ENCODER]}" in
-  vaapi)
+  vaapi|vdpau|cuda)
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
-    CONFIG[VIDEO_CODEC]="hevc_vaapi" || CONFIG[VIDEO_CODEC]="h264_vaapi" ;;
-  nvidia)
-    [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
-    CONFIG[VIDEO_CODEC]="nvenc_hevc" || CONFIG[VIDEO_CODEC]="h264_nvenc" ;;
+    CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
+    CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
   software) ;;
   *) echo "ENCODER is incorrectly configured"; exit ${CONFIG} ;;
 esac
+
+[[ "${CONFIG[ENCODER]}" != "software" ]] && \
+[[ ! $(ffmpeg -hwaccels) =~ "${CONFIG[ENCODER]}" ]] && \
+echo "ENCODER selected is not available" && exit ${CONFIG}
 
 case "${CONFIG[PRESET]}" in
   ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow);;
@@ -534,9 +525,9 @@ formatDate() {
 progress() {
   local START=$(date +%s)
   while kill -0 "${CONVERTER}" 2>/dev/null; do
-    sleep 30; [[ ! -f "${STATSFILE}" ]] && break
-    local FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | grep -m 1 -x 'frame=.*' | \
-    sed -E 's/[^0-9]//g')
+    sleep 30; [[ ! -f "${STATSFILE}" ]] && continue
+    local FRAME=$(tail -n 12 "${STATSFILE}" 2>&1 | \
+    grep -m 1 -x 'frame=.*' | sed -E 's/[^0-9]//g')
     (( FRAME > CURRENTFRAME )) && local CURRENTFRAME=${FRAME} && \
     local CURRENTPERCENTAGE=$(( 100 * CURRENTFRAME / FRAMES))
     (( CURRENTPERCENTAGE > PERCENTAGE )) && \
@@ -546,10 +537,10 @@ progress() {
     local ETA=$(awk "BEGIN{print int((${ELAPSED} / ${CURRENTFRAME}) * \
     (${FRAMES} - ${CURRENTFRAME}))}") && \
     log "Converting...${CURRENTPERCENTAGE}%; ETA: $(formatDate "${ETA}")"
-    (( CURRENTPERCENTAGE >= 99 )) && \
-    log "Time: $(formatDate "${ELAPSED}"); FPS: ${RATE}" && \
-    echo "Finishing up, this may take a moment..." && break
   done
+  (( ELAPSED > START )) && \
+  log "Time: $(formatDate "${ELAPSED}"); FPS: ${RATE}" && \
+  echo "Finishing up, this may take a moment..."
 }
 
 force() {
@@ -601,29 +592,23 @@ for INPUT in "${VALID[@]}"; do
     DATA=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
     [[ "${DATA}" =~ drm ]] && echo "File is DRM protected" && continue
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
-    [[ "${CONFIG[ENCODER]}" == "vaapi" ]] && \
-    COMMAND+=" -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format vaapi"
-    [[ "${CONFIG[ENCODER]}" == "nvidia" ]] && \
-    COMMAND+=" -hwaccel cuda -hwaccel_output_format cuda"
+    [[ "${CONFIG[ENCODER]}" != "software" ]] && \
+    COMMAND+=" -hwaccel ${CONFIG[VIDEO_ENCODER]} -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format ${CONFIG[VIDEO_ENCODER]}"
     COMMAND+=" -i \"${FILE}\""
     TOTAL=$(jq '.streams | length' <<< "${DATA}");
     SKIP=true; VIDEO=0; AUDIO=0; SUBTITLE=0
     for ((i = 0; i < ${TOTAL}; i++)); do MAP="0:${i}"
       CODEC_TYPE=$(jq -r ".streams[${i}].codec_type" <<< "${DATA}")
       CODEC_NAME=$(jq -r ".streams[${i}].codec_name" <<< "${DATA}")
-      [[ "${CODEC_NAME}" == "null" ]] && continue
       LANGUAGE=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
       case "${LANGUAGE,,}" in
         null|unk|und) LANGUAGE="${CONFIG_DEFAULT_LANGUAGE}";;
       esac
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
-      if [[ "${BIT_RATE}" == "null" ]]; then
-        BIT_RATE=0; if hash mediainfo 2>/dev/null; then
-          BIT_RATE=$(mediainfo --output=JSON "${FILE}" | \
-          jq -r ".media.track[$((${i}+1))].BitRate")
-          BIT_RATE=$((BIT_RATE / 1024)); fi
-      fi
+      [[ "${BIT_RATE}" == "null" ]] && \
+      BIT_RATE=$(jq -r ".streams[${i}].tags.BPS" <<< "${DATA}")
+      BIT_RATE=$((BIT_RATE / 1024))
       MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
       [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
       MESSAGE+="; language=${LANGUAGE}"; log "${MESSAGE}"
@@ -631,68 +616,49 @@ for INPUT in "${VALID[@]}"; do
         ((VIDEO > 0)) && continue
         (( $(jq -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
         if ${CONFIG[VERBOSE]}; then
-          FRAME_RATE=$(jq -r ".streams[${i}].r_frame_rate" <<< "${DATA}")
-          FRAME_RATE=$(bc -l <<< "${FRAME_RATE}")
-          FORMAT_DURATION=$(jq -r '.format.duration' <<< "${DATA}")
-          FRAMES=$(bc <<< "${FORMAT_DURATION} * ${FRAME_RATE}")
-          FRAMES=${FRAMES%%.*}
+          FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
+          (( FRAMES == 0 )) && \
+          FRAMES=$(jq -r ".streams[${i}].tags.NUMBER_OF_FRAMES" <<< "${DATA}")
           STATSFILE="${NEW_FILE}.$$.stats"
           [ -e "${STATSFILE}" ] && rm -f "${STATSFILE}"
           TMPFILES+=("${STATSFILE}")
           COMMAND+=" -progress \"${STATSFILE}\""
         fi
-        CODEC="${CONFIG[VIDEO_CODEC]}"
-        if [[ "${CODEC}" == "source" ]]; then
-          if [[ "${CODEC_NAME}" != "h264" || "${CODEC_NAME}" != "hevc" ]]; then
-            CONFIG_VIDEO_CODEC="h264"
-            case "${CONFIG[ENCODER]}" in
-              intel) CODEC="h264_vaapi" ;;
-              nvidia) CODEC="h264_nvenc" ;;
-              software) CODEC="libx264" ;;
-            esac
-          else
-            CONFIG_VIDEO_CODEC="${CODEC_NAME}"
-            case "${CONFIG[ENCODER]}" in
-              intel) [[ "${CODEC_NAME}" == "hevc" ]] && \
-              CODEC="hevc_vaapi" || CODEC="h264_vaapi" ;;
-              nvidia) [[ "${CODEC_NAME}" == "hevc" ]] && \
-              CODEC="nvenc_hevc" || CODEC="h264_nvenc" ;;
-              software) [[ "${CODEC_NAME}" == "hevc" ]] && \
-              CODEC="libx264" || CODEC="libx265" ;;
-            esac
+        COMMAND+=" -map ${MAP}"
+        if [[ "${CONFIG[VIDEO_CODEC]}" != "source" ]] && \
+        ! ${CONFIG[FORCE_VIDEO]}; then
+          [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] && \
+          log "Codec mismatch; config=${CONFIG_VIDEO_CODEC}" && SKIP=false
+          WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
+          HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
+          [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
+          (( WIDTH > ${CONFIG[RESOLUTION]%%x*} || HEIGHT > ${CONFIG[RESOLUTION]##*x} )) && \
+          log "Resolution exceeded; config=${CONFIG[RESOLUTION]}; stream=${WIDTH}x${HEIGHT}" && \
+          SKIP=false && COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
+          PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
+          [[ "${CONFIG[PROFILE]}" != "source" ]] && \
+          [[ "${CONFIG[PROFILE]}" =~ "${PROFILE}" ]] && \
+          log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
+          SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
+          LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
+          if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
+            (( LEVEL > CONFIG[LEVEL] )) || \
+            ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
+            log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
+            SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
           fi
+          PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
+          [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
+          [[ ! "${PIX_FMT}" =~ ${CONFIG[PIXEL_FORMAT]} ]] && \
+          log "Pixel format mismatch; config=${CONFIG[PIXEL_FORMAT]}; stream=${PIX_FMT}" && \
+          SKIP=false && COMMAND+=" -pix_fmt:${VIDEO} ${CONFIG[PIXEL_FORMAT]}"
+          [[ "${CONFIG[VIDEO_BITRATE]}" != "source" ]] && \
+          (( BIT_RATE > ${CONFIG[VIDEO_BITRATE]} )) && \
+          log "Bit rate exceeded; config=${CONFIG[VIDEO_BITRATE]}; stream=${BIT_RATE}" && \
+          SKIP=false && COMMAND+=" -maxrate:${VIDEO} ${CONFIG[VIDEO_BITRATE]}k -bufsize:${VIDEO} $((CONFIG[VIDEO_BITRATE] * 2))k"
         fi
-        COMMAND+=" -map ${MAP}"; [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] && \
-        log "Codec mismatch; config=${CONFIG_VIDEO_CODEC}" && SKIP=false
-        WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
-        HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
-        [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
-        (( WIDTH > ${CONFIG[RESOLUTION]%%x*} || HEIGHT > ${CONFIG[RESOLUTION]##*x} )) && \
-        log "Resolution exceeded; config=${CONFIG[RESOLUTION]}; stream=${WIDTH}x${HEIGHT}" && \
-        SKIP=false && COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
-        PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
-        [[ "${CONFIG[PROFILE]}" != "source" ]] && \
-        [[ "${CONFIG[PROFILE]}" =~ "${PROFILE}" ]] && \
-        log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
-        SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
-        LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
-        if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
-          (( LEVEL > CONFIG[LEVEL] )) || \
-          ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
-          log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
-          SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
-        fi
-        PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
-        [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
-        [[ ! "${PIX_FMT}" =~ ${CONFIG[PIXEL_FORMAT]} ]] && \
-        log "Pixel format mismatch; config=${CONFIG[PIXEL_FORMAT]}; stream=${PIX_FMT}" && \
-        SKIP=false && COMMAND+=" -pix_fmt:${VIDEO} ${CONFIG[PIXEL_FORMAT]}"
-        [[ "${CONFIG[VIDEO_BITRATE]}" != "source" ]] && \
-        (( BIT_RATE > ${CONFIG[VIDEO_BITRATE]} )) && \
-        log "Bit rate exceeded; config=${CONFIG[VIDEO_BITRATE]}; stream=${BIT_RATE}" && \
-        SKIP=false && COMMAND+=" -maxrate:${VIDEO} ${CONFIG[VIDEO_BITRATE]}k -bufsize:${VIDEO} $((CONFIG[VIDEO_BITRATE] * 2))k"
         if ${CONFIG[FORCE_VIDEO]} || ! ${SKIP}; then
-          SKIP=false; COMMAND+=" -c:v:${VIDEO} ${CODEC}"
+          SKIP=false; COMMAND+=" -c:v:${VIDEO} ${CONFIG[VIDEO_CODEC]}"
           [[ "${CONFIG[TUNE]}" != "source" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
           COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
@@ -700,7 +666,8 @@ for INPUT in "${VALID[@]}"; do
         else
           COMMAND+=" -c:v:${VIDEO} copy"
         fi
-        [[ "${CONFIG_VIDEO_CODEC}" == "hevc" ]] && COMMAND+=" -tag:v:${VIDEO} hvc1"
+        [[ "${CONFIG_VIDEO_CODEC}" == "hevc" ]] && \
+        COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
         FILTER=$(jq -r ".streams[${i}]" <<< "${DATA}")
