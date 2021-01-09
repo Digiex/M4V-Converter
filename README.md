@@ -10,7 +10,7 @@ Found a bug? [Report it here!](https://github.com/Digiex/M4V-Converter/issues/ne
 
 Dependencies
 -------------
-Requires `FFmpeg`, `FFprobe`, `mediainfo`, `jq`, `bc` and `Bash`
+Requires `Bash`, `FFmpeg`, and `jq`
 
 Docker
 -------
