@@ -34,8 +34,8 @@
 # Preferred Languages (*).
 #Languages=eng
 
-# Encoder (VAAPI, VDPAU, CUDA, SOFTWARE).
-#Encoder=SOFTWARE
+# Encoder (auto, software, VAAPI).
+#Encoder=auto
 
 # Video Codec (source, H.264, H.265).
 #Video Codec=H.264
@@ -144,7 +144,7 @@ declare -A CONFIG=(
   [BACKGROUND]=false
   [THREADS]=auto
   [LANGUAGES]=eng
-  [ENCODER]=software
+  [ENCODER]=auto
   [VIDEO_CODEC]=h264
   [PRESET]=medium
   [PROFILE]=main
@@ -229,31 +229,6 @@ usage() {
   echo "--processes="
 }
 
-CONFIG_NAME=$(basename "${0}")
-if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
-  CONFIG_NAME="${CONFIG_NAME}.conf"
-else
-  CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
-fi
-CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
-[[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}"
-
-while (( ${#} > 0 )); do
-  case "${1}" in
-    -h|--help) usage; shift;;
-    -v|--verbose) CONFIG[VERBOSE]=true; shift;;
-    -d|--debug) CONFIG[DEBUG]=true; set -ex; shift;;
-    -b|--background) CONFIG[BACKGROUND]=true; shift;;
-    -i|--input) INPUTS+=("${2}"); shift 2;;
-    -o|--output) CONFIG[OUTPUT]="${2}"; shift 2;;
-    -c|--config) CONFIG[FILE]="${2}"; shift 2;;
-    --config=*) CONFIG[FILE]="${1##*=}"; shift;;
-    --*=*) VAR="${1#--}"; VAR="${VAR%=*}"; VAR="${VAR//-/_}";
-    CONFIG[${VAR^^}]="${1#--*=}"; shift;;
-    *) usage; shift;;
-  esac
-done
-
 loadConfig() {
   if [[ ! -z "${1}" ]]; then
     local COMMAND=$(cat "${1}")
@@ -275,7 +250,32 @@ loadConfig() {
     echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}";
   done
 }
+
+CONFIG_NAME=$(basename "${0}")
+if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
+  CONFIG_NAME="${CONFIG_NAME}.conf"
+else
+  CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
+fi
+CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
+[[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}"
 loadConfig
+
+while (( ${#} > 0 )); do
+  case "${1}" in
+    -h|--help) usage; shift;;
+    -v|--verbose) CONFIG[VERBOSE]=true; shift;;
+    -d|--debug) CONFIG[DEBUG]=true; set -ex; shift;;
+    -b|--background) CONFIG[BACKGROUND]=true; shift;;
+    -i|--input) INPUTS+=("${2}"); shift 2;;
+    -o|--output) CONFIG[OUTPUT]="${2}"; shift 2;;
+    -c|--config) CONFIG[FILE]="${2}"; shift 2;;
+    --config=*) CONFIG[FILE]="${1##*=}"; shift;;
+    --*=*) VAR="${1#--}"; VAR="${VAR%=*}"; VAR="${VAR//-/_}";
+    CONFIG[${VAR^^}]="${1#--*=}"; shift;;
+    *) usage; shift;;
+  esac
+done
 
 if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] && \
@@ -377,16 +377,17 @@ case "${CONFIG[VIDEO_CODEC]}" in
 esac
 
 case "${CONFIG[ENCODER]}" in
-  vaapi|vdpau|cuda)
+  vaapi)
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
     CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
     CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
-  software) ;;
+  auto|software) ;;
   *) echo "ENCODER is incorrectly configured"; exit ${CONFIG} ;;
 esac
 
+[[ "${CONFIG[ENCODER]}" != "auto" ]] && \
 [[ "${CONFIG[ENCODER]}" != "software" ]] && \
-[[ ! $(ffmpeg -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
+[[ ! $(ffmpeg -v quiet -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
 echo "ENCODER selected is not available" && exit ${CONFIG}
 
 case "${CONFIG[PRESET]}" in
@@ -592,8 +593,12 @@ for INPUT in "${VALID[@]}"; do
     DATA=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
     [[ "${DATA}" =~ drm ]] && echo "File is DRM protected" && continue
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
-    [[ "${CONFIG[ENCODER]}" != "software" ]] && \
-    COMMAND+=" -hwaccel ${CONFIG[VIDEO_ENCODER]} -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format ${CONFIG[VIDEO_ENCODER]}"
+    if [[ "${CONFIG[ENCODER]}" != "software" ]]; then
+      COMMAND+=" -hwaccel ${CONFIG[ENCODER]}"
+      [[ "${CONFIG[ENCODER]}" != "auto" ]] && \
+      COMMAND+=" -hwaccel_device /dev/dri/renderD128" && \
+      COMMAND+=" -hwaccel_output_format ${CONFIG[ENCODER]}"
+    fi
     COMMAND+=" -i \"${FILE}\""
     TOTAL=$(jq '.streams | length' <<< "${DATA}");
     SKIP=true; VIDEO=0; AUDIO=0; SUBTITLE=0
@@ -642,10 +647,10 @@ for INPUT in "${VALID[@]}"; do
           SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
           LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
           if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
-            (( LEVEL > CONFIG[LEVEL] )) || \
-            ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
-            log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
-            SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
+            (( LEVEL > ${CONFIG[LEVEL]//./} ))
+              ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
+              log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
+              SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]//./}"
           fi
           PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
           [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
