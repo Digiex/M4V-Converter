@@ -234,8 +234,8 @@ loadConfig() {
     local COMMAND=$(cat "${1}")
   elif [[ ! -z "${NZBPP_TOTALSTATUS}" ]]; then
     local COMMAND=$(declare -p | grep "NZBPO_")
-  elif [[ -e "${CONFIG[FILE]}" ]]; then
-    local COMMAND=$(cat "${CONFIG[FILE]}")
+  elif [[ -e "${CONFIG_FILE}" ]]; then
+    local COMMAND=$(cat "${CONFIG_FILE}")
   fi
   [[ ! -z "${COMMAND}" ]] && while read -r LINE; do
     [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
@@ -247,18 +247,18 @@ loadConfig() {
     esac
   done <<< ${COMMAND} || \
   for VAR in "${!CONFIG[@]}"; do
-    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG[FILE]}";
+    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG_FILE}";
   done
 }
 
-CONFIG_NAME=$(basename "${0}")
+CONFIG_FILE=$(realpath "${0}")
+CONFIG_NAME=$(basename "${CONFIG_FILE}")
 if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
-  CONFIG_NAME="${CONFIG_NAME}.conf"
+  CONFIG_NEW_NAME="${CONFIG_NAME}.conf"
 else
-  CONFIG_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
+  CONFIG_NEW_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
 fi
-CONFIG[FILE]=$(find . -maxdepth 1 -name "${CONFIG_NAME}" | grep -m 1 .conf$)
-[[ ! -f "${CONFIG[FILE]}" ]] && CONFIG[FILE]="${CONFIG_NAME}"
+CONFIG_FILE="${CONFIG_FILE//${CONFIG_NAME}/${CONFIG_NEW_NAME}}"
 loadConfig
 
 while (( ${#} > 0 )); do
@@ -269,8 +269,8 @@ while (( ${#} > 0 )); do
     -b|--background) CONFIG[BACKGROUND]=true; shift;;
     -i|--input) INPUTS+=("${2}"); shift 2;;
     -o|--output) CONFIG[OUTPUT]="${2}"; shift 2;;
-    -c|--config) CONFIG[FILE]="${2}"; shift 2;;
-    --config=*) CONFIG[FILE]="${1##*=}"; shift;;
+    -c|--config) loadConfig "${2}"; shift 2;;
+    --config=*) loadConfig "${1##*=}"; shift;;
     --*=*) VAR="${1#--}"; VAR="${VAR%=*}"; VAR="${VAR//-/_}";
     CONFIG[${VAR^^}]="${1#--*=}"; shift;;
     *) usage; shift;;
@@ -335,7 +335,7 @@ checkBoolean() {
 }
 
 checkBoolean VERBOSE DEBUG BACKGROUND FORCE_LEVEL FORCE_VIDEO FORCE_AUDIO \
-NORMALIZE FORCE_SUBTITLES DELETE FAST
+NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO
 ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
@@ -430,14 +430,25 @@ fi
 [[ ! "${CONFIG[VIDEO_BITRATE]}" =~ ^-?[0-9]+$ ]] && \
 echo "VIDEO_BITRATE is incorrectly configured" && exit "${SKIPPED}"
 
-case "${CONFIG[TUNE]}" in
-  film|animation|grain|stillimage|fastdecode|zerolatency|source) ;;
-  *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
+
+case "${CONFIG[VIDEO_CODEC]}" in
+  libx264)
+    case "${CONFIG[TUNE]}" in
+      film|animation|grain|stillimage|fastdecode|zerolatency|false) ;;
+      *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
+    esac
+  ;;
+  libx265)
+    case "${CONFIG[TUNE]}" in
+      animation|grain|fastdecode|zerolatency|false) ;;
+      *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
+    esac
+  ;;
 esac
 
 case "${CONFIG[AUDIO_CODEC]}" in
   aac|ac3|source);;
-  *) echo "AUDIO_MODE is incorrectly configured"; exit "${SKIPPED}";;
+  *) echo "AUDIO_CODEC is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
 case "${CONFIG[SUBTITLES]}" in
@@ -612,6 +623,16 @@ for INPUT in "${VALID[@]}"; do
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
       BIT_RATE=$(jq -r ".streams[${i}].tags.BPS" <<< "${DATA}")
+      if [[ "${BIT_RATE}" == "null" ]]; then
+        log "Bitrate null; Calculating based on GLOBAL_BITRATE-AUDIO_BITRATE"
+        GLOBAL=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
+        for ((a = 0; a < ${#audio[@]}; a++)); do
+          AUDIO_TOTAL=$((AUDIO_TOTAL + $(${CONFIG[FFPROBE]} "${FILE}" -v quiet \
+          -select_streams a:${a} -show_entries stream=bit_rate \
+          -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g' | head -1)))
+        done
+        BITRATE=$((GLOBAL - AUDIO_TOTAL))
+      fi
       BIT_RATE=$((BIT_RATE / 1024))
       MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
       [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
@@ -621,8 +642,16 @@ for INPUT in "${VALID[@]}"; do
         (( $(jq -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
         if ${CONFIG[VERBOSE]}; then
           FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
-          (( FRAMES == 0 )) && \
-          FRAMES=$(jq -r ".streams[${i}].tags.NUMBER_OF_FRAMES" <<< "${DATA}")
+          if [[ -z "${FRAMES}" ]]; then
+            log "Frames null; Calulating based on DURATION*FPS"
+            FPS=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
+            sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
+            DUR=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
+            sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | \
+            awk -F ':' '{print $1*3600+$2*60+$3}')
+            FRAMES=$(echo "${DUR}" "${FPS}" | \
+            awk '{printf("%3.0f\n",($1*$2))}' | head -1)
+          fi
           STATSFILE="${NEW_FILE}.$$.stats"
           [ -e "${STATSFILE}" ] && rm -f "${STATSFILE}"
           TMPFILES+=("${STATSFILE}")
@@ -664,7 +693,7 @@ for INPUT in "${VALID[@]}"; do
         fi
         if ${CONFIG[FORCE_VIDEO]} || ! ${SKIP}; then
           SKIP=false; COMMAND+=" -c:v:${VIDEO} ${CONFIG[VIDEO_CODEC]}"
-          [[ "${CONFIG[TUNE]}" != "source" ]] && \
+          [[ ${CONFIG[TUNE]} != "false" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
           COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
           COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
