@@ -401,8 +401,7 @@ case "${CONFIG[PROFILE]}" in
   *) echo "PROFILE is incorrectly configured"; exit "${SKIPPED}";;
 esac
 
-CONFIG[LEVEL]="${CONFIG[LEVEL]//./}"
-case "${CONFIG[LEVEL]}" in
+case "${CONFIG[LEVEL]//./}" in
   source|30|31|32|40|41|42|50|51|52);;
   *) echo "LEVEL is incorrectly configured"; exit "${SKIPPED}";;
 esac
@@ -633,7 +632,7 @@ for INPUT in "${VALID[@]}"; do
         if [[ "${CONFIG[VIDEO_CODEC]}" != "source" ]] && \
         ! ${CONFIG[FORCE_VIDEO]}; then
           [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] && \
-          log "Codec mismatch; config=${CONFIG_VIDEO_CODEC}" && SKIP=false
+          log "Codec mismatch; config=${CONFIG_VIDEO_CODEC} stream=${CODEC_NAME}" && SKIP=false
           WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
           HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
           [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
@@ -642,15 +641,16 @@ for INPUT in "${VALID[@]}"; do
           SKIP=false && COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
           PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
           [[ "${CONFIG[PROFILE]}" != "source" ]] && \
-          [[ "${CONFIG[PROFILE]}" =~ "${PROFILE}" ]] && \
+          [[ ! "${PROFILE}" =~ ${CONFIG[PROFILE]} ]] && \
           log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
           SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
           LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
-          if [[ "${CONFIG[LEVEL]}" != "source" ]]; then
-            (( LEVEL > ${CONFIG[LEVEL]//./} ))
-              ${CONFIG[FORCE_LEVEL]} && ! (( LEVEL == CONFIG[LEVEL] )) && \
-              log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
-              SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]//./}"
+          if [[ "${CODEC_NAME}" != "hevc" ]] && \
+          [[ "${CONFIG[LEVEL]}" != "source" ]] && \
+          (( LEVEL > ${CONFIG[LEVEL]//./} )); then
+            ${CONFIG[FORCE_LEVEL]} || ! (( LEVEL == ${CONFIG[LEVEL]//./} )) && \
+            log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
+            SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
           fi
           PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
           [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
