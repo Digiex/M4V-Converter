@@ -34,7 +34,7 @@
 # Preferred Languages (*).
 #Languages=eng
 
-# Encoder (auto, software, VAAPI).
+# Encoder (auto, software, VAAPI, CUDA).
 #Encoder=auto
 
 # Video Codec (source, H.264, H.265).
@@ -66,7 +66,7 @@
 #Video Bitrate=source
 
 # Video Tune (film, animation, grain, stillimage, fastdecode,
-# zerolatency, source).
+# zerolatency, false).
 #Tune=film
 
 # Force Video Convert (true, false).
@@ -381,6 +381,10 @@ case "${CONFIG[ENCODER]}" in
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
     CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
     CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
+  cuda)
+    [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
+    CONFIG[VIDEO_CODEC]="hevc_nvenc" || \
+    CONFIG[VIDEO_CODEC]="h264_nvenc" ;;
   auto|software) ;;
   *) echo "ENCODER is incorrectly configured"; exit ${CONFIG} ;;
 esac
@@ -442,7 +446,8 @@ case "${CONFIG[VIDEO_CODEC]}" in
     case "${CONFIG[TUNE]}" in
       animation|grain|fastdecode|zerolatency|false) ;;
       film|stillimage)
-      echo "TUNE: ${CONFIG[TUNE]} is not available for HEVC"; exit "${SKIPPED}";;
+        echo "TUNE: ${CONFIG[TUNE]} is not available for HEVC";
+        exit "${SKIPPED}";;
       *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
     esac
   ;;
