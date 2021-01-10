@@ -441,6 +441,8 @@ case "${CONFIG[VIDEO_CODEC]}" in
   libx265)
     case "${CONFIG[TUNE]}" in
       animation|grain|fastdecode|zerolatency|false) ;;
+      film|stillimage)
+      echo "TUNE: ${CONFIG[TUNE]} is not available for HEVC"; exit "${SKIPPED}";;
       *) echo "TUNE is incorrectly configured"; exit "${SKIPPED}";;
     esac
   ;;
@@ -693,7 +695,7 @@ for INPUT in "${VALID[@]}"; do
         fi
         if ${CONFIG[FORCE_VIDEO]} || ! ${SKIP}; then
           SKIP=false; COMMAND+=" -c:v:${VIDEO} ${CONFIG[VIDEO_CODEC]}"
-          [[ ${CONFIG[TUNE]} != "false" ]] && \
+          [[ "${CONFIG[TUNE]}" != "false" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
           COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
           COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
