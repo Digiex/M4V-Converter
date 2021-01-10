@@ -632,7 +632,7 @@ for INPUT in "${VALID[@]}"; do
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
-      BIT_RATE=$(jq -r ".streams[${i}].tags.BPS-${LANGUAGE}" <<< "${DATA}")
+      BIT_RATE=$(jq -r ".streams[${i}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
       BIT_RATE=$((BIT_RATE / 1024))
       if [[ "${CODEC_TYPE}" == "video" ]]; then
         ((VIDEO > 0)) && continue
