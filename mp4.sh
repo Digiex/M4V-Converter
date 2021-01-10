@@ -622,35 +622,41 @@ for INPUT in "${VALID[@]}"; do
     for ((i = 0; i < ${TOTAL}; i++)); do MAP="0:${i}"
       CODEC_TYPE=$(jq -r ".streams[${i}].codec_type" <<< "${DATA}")
       CODEC_NAME=$(jq -r ".streams[${i}].codec_name" <<< "${DATA}")
+      MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
       LANGUAGE=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
       case "${LANGUAGE,,}" in
         null|unk|und) LANGUAGE="${CONFIG_DEFAULT_LANGUAGE}";;
       esac
+      [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
+      MESSAGE+="; language=${LANGUAGE}"; log "${MESSAGE}"
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
       BIT_RATE=$(jq -r ".streams[${i}].tags.BPS-${LANGUAGE}" <<< "${DATA}")
-      if [[ "${BIT_RATE}" == "null" ]]; then
-        log "Bitrate null; Calculating based on GLOBAL_BITRATE-AUDIO_BITRATE"
-        GLOBAL=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
-        for ((a = 0; a < ${#audio[@]}; a++)); do
-          AUDIO_TOTAL=$((AUDIO_TOTAL + $(${CONFIG[FFPROBE]} "${FILE}" -v quiet \
-          -select_streams a:${a} -show_entries stream=bit_rate \
-          -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g' | head -1)))
-        done
-        BITRATE=$((GLOBAL - AUDIO_TOTAL))
-      fi
       BIT_RATE=$((BIT_RATE / 1024))
-      MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
-      [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
-      MESSAGE+="; language=${LANGUAGE}"; log "${MESSAGE}"
       if [[ "${CODEC_TYPE}" == "video" ]]; then
         ((VIDEO > 0)) && continue
         (( $(jq -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
+        if [[ "${BIT_RATE}" == "null" ]]; then
+          log "Stream issue; bit_rate=N/A; Using format.bit_rate (not accurate)"
+          for ((a = 0; a < ${TYPE}; a++)); do
+            [[ $(jq -r ".streams[${a}].codec_type" <<< "${DATA}") != "audio" ]] && continue
+            b=$(jq -r ".streams[${a}].bit_rate" <<< "${DATA}")
+            [[ "${b}" == "null" ]] && \
+            b=$(jq -r ".streams[${a}].tags.BPS-${LANGUAGE}" <<< "${DATA}")
+            if [[ "${b}" == "null" ]]; then
+              [[ $(jq -r ".streams[${a}].codec_name" <<< "${DATA}") == "aac" ]] && \
+              AUDIO_TOTAL=$((AUDIO_TOTAL + 128000)) || \
+              AUDIO_TOTAL=$((AUDIO_TOTAL + 768000))
+            fi
+            AUDIO_TOTAL=$((AUDIO_TOTAL + b))
+          done
+          BIT_RATE=$(( $(jq -r ".format.bit_rate" <<< "${DATA}") - AUDIO_TOTAL / 1024))
+        fi
         if ${CONFIG[VERBOSE]}; then
           FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
           if [[ "${FRAMES}" == "null" ]]; then
-            log "Frames null; Calulating based on DURATION*FPS"
+            log "Stream issue; nb_frames=N/A; calculating based on DURATION*FPS"
             FPS=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
             sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
             DUR=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
