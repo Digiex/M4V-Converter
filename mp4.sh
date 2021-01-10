@@ -37,7 +37,7 @@
 # Encoder (auto, software, VAAPI, CUDA).
 #Encoder=auto
 
-# Video Codec (source, H.264, H.265).
+# Video Codec (source, H.264, HEVC).
 #Video Codec=H.264
 
 # Video Preset (ultrafast, superfast, veryfast, faster, fast, medium, slow,
@@ -629,7 +629,7 @@ for INPUT in "${VALID[@]}"; do
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
       BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
-      BIT_RATE=$(jq -r ".streams[${i}].tags.BPS" <<< "${DATA}")
+      BIT_RATE=$(jq -r ".streams[${i}].tags.BPS-${LANGUAGE}" <<< "${DATA}")
       if [[ "${BIT_RATE}" == "null" ]]; then
         log "Bitrate null; Calculating based on GLOBAL_BITRATE-AUDIO_BITRATE"
         GLOBAL=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -show_entries format=bit_rate -of default=nokey=1:noprint_wrappers=1 | sed -E 's/[^0-9]//g')
@@ -649,7 +649,7 @@ for INPUT in "${VALID[@]}"; do
         (( $(jq -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
         if ${CONFIG[VERBOSE]}; then
           FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
-          if [[ -z "${FRAMES}" ]]; then
+          if [[ "${FRAMES}" == "null" ]]; then
             log "Frames null; Calulating based on DURATION*FPS"
             FPS=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
             sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
