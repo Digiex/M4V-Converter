@@ -556,9 +556,8 @@ progress() {
     (${FRAMES} - ${CURRENTFRAME}))}") && \
     log "Converting...${CURRENTPERCENTAGE}%; ETA: $(formatDate "${ETA}")"
   done
-  (( ELAPSED > START )) && \
-  log "Time: $(formatDate "${ELAPSED}"); FPS: ${RATE}" && \
-  echo "Finishing up, this may take a moment..."
+  (( ELAPSED > 0 )) && \
+  log "Time: $(formatDate "${ELAPSED}"); FPS: ${RATE}"
 }
 
 force() {
