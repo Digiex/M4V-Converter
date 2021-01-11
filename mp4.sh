@@ -644,7 +644,7 @@ for INPUT in "${VALID[@]}"; do
             [[ $(jq -r ".streams[${a}].codec_type" <<< "${DATA}") != "audio" ]] && continue
             b=$(jq -r ".streams[${a}].bit_rate" <<< "${DATA}")
             [[ "${b}" == "null" ]] && \
-            b=$(jq -r ".streams[${a}].tags.BPS-${LANGUAGE}" <<< "${DATA}")
+            b=$(jq -r ".streams[${a}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
             if [[ "${b}" == "null" ]]; then
               [[ $(jq -r ".streams[${a}].codec_name" <<< "${DATA}") == "aac" ]] && \
               AUDIO_TOTAL=$((AUDIO_TOTAL + 128000)) || \
@@ -656,6 +656,8 @@ for INPUT in "${VALID[@]}"; do
         fi
         if ${CONFIG[VERBOSE]}; then
           FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
+          [[ "${FRAMES}" == "null" ]] && \
+          FRAMES=$(jq -r ".streams[${i}].tags.\"NUMBER_OF_FRAMES-${LANGUAGE}\"" <<< "${DATA}")
           if [[ "${FRAMES}" == "null" ]]; then
             log "Stream issue; nb_frames=N/A; calculating based on DURATION*FPS"
             FPS=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
