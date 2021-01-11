@@ -612,8 +612,9 @@ for INPUT in "${VALID[@]}"; do
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
     if [[ "${CONFIG[ENCODER]}" != "software" ]]; then
       COMMAND+=" -hwaccel ${CONFIG[ENCODER]}"
+      [[ "${CONFIG[ENCODER]}" == "vaapi" ]] && \
+      COMMAND+=" -hwaccel_device /dev/dri/renderD128"
       [[ "${CONFIG[ENCODER]}" != "auto" ]] && \
-      COMMAND+=" -hwaccel_device /dev/dri/renderD128" && \
       COMMAND+=" -hwaccel_output_format ${CONFIG[ENCODER]}"
     fi
     COMMAND+=" -i \"${FILE}\""
