@@ -809,7 +809,7 @@ for INPUT in "${VALID[@]}"; do
           if [[ "${CODEC_NAME}" != "mov_text" ]] || ${CONFIG[FORCE_SUBTITLES]}; then
             log "Codec mismatch; required=mov_text; config_forced=${CONFIG[FORCE_SUBTITLES]}"
             COMMAND+=" -map ${MAP} -c:s:${SUBTITLE} mov_text"
-            COMMAND="${COMMAND//-i/-fix_sub_duration\ -i}"; SKIP=false
+            COMMAND="${COMMAND//\ -i\ /\ -fix_sub_duration\ -i\ }"; SKIP=false
           else
             COMMAND+=" -map ${MAP} -c:s:${SUBTITLE} copy"
           fi
