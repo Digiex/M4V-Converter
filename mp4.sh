@@ -123,7 +123,7 @@
 #BAD=true
 
 # Cleanup files (MB).
-#SIZE=200
+#SIZE=50
 
 # Cleanup files.
 #EXTS=.nfo,.nzb
@@ -171,6 +171,9 @@ declare -A CONFIG=(
   [DELETE]=false
   [FAST]=true
   [PROCESSES]=ffmpeg
+  [STATS]=true
+  [OFS]=0
+  [CFS]=0
 )
 
 setExitCodes() {
@@ -334,7 +337,7 @@ checkBoolean() {
 }
 
 checkBoolean VERBOSE DEBUG BACKGROUND FORCE_LEVEL FORCE_VIDEO FORCE_AUDIO \
-NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO
+NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO STATS
 ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
@@ -500,6 +503,13 @@ IFS='|' read -r -a CONFIG_PROCESSES <<< "$(echo "${CONFIG[PROCESSES]}" | \
 sed -E 's/,|,\ /|/g')"; unset IFS
 [[ ! "${CONFIG_PROCESSES[*]}" =~ ffmpeg ]] && CONFIG_PROCESSES+=("ffmpeg")
 
+if ${CONFIG[STATS]}; then
+  [[ ! "${CONFIG[OFS]}" =~ ^-?[0-9]+$ ]] && \
+    echo "OFS is incorrectly configured" && exit "${SKIPPED}"
+  [[ ! "${CONFIG[CFS]}" =~ ^-?[0-9]+$ ]] && \
+    echo "CFS is incorrectly configured" && exit "${SKIPPED}"
+fi
+
 log() {
   ${CONFIG[VERBOSE]} && echo "${1}" || true
 }
@@ -539,6 +549,16 @@ formatDate() {
     linux*) date -d @"${1}" -u +%H:%M:%S;;
     darwin*) date -r "${1}" -u +%H:%M:%S;;
   esac
+}
+
+formatBytes() {
+  local i=${1:-0} d="" s=0 S=("Bytes" "KiB" "MiB" "GiB" "TiB" "PiB" "EiB" "YiB" "ZiB")
+  while ((i > 1024 && s < ${#S[@]}-1)); do
+      printf -v d ".%02d" $((i % 1024 * 100 / 1024))
+      i=$((i / 1024))
+      s=$((s + 1))
+  done
+  echo "$i$d ${S[$s]}"
 }
 
 progress() {
@@ -856,10 +876,23 @@ for INPUT in "${VALID[@]}"; do
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
     EFFICIENCY=$(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
     '{printf("%.2f\n",($2-$1)/$1*100)}')
-    FILE_SIZE=$(ls -lh "${FILE}" 2>&1 | awk '{print($5)}')
-    TMP_SIZE=$(ls -lh "${TMP_FILE}" 2>&1 | awk '{print($5)}')
+    HFS=$(formatBytes "${FILE_SIZE}")
+    HTS=$(formatBytes "${TMP_SIZE}")
     echo "Efficiency: ${EFFICIENCY}%;" \
-    "Original=${FILE_SIZE}B; Converted=${TMP_SIZE}B"
+    "Original=${HFS}; Converted=${HTS}"
+    if ${CONFIG[STATS]}; then
+      CONFIG[OFS]=$(( FILE_SIZE + CONFIG[OFS] ))
+      CONFIG[CFS]=$(( TMP_SIZE + CONFIG[CFS] ))
+      EFFICIENCY=$(echo "${CONFIG[OFS]}" "${CONFIG[CFS]}" | awk \
+      '{printf("%.2f\n",($2-$1)/$1*100)}')
+      OFS=$(formatBytes "${CONFIG[OFS]}")
+      CFS=$(formatBytes "${CONFIG[CFS]}")
+      sed -i "s/^OFS=.*/OFS=${CONFIG[OFS]}/" "${CONFIG_FILE}"
+      sed -i "s/^CFS=.*/CFS=${CONFIG[CFS]}/" "${CONFIG_FILE}"
+      echo "[STATS] Total Efficiency: ${EFFICIENCY}"
+      echo "[STATS] Total Original File Sizes: ${OFS}"
+      echo "[STATS] Total Converted File Sizes: ${CFS}"
+    fi
     touch -r "${FILE}" "${TMP_FILE}"
     ${CONFIG[DELETE]} && rm -f "${FILE}" && mv "${TMP_FILE}" "${NEW_FILE}" || \
     TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}")
