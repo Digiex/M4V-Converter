@@ -285,8 +285,7 @@ if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   DIRECTORY="${NZBPP_FINALDIR}" || DIRECTORY="${NZBPP_DIRECTORY}"
   if (( ${NZBPO_SIZE:=0} > 0 )); then
     NZBPO_SIZE=$(( ${NZBPO_SIZE//[!0-9]/} * 1024 * 1024 ))
-    readarray -t CLEANUP <<< \
-    "$(find "${DIRECTORY}" -type f -size -"${NZBPO_SIZE}"c)"
+    readarray -t CLEANUP <<< "$(find "${DIRECTORY}" -type f -size -"${NZBPO_SIZE}"c)"
     [[ ! -z "${CLEANUP[*]}" ]] && \
     for FILE in "${CLEANUP[@]}"; do rm -f "${FILE}"; done
   fi
@@ -340,9 +339,11 @@ ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
 echo "Missing dependency; FFmpeg" && exit "${SKIPPED}"
+${CONFIG[DEBUG]} && CONFIG[FFMPEG]="${CONFIG[FFMPEG]} -loglevel debug"
 
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
 echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
+${CONFIG[DEBUG]} && CONFIG[FFPROBE]="${CONFIG[FFPROBE]} -loglevel debug"
 
 ! hash jq 2>/dev/null && \
 echo "Missing dependency; jq" && exit "${SKIPPED}"
@@ -801,7 +802,7 @@ for INPUT in "${VALID[@]}"; do
         (( SUBTITLE == ${#CONFIG_LANGUAGES[@]} )) && continue
         case "${CODEC_NAME}" in
           hdmv_pgs_subtitle|pgssub|dvb_subtitle|\
-          dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext)
+          dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext|subrip)
           continue;;
         esac
         (( $(jq -r ".streams[${i}].disposition.forced" <<< "${DATA}") == 1 )) && continue
@@ -821,7 +822,7 @@ for INPUT in "${VALID[@]}"; do
             EXTRACT_COMMAND="${CONFIG[FFMPEG]} -i \"${FILE}\" -vn -an -map ${MAP} -c:s:${SUBTITLE} srt \"${SRT_FILE}\""
             log "${EXTRACT_COMMAND}"; echo "Extracting subtitle..."
             TMPFILES+=("${SRT_FILE}")
-            eval "${EXTRACT_COMMAND} &" &>/dev/null; CONVERTER=${!}
+            ${CONFIG[DEBUG]} && eval "${EXTRACT_COMMAND} &" || eval "${EXTRACT_COMMAND} &" &>/dev/null; CONVERTER=${!}
             wait ${CONVERTER} &>/dev/null
             [[ ${?} -ne 0 ]] && echo "Result: failure" || TMPFILES=("${TMPFILES[@]//${SRT_FILE}/}")
             echo "Result: success"
@@ -842,7 +843,7 @@ for INPUT in "${VALID[@]}"; do
     COMMAND+=" -strict -2 -y \"${TMP_FILE}\""
     ${SKIP} && echo "File does not need to be converted" && continue
     log "${COMMAND}"; echo "Converting..."; TMPFILES+=("${TMP_FILE}")
-    eval "${COMMAND} &" &>/dev/null; CONVERTER=${!};
+    ${CONFIG[DEBUG]} && eval "${COMMAND} &" || eval "${COMMAND} &" &>/dev/null; CONVERTER=${!};
     ${CONFIG[VERBOSE]} && progress &
     ${CONFIG[BACKGROUND]} && background &
     wait ${CONVERTER} &>/dev/null
