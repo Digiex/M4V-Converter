@@ -881,15 +881,15 @@ for INPUT in "${VALID[@]}"; do
     echo "Efficiency: ${EFFICIENCY}%;" \
     "Original=${HFS}; Converted=${HTS}"
     if ${CONFIG[STATS]}; then
-      CONFIG[OFS]=$(( FILE_SIZE + CONFIG[OFS] ))
-      CONFIG[CFS]=$(( TMP_SIZE + CONFIG[CFS] ))
+      CONFIG[OFS]=$(( FILE_SIZE + ${CONFIG[OFS]} ))
+      CONFIG[CFS]=$(( TMP_SIZE + ${CONFIG[CFS]} ))
       EFFICIENCY=$(echo "${CONFIG[OFS]}" "${CONFIG[CFS]}" | awk \
       '{printf("%.2f\n",($2-$1)/$1*100)}')
       OFS=$(formatBytes "${CONFIG[OFS]}")
       CFS=$(formatBytes "${CONFIG[CFS]}")
       sed -i "s/^OFS=.*/OFS=${CONFIG[OFS]}/" "${CONFIG_FILE}"
       sed -i "s/^CFS=.*/CFS=${CONFIG[CFS]}/" "${CONFIG_FILE}"
-      echo "[STATS] Total Efficiency: ${EFFICIENCY}"
+      echo "[STATS] Total Efficiency: ${EFFICIENCY}%"
       echo "[STATS] Total Original File Sizes: ${OFS}"
       echo "[STATS] Total Converted File Sizes: ${CFS}"
     fi
