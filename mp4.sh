@@ -34,7 +34,7 @@
 # Preferred Languages (*).
 #Languages=eng
 
-# Encoder (auto, software, VAAPI, CUDA).
+# Encoder (auto, software, VAAPI, CUDA, VIDEOTOOLBOX).
 #Encoder=auto
 
 # Video Codec (source, H.264, HEVC).
@@ -171,9 +171,11 @@ declare -A CONFIG=(
   [DELETE]=false
   [FAST]=true
   [PROCESSES]=ffmpeg
-  [STATS]=true
-  [OFS]=0
-  [CFS]=0
+)
+
+declare -A SAVE=(
+  [TOTAL_PROCCESSED]=0
+  [TOTAL_SAVED]=0
 )
 
 setExitCodes() {
@@ -233,14 +235,9 @@ usage() {
 }
 
 loadConfig() {
-  if [[ ! -z "${1}" ]]; then
-    local COMMAND=$(cat "${1}")
-  elif [[ ! -z "${NZBPP_TOTALSTATUS}" ]]; then
-    local COMMAND=$(declare -p | grep "NZBPO_")
-  elif [[ -e "${CONFIG_FILE}" ]]; then
-    local COMMAND=$(cat "${CONFIG_FILE}")
-  fi
-  [[ ! -z "${COMMAND}" ]] && while read -r LINE; do
+  [[ ! -z "${1}" ]] && LOAD=$(cat "${1}") || LOAD=$(cat "${CONFIG_FILE}")
+  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && LOAD=$(declare -p | grep "NZBPO_")
+  [[ ! -z "${LOAD}" ]] && while read -r LINE; do
     [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
     LINE="${LINE#*_}" && LINE="${LINE//\"/}"
     VAR="${LINE%%=*}"; VAL="${LINE##*=}"
@@ -248,21 +245,24 @@ loadConfig() {
       INPUT|OUTPUT|CONFIG|FFMPEG|FFPROBE|PROCESSES)
       CONFIG["${VAR^^}"]="${VAL}" ;; *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
     esac
-  done <<< ${COMMAND} || \
-  for VAR in "${!CONFIG[@]}"; do
-    echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG_FILE}";
-  done
+  done <<< ${LOAD} || for VAR in "${!CONFIG[@]}"; do echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG_FILE}"; done
 }
 
 CONFIG_FILE=$(realpath "${0}")
 CONFIG_NAME=$(basename "${CONFIG_FILE}")
-if [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]]; then
-  CONFIG_NEW_NAME="${CONFIG_NAME}.conf"
-else
-  CONFIG_NEW_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
-fi
+[[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]] && \
+CONFIG_NEW_NAME="${CONFIG_NAME}.conf" || CONFIG_NEW_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
 CONFIG_FILE="${CONFIG_FILE//${CONFIG_NAME}/${CONFIG_NEW_NAME}}"
 loadConfig
+
+if ${CONFIG[VERBOSE]}; then
+  SAVE_FILE=$(realpath "${0}")
+  SAVE_NAME=$(basename "${SAVE_FILE}")
+  [[ "${SAVE_NAME}" = "${SAVE_NAME##*.}" ]] && \
+  SAVE_NEW_NAME="${SAVE_NAME}.noedit" || SAVE_NEW_NAME="${SAVE_NAME//${SAVE_NAME##*.}/noedit}"
+  SAVE_FILE="${SAVE_FILE//${SAVE_NAME}/${SAVE_NEW_NAME}}"
+  [[ -e "${SAVE_FILE}" ]] && source "${SAVE_FILE}"
+fi
 
 while (( ${#} > 0 )); do
   case "${1}" in
@@ -337,7 +337,7 @@ checkBoolean() {
 }
 
 checkBoolean VERBOSE DEBUG BACKGROUND FORCE_LEVEL FORCE_VIDEO FORCE_AUDIO \
-NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO STATS
+NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO
 ${CONFIG[DEBUG]} && set -ex
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
@@ -346,7 +346,7 @@ ${CONFIG[DEBUG]} && CONFIG[FFMPEG]="${CONFIG[FFMPEG]} -loglevel debug"
 
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
 echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
-${CONFIG[DEBUG]} && CONFIG[FFPROBE]="${CONFIG[FFPROBE]} -loglevel debug"
+${CONFIG[DEBUG]} && CONFIG[FFPROBE]="${CONFIG[FFPROBE]}"
 
 ! hash jq 2>/dev/null && \
 echo "Missing dependency; jq" && exit "${SKIPPED}"
@@ -389,6 +389,10 @@ case "${CONFIG[ENCODER]}" in
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
     CONFIG[VIDEO_CODEC]="hevc_nvenc" || \
     CONFIG[VIDEO_CODEC]="h264_nvenc" ;;
+  videotoolbox)
+    [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
+    CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
+    CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
   auto|software) ;;
   *) echo "ENCODER is incorrectly configured"; exit ${CONFIG} ;;
 esac
@@ -502,13 +506,6 @@ fi
 IFS='|' read -r -a CONFIG_PROCESSES <<< "$(echo "${CONFIG[PROCESSES]}" | \
 sed -E 's/,|,\ /|/g')"; unset IFS
 [[ ! "${CONFIG_PROCESSES[*]}" =~ ffmpeg ]] && CONFIG_PROCESSES+=("ffmpeg")
-
-if ${CONFIG[STATS]}; then
-  [[ ! "${CONFIG[OFS]}" =~ ^-?[0-9]+$ ]] && \
-    echo "OFS is incorrectly configured" && exit "${SKIPPED}"
-  [[ ! "${CONFIG[CFS]}" =~ ^-?[0-9]+$ ]] && \
-    echo "CFS is incorrectly configured" && exit "${SKIPPED}"
-fi
 
 log() {
   ${CONFIG[VERBOSE]} && echo "${1}" || true
@@ -628,6 +625,7 @@ for INPUT in "${VALID[@]}"; do
     [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
     NEW_FILE="${DIRECTORY}/${NEW_FILE_NAME}"
     DATA=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
+    ${CONFIG[DEBUG]} && echo "${DATA}"
     [[ "${DATA}" =~ drm ]] && echo "File is DRM protected" && continue
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
     if [[ "${CONFIG[ENCODER]}" != "software" ]]; then
@@ -732,6 +730,7 @@ for INPUT in "${VALID[@]}"; do
           [[ "${CONFIG[TUNE]}" != "false" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
           COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
+          [[ "${CONFIG[VIDEO_CODEC]}" =~ videotoolbox ]] && COMMAND+=" -q:v:${VIDEO} 65" || \
           COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
         else
           COMMAND+=" -c:v:${VIDEO} copy"
@@ -874,24 +873,17 @@ for INPUT in "${VALID[@]}"; do
     fi; echo "Result: success"
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
-    EFFICIENCY=$(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
-    '{printf("%.2f\n",($2-$1)/$1*100)}')
-    HFS=$(formatBytes "${FILE_SIZE}")
-    HTS=$(formatBytes "${TMP_SIZE}")
-    echo "Efficiency: ${EFFICIENCY}%;" \
-    "Original=${HFS}; Converted=${HTS}"
-    if ${CONFIG[STATS]}; then
-      CONFIG[OFS]=$(( FILE_SIZE + ${CONFIG[OFS]} ))
-      CONFIG[CFS]=$(( TMP_SIZE + ${CONFIG[CFS]} ))
-      EFFICIENCY=$(echo "${CONFIG[OFS]}" "${CONFIG[CFS]}" | awk \
-      '{printf("%.2f\n",($2-$1)/$1*100)}')
-      OFS=$(formatBytes "${CONFIG[OFS]}")
-      CFS=$(formatBytes "${CONFIG[CFS]}")
-      sed -i "s/^OFS=.*/OFS=${CONFIG[OFS]}/" "${CONFIG_FILE}"
-      sed -i "s/^CFS=.*/CFS=${CONFIG[CFS]}/" "${CONFIG_FILE}"
-      echo "[STATS] Total Efficiency: ${EFFICIENCY}%"
-      echo "[STATS] Total Original File Sizes: ${OFS}"
-      echo "[STATS] Total Converted File Sizes: ${CFS}"
+    echo "Efficiency: $(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
+    '{printf("%.2f\n",($2-$1)/$1*100)}')%;" \
+    "Original=$(formatBytes "${FILE_SIZE}"); Converted=$(formatBytes "${TMP_SIZE}")"
+    if ${CONFIG[VERBOSE]}; then
+      SAVE[TOTAL_PROCCESSED]=$(( FILE_SIZE + SAVE[TOTAL_PROCCESSED] ))
+      SAVE[TOTAL_SAVED]=$(( TMP_SIZE + SAVE[TOTAL_SAVED] ))
+      echo "Total Processed: $(formatBytes "${SAVE[TOTAL_PROCCESSED]}")"
+      echo "Total Saved: $(formatBytes "${SAVE[TOTAL_SAVED]}")"
+      echo "Total Efficiency: $(echo "${SAVE[TOTAL_PROCCESSED]}" "${SAVE[TOTAL_SAVED]}" | awk \
+      '{printf("%.2f\n",($2-$1)/$1*100)}')%"
+      typeset -p SAVE > "${SAVE_FILE}"
     fi
     touch -r "${FILE}" "${TMP_FILE}"
     ${CONFIG[DELETE]} && rm -f "${FILE}" && mv "${TMP_FILE}" "${NEW_FILE}" || \
