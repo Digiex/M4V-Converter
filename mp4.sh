@@ -235,8 +235,13 @@ usage() {
 }
 
 loadConfig() {
-  [[ ! -z "${1}" ]] && LOAD=$(cat "${1}") || LOAD=$(cat "${CONFIG_FILE}")
-  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && LOAD=$(declare -p | grep "NZBPO_")
+  if [[ ! -z "${1}" ]]; then
+    LOAD=$(cat "${1}")
+  elif [[ ! -z "${NZBPP_TOTALSTATUS}" ]]; then
+    LOAD=$(declare -p | grep "NZBPO_")
+  elif [[ -e "${CONFIG_FILE}" ]]; then
+    LOAD=$(cat "${CONFIG_FILE}")
+  fi
   [[ ! -z "${LOAD}" ]] && while read -r LINE; do
     [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
     LINE="${LINE#*_}" && LINE="${LINE//\"/}"
