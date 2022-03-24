@@ -563,6 +563,10 @@ formatBytes() {
   echo "$i$d ${S[$s]}"
 }
 
+markBad() {
+  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && ${NZBPO_BAD} && echo "[NZB] MARK=BAD"
+}
+
 progress() {
   local START=$(date +%s)
   while kill -0 "${CONVERTER}" 2>/dev/null; do
@@ -596,7 +600,7 @@ clean() {
 trap force HUP INT TERM QUIT
 trap clean EXIT
 
-CURRENTINPUT=0
+CURRENTINPUT=0; PROCESSED=0
 for INPUT in "${VALID[@]}"; do
   [[ ! -e "${INPUT}" ]] && \
   echo "Input: ${INPUT} no longer exists" && continue
@@ -873,8 +877,7 @@ for INPUT in "${VALID[@]}"; do
     wait ${CONVERTER} &>/dev/null
     if [[ ${?} -ne 0 ]]; then
       echo "Result: failure";
-      [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && \
-      ${NZBPO_BAD} && echo "[NZB] MARK=BAD"; exit "${FAILURE}"
+      markBad && exit "${FAILURE}"
     fi; echo "Result: success"
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
@@ -896,7 +899,9 @@ for INPUT in "${VALID[@]}"; do
     chmod "${CONFIG[FILE_PERMISSION]}" "${NEW_FILE}"
     chmod "${CONFIG[DIRECTORY_PERMISSION]}" "${DIRECTORY}"; clean
     ${CUSTOM} && (( CURRENTFILE < ${#FILES} )) && loadConfig && CUSTOM=false
+    ((PROCESSED++))
   done
 done
 
+(( PROCESSED == 0 )) && markBad
 exit "${SUCCESS}"
