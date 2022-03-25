@@ -257,19 +257,21 @@ loadConfig() {
   done <<< ${LOAD} || for VAR in "${!CONFIG[@]}"; do echo "${VAR}=${CONFIG[${VAR}]}" >> "${CONFIG_FILE}"; done
 }
 
-CONFIG_FILE=$(realpath "${0}")
-CONFIG_NAME=$(basename "${CONFIG_FILE}")
+CONFIG_FILE="${0}"
+CONFIG_NAME="${CONFIG_FILE##*/}"
 [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]] && \
 CONFIG_NEW_NAME="${CONFIG_NAME}.conf" || CONFIG_NEW_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
 CONFIG_FILE="${CONFIG_FILE//${CONFIG_NAME}/${CONFIG_NEW_NAME}}"
+CONFIG_NAME="${CONFIG_NEW_NAME}"
 loadConfig
 
 if ${CONFIG[VERBOSE]}; then
-  SAVE_FILE=$(realpath "${0}")
-  SAVE_NAME=$(basename "${SAVE_FILE}")
+  SAVE_FILE="${0}"
+  SAVE_NAME="${SAVE_FILE##*/}"
   [[ "${SAVE_NAME}" = "${SAVE_NAME##*.}" ]] && \
   SAVE_NEW_NAME="${SAVE_NAME}.noedit" || SAVE_NEW_NAME="${SAVE_NAME//${SAVE_NAME##*.}/noedit}"
   SAVE_FILE="${SAVE_FILE//${SAVE_NAME}/${SAVE_NEW_NAME}}"
+  SAVE_FILE="${SAVE_NEW_NAME}"
   [[ -e "${SAVE_FILE}" ]] && source "${SAVE_FILE}"
 fi
 
@@ -591,9 +593,8 @@ progress() {
 }
 
 force() {
-  case "${OSTYPE}" in
-    linux*) pkill -P $$;; darwin*) kill $(ps -o pid= --ppid $$);;
-  esac; exit "${SKIPPED}"
+  pkill -P $$
+  exit "${SKIPPED}"
 }
 
 clean() {
@@ -617,7 +618,8 @@ for INPUT in "${VALID[@]}"; do
     echo "File: ${FILE} no longer exists" && continue
     ((CURRENTFILE++)) || true
     DIRECTORY="$(dirname "${FILE}")"
-    [[ -e "${DIRECTORY}/${CONFIG_NAME}" ]] && \
+    CUSTOM_CONFIG="${DIRECTORY}/${CONFIG_NAME}"
+    [[ "${CONFIG_FILE}" != "${CUSTOM_CONFIG}" ]] && [[ -e "${CUSTOM_CONFIG}" ]] && \
     loadConfig "${DIRECTORY}/${CONFIG_NAME}" && CUSTOM=true && \
     log "Found config file; ${DIRECTORY}/${CONFIG_NAME}"
     FILE_NAME="$(basename "${FILE}")"
