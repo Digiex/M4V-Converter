@@ -16,6 +16,9 @@
 # PATH to FFprobe.
 #FFprobe=ffprobe
 
+# PATH to jq.
+#JQ=jq
+
 # Output Directory.
 #Output=
 
@@ -137,6 +140,7 @@ echo "Outdated; Bash version 4 or later required" && exit "${SKIPPED}"
 declare -A CONFIG=(
   [FFMPEG]=$(which ffmpeg)
   [FFPROBE]=$(which ffprobe)
+  [JQ]=$(which jq)
   [INPUT]=
   [OUTPUT]=
   [VERBOSE]=false
@@ -351,9 +355,8 @@ ${CONFIG[DEBUG]} && CONFIG[FFMPEG]="${CONFIG[FFMPEG]} -loglevel debug"
 
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
 echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
-${CONFIG[DEBUG]} && CONFIG[FFPROBE]="${CONFIG[FFPROBE]}"
 
-! hash jq 2>/dev/null && \
+! hash "${CONFIG[JQ]}" 2>/dev/null && \
 echo "Missing dependency; jq" && exit "${SKIPPED}"
 
 if [[ "${CONFIG[THREADS]}" != "auto" ]]; then
@@ -404,7 +407,7 @@ esac
 
 [[ "${CONFIG[ENCODER]}" != "auto" ]] && \
 [[ "${CONFIG[ENCODER]}" != "software" ]] && \
-[[ ! $(ffmpeg -v quiet -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
+[[ ! $("${CONFIG[FFMPEG]}" -v quiet -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
 echo "ENCODER selected is not available" && exit ${CONFIG}
 
 case "${CONFIG[PRESET]}" in
@@ -633,7 +636,7 @@ for INPUT in "${VALID[@]}"; do
     DIRECTORY="${DIRECTORY//${INPUT%/}/${CONFIG[OUTPUT]}}"
     [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
     NEW_FILE="${DIRECTORY}/${NEW_FILE_NAME}"
-    DATA=$(${CONFIG[FFPROBE]} "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
+    DATA=$("${CONFIG[FFPROBE]}" "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
     ${CONFIG[DEBUG]} && echo "${DATA}"
     [[ "${DATA}" =~ drm ]] && echo "File is DRM protected" && continue
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
@@ -645,51 +648,51 @@ for INPUT in "${VALID[@]}"; do
       COMMAND+=" -hwaccel_output_format ${CONFIG[ENCODER]}"
     fi
     COMMAND+=" -i \"${FILE}\""
-    TOTAL=$(jq '.streams | length' <<< "${DATA}");
+    TOTAL=$("${CONFIG[JQ]}" '.streams | length' <<< "${DATA}");
     SKIP=true; VIDEO=0; AUDIO=0; SUBTITLE=0
     for ((i = 0; i < ${TOTAL}; i++)); do MAP="0:${i}"
-      CODEC_TYPE=$(jq -r ".streams[${i}].codec_type" <<< "${DATA}")
-      CODEC_NAME=$(jq -r ".streams[${i}].codec_name" <<< "${DATA}")
+      CODEC_TYPE=$("${CONFIG[JQ]}" -r ".streams[${i}].codec_type" <<< "${DATA}")
+      CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${i}].codec_name" <<< "${DATA}")
       MESSAGE="Stream found; map=${MAP}; type=${CODEC_TYPE}; codec=${CODEC_NAME}"
-      LANGUAGE=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
+      LANGUAGE=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.language" <<< "${DATA}")
       case "${LANGUAGE,,}" in
         null|unk|und) LANGUAGE="${CONFIG_DEFAULT_LANGUAGE}";;
       esac
       [[ "${CODEC_TYPE}" == "audio" || "${CODEC_TYPE}" == "subtitle" ]] && \
       MESSAGE+="; language=${LANGUAGE}"; log "${MESSAGE}"
       [[ ! "${CONFIG_LANGUAGES[*]}" =~ ${LANGUAGE} ]] && continue
-      BIT_RATE=$(jq -r ".streams[${i}].bit_rate" <<< "${DATA}")
+      BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
-      BIT_RATE=$(jq -r ".streams[${i}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
+      BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
       BIT_RATE=$((BIT_RATE / 1024))
       if [[ "${CODEC_TYPE}" == "video" ]]; then
         ((VIDEO > 0)) && continue
-        (( $(jq -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
+        (( $("${CONFIG[JQ]}" -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
         if [[ "${BIT_RATE}" == "null" ]]; then
           log "Stream issue; bit_rate=N/A; Using format.bit_rate (not accurate)"
           for ((a = 0; a < ${TYPE}; a++)); do
-            [[ $(jq -r ".streams[${a}].codec_type" <<< "${DATA}") != "audio" ]] && continue
-            b=$(jq -r ".streams[${a}].bit_rate" <<< "${DATA}")
+            [[ $("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<< "${DATA}") != "audio" ]] && continue
+            b=$("${CONFIG[JQ]}" -r ".streams[${a}].bit_rate" <<< "${DATA}")
             [[ "${b}" == "null" ]] && \
-            b=$(jq -r ".streams[${a}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
+            b=$("${CONFIG[JQ]}" -r ".streams[${a}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
             if [[ "${b}" == "null" ]]; then
-              [[ $(jq -r ".streams[${a}].codec_name" <<< "${DATA}") == "aac" ]] && \
+              [[ $("${CONFIG[JQ]}" -r ".streams[${a}].codec_name" <<< "${DATA}") == "aac" ]] && \
               AUDIO_TOTAL=$((AUDIO_TOTAL + 128000)) || \
               AUDIO_TOTAL=$((AUDIO_TOTAL + 768000))
             fi
             AUDIO_TOTAL=$((AUDIO_TOTAL + b))
           done
-          BIT_RATE=$(( $(jq -r ".format.bit_rate" <<< "${DATA}") - AUDIO_TOTAL / 1024))
+          BIT_RATE=$(( $("${CONFIG[JQ]}" -r ".format.bit_rate" <<< "${DATA}") - AUDIO_TOTAL / 1024))
         fi
         if ${CONFIG[VERBOSE]}; then
-          FRAMES=$(jq -r ".streams[${i}].nb_frames" <<< "${DATA}")
+          FRAMES=$("${CONFIG[JQ]}" -r ".streams[${i}].nb_frames" <<< "${DATA}")
           [[ "${FRAMES}" == "null" ]] && \
-          FRAMES=$(jq -r ".streams[${i}].tags.\"NUMBER_OF_FRAMES-${LANGUAGE}\"" <<< "${DATA}")
+          FRAMES=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.\"NUMBER_OF_FRAMES-${LANGUAGE}\"" <<< "${DATA}")
           if [[ "${FRAMES}" == "null" ]]; then
             log "Stream issue; nb_frames=N/A; calculating based on DURATION*FPS"
-            FPS=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
+            FPS=$("${CONFIG[FFPROBE]}" "${FILE}" 2>&1 | \
             sed -n "s/.*, \\(.*\\) fps.*/\\1/p")
-            DUR=$(${CONFIG[FFPROBE]} "${FILE}" 2>&1 | \
+            DUR=$("${CONFIG[FFPROBE]}" "${FILE}" 2>&1 | \
             sed -n "s/.* Duration: \\([^,]*\\), .*/\\1/p" | \
             awk -F ':' '{print $1*3600+$2*60+$3}')
             FRAMES=$(echo "${DUR}" "${FPS}" | \
@@ -705,18 +708,18 @@ for INPUT in "${VALID[@]}"; do
         ! ${CONFIG[FORCE_VIDEO]}; then
           [[ "${CODEC_NAME}" != "${CONFIG_VIDEO_CODEC}" ]] && \
           log "Codec mismatch; config=${CONFIG_VIDEO_CODEC} stream=${CODEC_NAME}" && SKIP=false
-          WIDTH=$(jq -r ".streams[${i}].width" <<< "${DATA}")
-          HEIGHT=$(jq -r ".streams[${i}].height" <<< "${DATA}")
+          WIDTH=$("${CONFIG[JQ]}" -r ".streams[${i}].width" <<< "${DATA}")
+          HEIGHT=$("${CONFIG[JQ]}" -r ".streams[${i}].height" <<< "${DATA}")
           [[ "${CONFIG[RESOLUTION]}" != "source" ]] && \
           (( WIDTH > ${CONFIG[RESOLUTION]%%x*} || HEIGHT > ${CONFIG[RESOLUTION]##*x} )) && \
           log "Resolution exceeded; config=${CONFIG[RESOLUTION]}; stream=${WIDTH}x${HEIGHT}" && \
           SKIP=false && COMMAND+=" -filter:v:${VIDEO} \"scale=${CONFIG[RESOLUTION]%%x*}:-2\""
-          PROFILE=$(jq -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
+          PROFILE=$("${CONFIG[JQ]}" -r ".streams[${i}].profile" <<< "${DATA}"); PROFILE="${PROFILE,,}"
           [[ "${CONFIG[PROFILE]}" != "source" ]] && \
           [[ ! "${PROFILE}" =~ ${CONFIG[PROFILE]} ]] && \
           log "Profile mismatch; config=${CONFIG[PROFILE]}; stream=${PROFILE}" && \
           SKIP=false && COMMAND+=" -profile:v:${VIDEO} ${CONFIG[PROFILE]}"
-          LEVEL=$(jq -r ".streams[${i}].level" <<< "${DATA}")
+          LEVEL=$("${CONFIG[JQ]}" -r ".streams[${i}].level" <<< "${DATA}")
           if [[ "${CODEC_NAME}" != "hevc" ]] && \
           [[ "${CONFIG[LEVEL]}" != "source" ]] && \
           (( LEVEL > ${CONFIG[LEVEL]//./} )); then
@@ -724,7 +727,7 @@ for INPUT in "${VALID[@]}"; do
             log "Level exceeded; config=${CONFIG[LEVEL]}; stream=${LEVEL}" && \
             SKIP=false && COMMAND+=" -level:${VIDEO} ${CONFIG[LEVEL]}"
           fi
-          PIX_FMT=$(jq -r ".streams[${i}].pix_fmt" <<< "${DATA}")
+          PIX_FMT=$("${CONFIG[JQ]}" -r ".streams[${i}].pix_fmt" <<< "${DATA}")
           [[ "${CONFIG[PIXEL_FORMAT]}" != "source" ]] && \
           [[ ! "${PIX_FMT}" =~ ${CONFIG[PIXEL_FORMAT]} ]] && \
           log "Pixel format mismatch; config=${CONFIG[PIXEL_FORMAT]}; stream=${PIX_FMT}" && \
@@ -748,28 +751,28 @@ for INPUT in "${VALID[@]}"; do
         COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
-        FILTER=$(jq -r ".streams[${i}]" <<< "${DATA}")
+        FILTER=$("${CONFIG[JQ]}" -r ".streams[${i}]" <<< "${DATA}")
         [[ "${FILTER,,}" =~ commentary ]] && continue
         CODEC="${CONFIG[AUDIO_CODEC]}"
         [[ "${CODEC}" == "source" ]] && \
         [[ "${CODEC_NAME}" != "aac" || ! "${CODEC_NAME}" =~ ac3 ]] && CODEC="aac"
-        CHANNELS=$(jq -r ".streams[${i}].channels" <<< "${DATA}");
+        CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${i}].channels" <<< "${DATA}");
         if ${CONFIG[DUAL_AUDIO]}; then
           (( AUDIO == ((${#CONFIG_LANGUAGES[@]} * 2)) )) && continue
           AAC=false; AC3=false; for ((a = 0; a < ${TOTAL}; a++)); do
-            FILTER=$(jq -r ".streams[${a}]" <<< "${DATA}")
+            FILTER=$("${CONFIG[JQ]}" -r ".streams[${a}]" <<< "${DATA}")
             [[ "${FILTER,,}" =~ commentary ]] && continue
-            TYPE=$(jq -r ".streams[${a}].codec_type" <<< "${DATA}")
+            TYPE=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<< "${DATA}")
             if [[ "${TYPE}" == "audio" ]]; then
-              LANG=$(jq -r ".streams[${i}].tags.language" <<< "${DATA}")
+              LANG=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.language" <<< "${DATA}")
               case "${LANG,,}" in
                 null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}";;
               esac
               [[ "${LANG}" != "${LANGUAGE}" ]] && continue
-              NAME=$(jq -r ".streams[${a}].codec_name" <<< "${DATA}")
+              NAME=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_name" <<< "${DATA}")
               [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX="0:${a}"
               [[ "${NAME}" =~ ac3 ]] && \
-              (( $(jq -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
+              (( $("${CONFIG[JQ]}" -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
               AC3=true && AC3_INDEX="0:${a}"
             fi
           done
@@ -833,7 +836,7 @@ for INPUT in "${VALID[@]}"; do
           dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext|subrip)
           continue;;
         esac
-        (( $(jq -r ".streams[${i}].disposition.forced" <<< "${DATA}") == 1 )) && continue
+        (( $("${CONFIG[JQ]}" -r ".streams[${i}].disposition.forced" <<< "${DATA}") == 1 )) && continue
         if ${CONFIG[SUBTITLES]}; then
           if [[ "${CODEC_NAME}" != "mov_text" ]] || ${CONFIG[FORCE_SUBTITLES]}; then
             log "Codec mismatch; required=mov_text; config_forced=${CONFIG[FORCE_SUBTITLES]}"
