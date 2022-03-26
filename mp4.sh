@@ -908,5 +908,5 @@ for INPUT in "${VALID[@]}"; do
   done
 done
 
-(( PROCESSED == 0 )) && markBad
+! ${SKIP} && (( PROCESSED == 0 )) && markBad
 exit "${SUCCESS}"
