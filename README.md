@@ -16,37 +16,34 @@ Requires `Bash v4+`, `FFmpeg`, `FFprobe` and `jq`
 
 Docker
 -------
-[Download Docker](https://store.docker.com/search?type=edition&offering=community)
+Example [Docker](https://store.docker.com/search?type=edition&offering=community) commands
 
 ```
 docker run -it --rm \
-  -u <UID>:<GID> \
-  -v </path/to/process>:/input \
+  -v /path/to/process:/input \
   ghcr.io/digiex/mp4:latest -i /input
 ```
-Run the following command to install the script with NZBGet in Docker!
 
 ```
 docker create \
   --name nzbget \
   -p 6789:6789 \
-  -e PUID=<UID> \
-  -e PGID=<GID> \
-  -e TZ=<timezone> \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=America/New_York \
   -v /path/to/appdata:/config \
   -v /path/to/downloads:/downloads \
   ghcr.io/digiex/nzbget:latest
 ```
-If you prefer SABnzbd, you can get that to!
 
 ```
 docker create \
   --name sabnzbd \
   -p 8080:8080 \
   -p 9090:9090 \
-  -e PUID=<UID> \
-  -e PGID=<GID> \
-  -e TZ=<timezone> \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=America/New_York \
   -v /path/to/appdata:/config \
   -v /path/to/downloads:/downloads \
   -v /path/to/incomplete-downloads:/incomplete-downloads \
@@ -55,6 +52,7 @@ docker create \
 
 Docker Compose
 -------
+Examples for docker-compose
 
 ```
 nzbget:
