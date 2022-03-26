@@ -14,6 +14,36 @@ Dependencies
 -------------
 Requires `Bash v4+`, `FFmpeg`, `FFprobe` and `jq`
 
+Ubuntu:
+```
+apt-get update
+apt-get install ffmpeg jq
+```
+
+Alpine:
+```
+apk update
+apk add bash ffmpeg jq
+```
+
+macOS: Requires [Homebrew](https://brew.sh/)
+```
+brew update
+brew install bash ffmpeg jq
+```
+
+Usage
+-------
+Example commands
+
+```
+./mp4.sh -i /path/to/process
+
+./mp4.sh -v -i /path/to/process -c /path/to/config
+
+./mp4.sh -v -i /path/to/process --video-codec=hevc --dual-audio=true --normalize=true
+```
+
 Docker
 -------
 Example [Docker](https://store.docker.com/search?type=edition&offering=community) commands
@@ -90,8 +120,7 @@ Configuration
 ------------
 Running the script once `./mp4.sh` will create a `mp4.conf` file, You may edit
 these settings to your liking. You can also specify a location to this
-file (if one already exists) by using `-c /path/to/mp4.conf` or `--config=/path/to/mp4.conf`
-replacing CONFIG with the path to your config file.
+file (if one already exists) by using `-c /path/to/mp4.conf` or `--config=/path/to/mp4.conf`.
 
 Credits & Useful Links
 -------------------------
