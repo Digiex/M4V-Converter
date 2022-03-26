@@ -40,13 +40,11 @@ docker create \
 docker create \
   --name sabnzbd \
   -p 8080:8080 \
-  -p 9090:9090 \
   -e PUID=1000 \
   -e PGID=1000 \
   -e TZ=America/New_York \
   -v /path/to/appdata:/config \
   -v /path/to/downloads:/downloads \
-  -v /path/to/incomplete-downloads:/incomplete-downloads \
   ghcr.io/digiex/sabnzbd:latest
 ```
 
@@ -83,7 +81,6 @@ sabnzbd:
   volumes:
     - /path/to/appdata:/config
     - /path/to/downloads:/downloads
-    - /path/to/incomplete-downloads:/incomplete-downloads
   ports:
     - 8080:8080
   restart: unless-stopped
