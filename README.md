@@ -12,7 +12,7 @@ Found a bug? [Report it here!](https://github.com/Digiex/M4V-Converter/issues/ne
 
 Dependencies
 -------------
-Requires `Bash v4+`, `FFmpeg`, `FFprobe` and `jq`
+Requires `bash` version 4 or greater, `ffmpeg`, `ffprobe` and `jq`
 
 Ubuntu:
 ```
@@ -31,6 +31,21 @@ macOS: Requires [Homebrew](https://brew.sh/)
 brew update
 brew install bash ffmpeg jq
 ```
+When using macOS the default bash is still only version 3 and if you want to use the NZBGet.app or SABnzbd.app with the script you will need to do the following to correct PATH issues:
+
+1. Find the PATH to bash, `which bash` This should return either `/opt/homebrew/bin/bash` (arm64) or `/usr/local/bin/bash` (x86) depending on your Mac architecture
+
+2.  - NZBGet: Open the [NZBGet webui](http://127.0.0.1:6789/), go to settings, extension scripts, look for ShellOverride, give it the PATH to the newer version of bash. This should look like: `.sh=/opt/homebrew/bin/bash`
+    - SABnzbd: Edit the script, change line 1 `#!/usr/bin/env bash` to the PATH of the newer version of bash. This should look like: `#!/opt/homebrew/bin/bash`
+  
+One solution that works for both is to set a launchctl environment variable, You can do so with the following:
+```
+launchctl setenv PATH $PATH
+killall Dock
+```
+If you have the NZBGet.app or SABnzbd.app already running you will need to restart them.
+
+NOTE: If you choose not to use the launchctl solution, remember to also set the PATH for ffmpeg, ffprobe and jq in either the NZBGet webui or mp4.conf for SABnzbd
 
 Usage
 -------
