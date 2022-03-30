@@ -40,6 +40,9 @@
 # Encoder (auto, software, VAAPI, CUDA, VIDEOTOOLBOX).
 #Encoder=auto
 
+# VideoToolBox Quality (1-100).
+#VTBQ=65
+
 # Video Codec (source, H.264, HEVC).
 #Video Codec=H.264
 
@@ -68,9 +71,8 @@
 # Video Bitrate (KB).
 #Video Bitrate=source
 
-# Video Tune (film, animation, grain, stillimage, fastdecode,
-# zerolatency, false).
-#Tune=film
+# Video Tune (*).
+#Tune=false
 
 # Force Video Convert (true, false).
 #Force Video=false
@@ -81,8 +83,8 @@
 # Audio Channels (*).
 #Audio Channels=2
 
-# Audio Bitrate (KB).
-#Audio Bitrate=128
+# Audio Bitrate (Kbps).
+#Audio Bitrate=128k
 
 # Dual Audio (true, false).
 #Dual Audio=false
@@ -135,7 +137,7 @@
 ################################################################################
 
 (( BASH_VERSINFO < 4 )) && \
-echo "Outdated; Bash version 4 or later required" && exit "${SKIPPED}"
+echo "Outdated; Bash version 4 or later required" && exit 1
 
 declare -A CONFIG=(
   [FFMPEG]=$(which ffmpeg)
@@ -149,6 +151,7 @@ declare -A CONFIG=(
   [THREADS]=auto
   [LANGUAGES]=eng
   [ENCODER]=auto
+  [VTBQ]=65
   [VIDEO_CODEC]=h264
   [PRESET]=medium
   [PROFILE]=main
@@ -161,7 +164,7 @@ declare -A CONFIG=(
   [TUNE]=film
   [FORCE_VIDEO]=false
   [AUDIO_CODEC]=aac
-  [AUDIO_BITRATE]=128
+  [AUDIO_BITRATE]=128k
   [AUDIO_CHANNELS]=2
   [NORMALIZE]=false
   [FORCE_AUDIO]=false
@@ -208,6 +211,7 @@ usage() {
   echo "advanced optional arguments: (Use ONLY if you know what you are doing)"
   echo "--ffmpeg="
   echo "--ffprobe="
+  echo "--jq="
   echo "--threads="
   echo "--languages="
   echo "--encoder="
@@ -262,16 +266,14 @@ CONFIG_NAME="${CONFIG_FILE##*/}"
 [[ "${CONFIG_NAME}" = "${CONFIG_NAME##*.}" ]] && \
 CONFIG_NEW_NAME="${CONFIG_NAME}.conf" || CONFIG_NEW_NAME="${CONFIG_NAME//${CONFIG_NAME##*.}/conf}"
 CONFIG_FILE="${CONFIG_FILE//${CONFIG_NAME}/${CONFIG_NEW_NAME}}"
-CONFIG_NAME="${CONFIG_NEW_NAME}"
 loadConfig
 
 if ${CONFIG[VERBOSE]}; then
   SAVE_FILE="${0}"
   SAVE_NAME="${SAVE_FILE##*/}"
   [[ "${SAVE_NAME}" = "${SAVE_NAME##*.}" ]] && \
-  SAVE_NEW_NAME="${SAVE_NAME}.noedit" || SAVE_NEW_NAME="${SAVE_NAME//${SAVE_NAME##*.}/noedit}"
+  SAVE_NEW_NAME="${SAVE_NAME}.sav" || SAVE_NEW_NAME="${SAVE_NAME//${SAVE_NAME##*.}/sav}"
   SAVE_FILE="${SAVE_FILE//${SAVE_NAME}/${SAVE_NEW_NAME}}"
-  SAVE_FILE="${SAVE_NEW_NAME}"
   [[ -e "${SAVE_FILE}" ]] && source "${SAVE_FILE}"
 fi
 
@@ -287,7 +289,7 @@ while (( ${#} > 0 )); do
     --config=*) loadConfig "${1##*=}"; shift;;
     --*=*) VAR="${1#--}"; VAR="${VAR%=*}"; VAR="${VAR//-/_}";
     CONFIG[${VAR^^}]="${1#--*=}"; shift;;
-    *) usage; shift;;
+    *) [[ -z "${SAB_VERSION}" ]] && usage; shift;;
   esac
 done
 
@@ -349,11 +351,11 @@ checkBoolean() {
 
 checkBoolean VERBOSE DEBUG BACKGROUND FORCE_LEVEL FORCE_VIDEO FORCE_AUDIO \
 NORMALIZE FORCE_SUBTITLES DELETE FAST DUAL_AUDIO
-${CONFIG[DEBUG]} && set -ex
+${CONFIG[DEBUG]} && set -ex && declare -p
 
 ! hash "${CONFIG[FFMPEG]}" 2>/dev/null && \
 echo "Missing dependency; FFmpeg" && exit "${SKIPPED}"
-${CONFIG[DEBUG]} && CONFIG[FFMPEG]="${CONFIG[FFMPEG]} -loglevel debug"
+${CONFIG[VERBOSE]} && CONFIG[FFMPEG]="${CONFIG[FFMPEG]} -loglevel error"
 
 ! hash "${CONFIG[FFPROBE]}" 2>/dev/null && \
 echo "Missing dependency; FFprobe" && exit "${SKIPPED}"
@@ -391,7 +393,7 @@ case "${CONFIG[VIDEO_CODEC]}" in
 esac
 
 case "${CONFIG[ENCODER]}" in
-  vaapi)
+  vaapi|videotoolbox)
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
     CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
     CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
@@ -399,18 +401,21 @@ case "${CONFIG[ENCODER]}" in
     [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
     CONFIG[VIDEO_CODEC]="hevc_nvenc" || \
     CONFIG[VIDEO_CODEC]="h264_nvenc" ;;
-  videotoolbox)
-    [[ "${CONFIG[VIDEO_CODEC]}" == "libx265" ]] && \
-    CONFIG[VIDEO_CODEC]="hevc_${CONFIG[ENCODER]}" || \
-    CONFIG[VIDEO_CODEC]="h264_${CONFIG[ENCODER]}" ;;
   auto|software) ;;
-  *) echo "ENCODER is incorrectly configured"; exit ${CONFIG} ;;
+  *) echo "ENCODER is incorrectly configured"; exit ${SKIPPED} ;;
 esac
 
+ENCODERS=$(${CONFIG[FFMPEG]} -encoders)
+ENCODERS="${ENCODERS,,}"
 [[ "${CONFIG[ENCODER]}" != "auto" ]] && \
 [[ "${CONFIG[ENCODER]}" != "software" ]] && \
-[[ ! $("${CONFIG[FFMPEG]}" -v quiet -hwaccels 2>&1) =~ "${CONFIG[ENCODER]}" ]] && \
-echo "ENCODER selected is not available" && exit ${CONFIG}
+[[ ! "${ENCODERS}" =~ "${CONFIG[ENCODER]}" ]] && \
+echo "ENCODER selected is not available" && exit ${SKIPPED}
+
+[[ ! "${CONFIG[VTBQ]}" =~ ^-?[0-9]+$ ]] || \
+(( "${CONFIG[VTBQ]}" < 1 )) || \
+(( "${CONFIG[VTBQ]}" > 100 )) && \
+echo "VTBQ (VideoToolBox Quality) is incorrectly configured" && exit "${SKIPPED}"
 
 case "${CONFIG[PRESET]}" in
   ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow);;
@@ -475,6 +480,16 @@ case "${CONFIG[AUDIO_CODEC]}" in
   aac|ac3|source);;
   *) echo "AUDIO_CODEC is incorrectly configured"; exit "${SKIPPED}";;
 esac
+
+if [[ "${CONFIG[AUDIO_BITRATE]}" != source ]]; then
+  CONFIG[AUDIO_BITRATE]="${CONFIG[AUDIO_BITRATE]//k/}"
+  [[ ! "${CONFIG[AUDIO_BITRATE]}" =~ ^-?[0-9]+$ ]] && \
+  echo "AUDIO_BITRATE is incorrectly configured" && exit "${SKIPPED}"
+fi
+
+[[ "${CONFIG[AUDIO_CHANNELS]}" != source ]] && \
+[[ ! "${CONFIG[AUDIO_CHANNELS]}" =~ ^-?[0-9]+$ ]] && \
+echo "AUDIO_CHANNELS is incorrectly configured" && exit "${SKIPPED}"
 
 case "${CONFIG[SUBTITLES]}" in
   true|false|extract);;
@@ -592,16 +607,14 @@ progress() {
   log "Time: $(formatDate "${ELAPSED}"); FPS: ${RATE}"
 }
 
-force() {
-  pkill -P $$
-  exit "${SKIPPED}"
-}
-
 clean() {
-  for FILE in "${TMPFILES[@]}"; do [ -f "${FILE}" ] && rm -f "${FILE}"; done
+  for FILE in "${TMPFILES[@]}"; do 
+    [[ -f "${FILE}" ]] && rm -f "${FILE}"
+    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && [[ -d "${FILE}" ]] && \
+    [[ -z "$(ls -A "${FILE}")" ]] && rmdir "${FILE}"
+  done
 }
 
-trap force HUP INT TERM QUIT
 trap clean EXIT
 
 CURRENTINPUT=0; PROCESSED=0
@@ -618,36 +631,29 @@ for INPUT in "${VALID[@]}"; do
     echo "File: ${FILE} no longer exists" && continue
     ((CURRENTFILE++)) || true
     DIRECTORY="$(dirname "${FILE}")"
-    CUSTOM_CONFIG="${DIRECTORY}/${CONFIG_NAME}"
+    CUSTOM_CONFIG="${DIRECTORY}/${CONFIG_NEW_NAME}"
     [[ "${CONFIG_FILE}" != "${CUSTOM_CONFIG}" ]] && [[ -e "${CUSTOM_CONFIG}" ]] && \
-    loadConfig "${DIRECTORY}/${CONFIG_NAME}" && CUSTOM=true && \
-    log "Found config file; ${DIRECTORY}/${CONFIG_NAME}"
+    loadConfig "${DIRECTORY}/${CONFIG_NEW_NAME}" && CUSTOM=true && \
+    log "Found config file; ${DIRECTORY}/${CONFIG_NEW_NAME}"
     FILE_NAME="$(basename "${FILE}")"
     FILE="${DIRECTORY}/${FILE_NAME}"
     echo "Processing file[${CURRENTFILE} of ${#FILES[@]}]: ${FILE}"
     case "${FILE,,}" in
       *.mkv | *.mp4 | *.m4v | *.avi | *.wmv | *.xvid | *.divx | *.mpg | *.mpeg | *.iso);;
-      *.srt | *.tmp | *.stats | .ds_store) echo "File skipped" && continue;;
+      *.srt | *.tmp | *.stats | *.sav | *.ds_store) echo "File skipped" && continue;;
       *) echo "File is not convertable" && continue;;
     esac
-    lsof 2>&1 | grep "${FILE}" &>/dev/null && echo "File is in use" && continue
     [[ "${FILE_NAME}" == "${FILE_NAME##*.}" ]] && \
     NEW_FILE_NAME="${FILE_NAME}.${CONFIG[EXTENSION]}" || \
     NEW_FILE_NAME="${FILE_NAME//${FILE_NAME##*.}/${CONFIG[EXTENSION]}}"
-    [[ ! -z "${CONFIG[OUTPUT]}" && "${CONFIG[OUTPUT]}" != "${INPUT}" ]] && \
-    DIRECTORY="${DIRECTORY//${INPUT%/}/${CONFIG[OUTPUT]}}"
-    [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
     NEW_FILE="${DIRECTORY}/${NEW_FILE_NAME}"
     DATA=$("${CONFIG[FFPROBE]}" "${FILE}" -v quiet -print_format json -show_format -show_streams 2>&1)
     ${CONFIG[DEBUG]} && echo "${DATA}"
     [[ "${DATA}" =~ drm ]] && echo "File is DRM protected" && continue
     COMMAND="${CONFIG[FFMPEG]} -threads ${CONFIG[THREADS]}"
     if [[ "${CONFIG[ENCODER]}" != "software" ]]; then
-      COMMAND+=" -hwaccel ${CONFIG[ENCODER]}"
       [[ "${CONFIG[ENCODER]}" == "vaapi" ]] && \
       COMMAND+=" -hwaccel_device /dev/dri/renderD128"
-      [[ "${CONFIG[ENCODER]}" != "auto" ]] && \
-      COMMAND+=" -hwaccel_output_format ${CONFIG[ENCODER]}"
     fi
     COMMAND+=" -i \"${FILE}\""
     TOTAL=$("${CONFIG[JQ]}" '.streams | length' <<< "${DATA}");
@@ -666,13 +672,12 @@ for INPUT in "${VALID[@]}"; do
       BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${i}].bit_rate" <<< "${DATA}")
       [[ "${BIT_RATE}" == "null" ]] && \
       BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.\"BPS-${LANGUAGE}\"" <<< "${DATA}")
-      BIT_RATE=$((BIT_RATE / 1024))
       if [[ "${CODEC_TYPE}" == "video" ]]; then
         ((VIDEO > 0)) && continue
         (( $("${CONFIG[JQ]}" -r ".streams[${i}].disposition.attached_pic" <<< "${DATA}") == 1 )) && continue
         if [[ "${BIT_RATE}" == "null" ]]; then
           log "Stream issue; bit_rate=N/A; Using format.bit_rate (not accurate)"
-          for ((a = 0; a < ${TYPE}; a++)); do
+          for ((a = 0; a < ${TOTAL}; a++)); do
             [[ $("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<< "${DATA}") != "audio" ]] && continue
             b=$("${CONFIG[JQ]}" -r ".streams[${a}].bit_rate" <<< "${DATA}")
             [[ "${b}" == "null" ]] && \
@@ -744,7 +749,7 @@ for INPUT in "${VALID[@]}"; do
           [[ "${CONFIG[TUNE]}" != "false" ]] && \
           COMMAND+=" -tune:${VIDEO} ${CONFIG[TUNE]}"
           COMMAND+=" -preset:${VIDEO} ${CONFIG[PRESET]}"
-          [[ "${CONFIG[VIDEO_CODEC]}" =~ videotoolbox ]] && COMMAND+=" -q:v:${VIDEO} 65" || \
+          [[ "${CONFIG[ENCODER]}" =~ videotoolbox ]] && COMMAND+=" -q:v:${VIDEO} ${CONFIG[VTBQ]}" || \
           COMMAND+=" -crf:${VIDEO} ${CONFIG[CRF]}"
         else
           COMMAND+=" -c:v:${VIDEO} copy"
@@ -753,89 +758,44 @@ for INPUT in "${VALID[@]}"; do
         COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
+        ${CONFIG[DUAL_AUDIO]} && DESIRED_STREAMS=$((${#CONFIG_LANGUAGES[@]}*2)) || DESIRED_STREAMS=1
+        AUDIO_TOTAL=0; for ((a = 0; a < ${TOTAL}; a++)); do [[ "$("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<< "${DATA}")" == "audio" ]] && ((AUDIO_TOTAL++)); done
+        ((AUDIO==DESIRED_STREAMS)) && continue
         FILTER=$("${CONFIG[JQ]}" -r ".streams[${i}]" <<< "${DATA}")
         [[ "${FILTER,,}" =~ commentary ]] && continue
-        CODEC="${CONFIG[AUDIO_CODEC]}"
-        [[ "${CODEC}" == "source" ]] && \
-        [[ "${CODEC_NAME}" != "aac" || ! "${CODEC_NAME}" =~ ac3 ]] && CODEC="aac"
-        CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${i}].channels" <<< "${DATA}");
-        if ${CONFIG[DUAL_AUDIO]}; then
-          (( AUDIO == ((${#CONFIG_LANGUAGES[@]} * 2)) )) && continue
-          AAC=false; AC3=false; for ((a = 0; a < ${TOTAL}; a++)); do
-            FILTER=$("${CONFIG[JQ]}" -r ".streams[${a}]" <<< "${DATA}")
-            [[ "${FILTER,,}" =~ commentary ]] && continue
-            TYPE=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<< "${DATA}")
-            if [[ "${TYPE}" == "audio" ]]; then
-              LANG=$("${CONFIG[JQ]}" -r ".streams[${i}].tags.language" <<< "${DATA}")
-              case "${LANG,,}" in
-                null|unk|und) LANG="${CONFIG_DEFAULT_LANGUAGE}";;
-              esac
-              [[ "${LANG}" != "${LANGUAGE}" ]] && continue
-              NAME=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_name" <<< "${DATA}")
-              [[ "${NAME}" == "aac" ]] && AAC=true && AAC_INDEX="0:${a}"
-              [[ "${NAME}" =~ ac3 ]] && \
-              (( $("${CONFIG[JQ]}" -r ".streams[${a}].channels" <<< "${DATA}") > 2 )) && \
-              AC3=true && AC3_INDEX="0:${a}"
-            fi
-          done
-          if ${AAC}; then
-            if ((BIT_RATE > 131072)) || ((CHANNELS > 2)); then
-              SKIP=false; COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} aac"
-              ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-              ((BIT_RATE > 131072)) && COMMAND+=" -b:a:${AUDIO} 128k"
-              ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
-            else
-              COMMAND+=" -map ${AAC_INDEX} -c:a:${AUDIO} copy"
-            fi
-            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-            (( AUDIO == 0 )) && \
-            COMMAND+=" -disposition:a:${AUDIO} default" || \
-            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
-          elif ! ${AAC} && ((CHANNELS >= 2)); then
-            log "Dual audio; creating missing AAC from stream"
-            SKIP=false; COMMAND+=" -map ${MAP} -c:a:${AUDIO} aac"
-            ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-            ((BIT_RATE > 131072)) && COMMAND+=" -b:a:${AUDIO} 128k"
-            ((CHANNELS > 2)) && COMMAND+=" -ac:a:${AUDIO} 2"
-            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-            (( AUDIO == 0 )) && \
-            COMMAND+=" -disposition:a:${AUDIO} default" || \
-            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
-          fi
-          if ${AC3}; then
-            COMMAND+=" -map ${AC3_INDEX} -c:a:${AUDIO} copy"
-            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
-          elif ! ${AC3} && ((CHANNELS > 2)); then
-            log "Dual audio; creating missing AC3 from stream"
-            SKIP=false; COMMAND+=" -map ${MAP} -c:a:${AUDIO} ac3"
-            COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-            COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
-          fi
-        else
-          (( AUDIO == ${#CONFIG_LANGUAGES[@]} )) && continue
-          if [[ ! "${CODEC_NAME}" =~ ${CONFIG[AUDIO_CODEC]} ]] || ${CONFIG[FORCE_AUDIO]}; then
-            COMMAND+=" -map ${MAP} -c:a:${AUDIO} ${CODEC}"
-            ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
-            ((BIT_RATE > CONFIG[AUDIO_BITRATE])) && \
-            log "Bit rate exceeded; config=${CONFIG[AUDIO_BITRATE]}; stream=${BIT_RATE}" && \
-            COMMAND+=" -b:a:${AUDIO} ${CONFIG[AUDIO_BITRATE]}k"
-            ((CHANNELS > CONFIG[AUDIO_CHANNELS])) && \
-            log "Channels exceeded; config=${CONFIG[AUDIO_CHANNELS]}; stream=${CHANNELS}" && \
-            COMMAND+=" -ac:a:${AUDIO} ${CONFIG[AUDIO_CHANNELS]}"; SKIP=false
+        CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${i}].channels" <<< "${DATA}")
+        audio() {
+          if ((AUDIO%2==0)) && ${CONFIG[DUAL_AUDIO]}; then
+            DESIRED_CODEC=aac; DESIRED_BITRATE=128000; DESIRED_CHANNELS=2
+            ! ${NORMALIZE} && [[ "${ENCODERS}" =~ audiotoolbox ]] && DESIRED_CODEC+="_at"
           else
-            COMMAND+=" -map ${MAP} -c:a:${AUDIO} copy"
+            [[ "${CONFIG[AUDIO_CODEC]}" == "source" ]] && DESIRED_CODEC="${CODEC_NAME}" || DESIRED_CODEC="${CONFIG[AUDIO_CODEC]}"
+            [[ "${CONFIG[AUDIO_BITRATE]}" == "source" ]] && DESIRED_BITRATE="${BIT_RATE}" || DESIRED_BITRATE="${CONFIG[AUDIO_BITRATE]}" 
+            [[ "${CONFIG[AUDIO_CHANNELS]}" == "source" ]] && DESIRED_CHANNELS="${CHANNELS}" || DESIRED_CHANNELS="${CONFIG[AUDIO_CHANNELS]}"
           fi
-          COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
-          (( AUDIO == 0 )) && \
-          COMMAND+=" -disposition:a:${AUDIO} default" || \
-          COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
-        fi
+          AUDIO_CODEC=false; AUDIO_BITRATE=false; AUDIO_CHANNELS=false; COMMAND+=" -map ${MAP}"
+          [[ ! "${CODEC_NAME}" =~ "${DESIRED_CODEC}" ]] && \
+          log "Audio codec mismatch; config=${DESIRED_CODEC}; stream=${CODEC_NAME}" && AUDIO_CODEC=true
+          ((BIT_RATE-2048>DESIRED_BITRATE)) && \
+          log "Bit rate exceeded; config=${DESIRED_BITRATE}; stream=${BIT_RATE}" && AUDIO_BITRATE=true
+          ((CHANNELS>DESIRED_CHANNELS)) && \
+          log "Channels exceeded; config=${DESIRED_CHANNELS}; stream=${CHANNELS}" && AUDIO_CHANNELS=true
+          if ${AUDIO_CODEC} || ${AUDIO_BITRATE} || ${AUDIO_CHANNELS} || ${CONFIG[FORCE_AUDIO]}; then
+            SKIP=false; COMMAND+=" -c:a:${AUDIO} ${DESIRED_CODEC}"
+            ${AUDIO_BITRATE} && COMMAND+=" -b:a:${AUDIO} ${DESIRED_BITRATE}"
+            ${AUDIO_CHANNELS} && COMMAND+=" -ac:a:${AUDIO} ${DESIRED_CHANNELS}"
+            ((DESIRED_CHANNELS==2)) && ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
+          else
+            COMMAND+=" -c:a:${AUDIO} copy"
+          fi
+          ((AUDIO==0)) && COMMAND+=" -disposition:a:${AUDIO} default" || COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
+        }
+        ((AUDIO_TOTAL==1)) && while ((AUDIO<DESIRED_STREAMS)); do audio; done || audio
       elif [[ "${CODEC_TYPE}" == "subtitle" ]]; then
         (( SUBTITLE == ${#CONFIG_LANGUAGES[@]} )) && continue
         case "${CODEC_NAME}" in
           hdmv_pgs_subtitle|pgssub|dvb_subtitle|\
-          dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext|subrip)
+          dvd_subtitle|dvdsub|s_hdmv/pgs|dvb_teletext)
           continue;;
         esac
         (( $("${CONFIG[JQ]}" -r ".streams[${i}].disposition.forced" <<< "${DATA}") == 1 )) && continue
@@ -876,14 +836,15 @@ for INPUT in "${VALID[@]}"; do
     COMMAND+=" -strict -2 -y \"${TMP_FILE}\""
     ${SKIP} && echo "File does not need to be converted" && continue
     log "${COMMAND}"; echo "Converting..."; TMPFILES+=("${TMP_FILE}")
-    ${CONFIG[DEBUG]} && eval "${COMMAND} &" || eval "${COMMAND} &" &>/dev/null; CONVERTER=${!};
-    ${CONFIG[VERBOSE]} && progress &
-    ${CONFIG[BACKGROUND]} && background &
-    wait ${CONVERTER} &>/dev/null
-    if [[ ${?} -ne 0 ]]; then
-      echo "Result: failure";
-      markBad && exit "${FAILURE}"
-    fi; echo "Result: success"
+    eval "${COMMAND} &"; CONVERTER=${!}
+    ${CONFIG[VERBOSE]} && eval "progress &" && PROGRESS=${!}
+    ${CONFIG[BACKGROUND]} && eval "background &" && BACKGROUND=${!}
+    if wait "${CONVERTER}"; then
+      echo "Result: success"
+    else
+      echo "Result: failure"
+      markBad; exit "${FAILURE}"
+    fi
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
     echo "Efficiency: $(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
@@ -896,15 +857,29 @@ for INPUT in "${VALID[@]}"; do
       echo "Total Saved: $(formatBytes "${SAVE[TOTAL_SAVED]}")"
       echo "Total Efficiency: $(echo "${SAVE[TOTAL_PROCCESSED]}" "${SAVE[TOTAL_SAVED]}" | awk \
       '{printf("%.2f\n",($2-$1)/$1*100)}')%"
-      typeset -p SAVE > "${SAVE_FILE}"
+      declare -p SAVE > "${SAVE_FILE}" 
     fi
+    ${CONFIG[VERBOSE]} && wait ${PROGRESS} &>/dev/null
+    ${CONFIG[BACKGROUND]} && wait ${BACKGROUND} &>/dev/null; 
     touch -r "${FILE}" "${TMP_FILE}"
-    ${CONFIG[DELETE]} && rm -f "${FILE}" && mv "${TMP_FILE}" "${NEW_FILE}" || \
-    TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}")
+    if ${CONFIG[DELETE]}; then
+      rm -f "${FILE}"
+    else
+      TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}"); NEW_FILE="${TMP_FILE}"
+    fi
+    if [[ ! -z "${CONFIG[OUTPUT]}" ]] && [[ "${CONFIG[OUTPUT]}" != "${DIRECTORY}" ]]; then
+      [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && TMPFILES+=("${DIRECTORY}")
+      [[ ! -z "${NZBPP_CATEGORY}" ]] && \
+      DIRECTORY="${CONFIG[OUTPUT]}/${NZBPP_CATEGORY}/${DIRECTORY##*/}" && echo "[NZB] DIRECTORY=${DIRECTORY}" || \
+      DIRECTORY="${CONFIG[OUTPUT]}/${DIRECTORY##*/}"
+      [[ ! -e "${DIRECTORY}" ]] && mkdir -p "${DIRECTORY}"
+      NEW_FILE="${DIRECTORY}/${NEW_FILE_NAME}"
+      log "Output enabled; config=${CONFIG[OUTPUT]} output=${NEW_FILE}"
+    fi
+    mv "${TMP_FILE}" "${NEW_FILE}"
     chmod "${CONFIG[FILE_PERMISSION]}" "${NEW_FILE}"
     chmod "${CONFIG[DIRECTORY_PERMISSION]}" "${DIRECTORY}"; clean
-    ${CUSTOM} && (( CURRENTFILE < ${#FILES} )) && loadConfig && CUSTOM=false
-    ((PROCESSED++))
+    ${CUSTOM} && (( CURRENTFILE < ${#FILES[@]} )) && loadConfig && CUSTOM=false; ((PROCESSED++))
   done
 done
 
