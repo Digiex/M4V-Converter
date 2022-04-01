@@ -695,7 +695,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
         PIX_FMT=$("${CONFIG[JQ]}" -r ".streams[${i}].pix_fmt" <<< "${DATA}")
         [[ "${CONFIG[PIXEL_FORMAT]}" == "source" ]] && \
         DESIRED_PIXFMT="${PIX_FMT}" || DESIRED_PIXFMT="${CONFIG[PIXEL_FORMAT]}"
-        [[ ! "${DESIRED_CODEC}" =~ "${CODEC_NAME}" ]] && \
+        [[ ! "${DESIRED_CODEC}" =~ ${CODEC_NAME} ]] && \
         log "Codec mismatch; config=${DESIRED_CODEC} stream=${CODEC_NAME}" && VIDEO_CODEC=true
         (( WIDTH > ${DESIRED_RESOLUTION%%x*} || HEIGHT > ${DESIRED_RESOLUTION##*x} )) && \
         log "Resolution exceeded; config=${DESIRED_RESOLUTION}; stream=${WIDTH}x${HEIGHT}" && VIDEO_RESOLUTION=true
@@ -722,7 +722,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
         else
           COMMAND+=" -c:v:${VIDEO} copy"
         fi
-        [[ "${CONFIG[VIDEO_CODEC]}" =~ "hevc" ]] && \
+        [[ "${DESIRED_CODEC}" =~ hevc ]] && \
         COMMAND+=" -tag:v:${VIDEO} hvc1"
         ((VIDEO++)) || true
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
@@ -745,7 +745,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
             DESIRED_CHANNELS="${CHANNELS}" || DESIRED_CHANNELS="${CONFIG[AUDIO_CHANNELS]}"
           fi
           AUDIO_CODEC=false; AUDIO_BITRATE=false; AUDIO_CHANNELS=false; COMMAND+=" -map ${MAP}"
-          [[ ! "${CODEC_NAME}" =~ "${DESIRED_CODEC}" ]] && \
+          [[ ! "${DESIRED_CODEC}" =~ ${CODEC_NAME} ]] && \
           log "Audio codec mismatch; config=${DESIRED_CODEC}; stream=${CODEC_NAME}" && AUDIO_CODEC=true
           ((BIT_RATE-2048>DESIRED_BITRATE)) && \
           log "Bit rate exceeded; config=${DESIRED_BITRATE}; stream=${BIT_RATE}" && AUDIO_BITRATE=true
