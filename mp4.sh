@@ -760,6 +760,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
             COMMAND+=" -c:a:${AUDIO} copy"
           fi
           ((AUDIO==0)) && COMMAND+=" -disposition:a:${AUDIO} default" || COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
+          COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
         }
         ((AUDIO_TOTAL==1)) && while ((AUDIO<DESIRED_STREAMS)); do audio; done || audio
       elif [[ "${CODEC_TYPE}" == "subtitle" ]]; then
