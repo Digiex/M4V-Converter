@@ -724,7 +724,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
         fi
         [[ "${DESIRED_CODEC}" =~ hevc ]] && \
         COMMAND+=" -tag:v:${VIDEO} hvc1"
-        ((VIDEO++)) || true
+        ((VIDEO++))
       elif [[ "${CODEC_TYPE}" == "audio" ]]; then
         ${CONFIG[DUAL_AUDIO]} && DESIRED_STREAMS=2 || DESIRED_STREAMS=1
         ((AUDIO==DESIRED_STREAMS)) && continue
@@ -759,8 +759,9 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
           else
             COMMAND+=" -c:a:${AUDIO} copy"
           fi
-          ((AUDIO==0)) && COMMAND+=" -disposition:a:${AUDIO} default" || COMMAND+=" -disposition:a:${AUDIO} 0"; ((AUDIO++)) || true
+          ((AUDIO==0)) && COMMAND+=" -disposition:a:${AUDIO} default" || COMMAND+=" -disposition:a:${AUDIO} 0"
           COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+          ((AUDIO++))
         }
         ((AUDIO_TOTAL==1)) && while ((AUDIO<DESIRED_STREAMS)); do audio; done || audio
       elif [[ "${CODEC_TYPE}" == "subtitle" ]]; then
