@@ -829,6 +829,7 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
       echo "Result: failure"
       markBad; exit "${FAILURE}"
     fi
+    pkill -P ${PROGRESS} &>/dev/null; pkill -P ${BACKGROUND} &>/dev/null
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
     echo "Efficiency: $(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
@@ -843,7 +844,6 @@ for INPUT in "${VALID[@]}"; do ((CURRENTINPUT++))
       '{printf("%.2f\n",($2-$1)/$1*100)}')%"
       declare -p SAVE > "${SAVE_FILE}" 
     fi
-    wait ${PROGRESS} &>/dev/null; wait ${BACKGROUND} &>/dev/null
     touch -r "${FILE}" "${TMP_FILE}"
     if ${CONFIG[DELETE]}; then
       rm -f "${FILE}"
