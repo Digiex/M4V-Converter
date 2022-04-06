@@ -865,19 +865,17 @@ for INPUT in "${VALID[@]}"; do
           CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].codec_name" <<<"${DATA}")
           CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].channels" <<<"${DATA}")
           BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].bit_rate" <<<"${DATA}")
-
           if ((AUDIO % 2 == 0)) && ${CONFIG[DUAL_AUDIO]}; then
             DESIRED_CODEC=aac DESIRED_CHANNELS=2 DESIRED_BITRATE=128000
             ! ${CONFIG[NORMALIZE]} && [[ "${ENCODERS}" =~ audiotoolbox ]] && DESIRED_CODEC+="_at"
           else
             [[ "${CONFIG[AUDIO_CODEC]}" == "source" ]] &&
               DESIRED_CODEC="${CODEC_NAME}" || DESIRED_CODEC="${CONFIG[AUDIO_CODEC]}"
-            [[ "${CONFIG[AUDIO_CHANNELS]}" == "source" ]] && ((MAX_CHANNELS > 0)) &&
+            [[ "${CONFIG[AUDIO_CHANNELS]}" == "source" ]] &&
               DESIRED_CHANNELS="${CHANNELS}" || DESIRED_CHANNELS="${CONFIG[AUDIO_CHANNELS]}"
-            [[ "${CONFIG[AUDIO_BITRATE]}" == "source" ]] && ((MAX_BITRATE > 0)) &&
+            [[ "${CONFIG[AUDIO_BITRATE]}" == "source" ]] &&
               DESIRED_BITRATE="${BIT_RATE}" || DESIRED_BITRATE="${CONFIG[AUDIO_BITRATE]}"
           fi
-
           [[ "${BIT_RATE}" == "null" ]] &&
             BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].tags.\"BPS-${LANGUAGE}\"" <<<"${DATA}")
           [[ "${BIT_RATE}" == "null" ]] && BIT_RATE=0
