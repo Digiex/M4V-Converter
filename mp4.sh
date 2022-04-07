@@ -816,10 +816,10 @@ for INPUT in "${VALID[@]}"; do
         log "Stream found @${a}; type=audio; codec=${CODEC_NAME}"
         FILTER=$("${CONFIG[JQ]}" -r ".streams[${a}].tags.title" <<<"${DATA}")
         [[ "${FILTER,,}" =~ commentary ]] && 
-          echo "Skipping; commentary" && continue
+          log "Skipping; commentary" && continue
         LANGUAGE=$(lang "${a}")
         [[ ${LANGUAGE} != "${LANGUAGES}" ]] &&
-          echo "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
+          log "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
         FILTERED+=("${a}")
       done
       [[ -z "${FILTERED[@]}" ]] && continue
@@ -915,12 +915,12 @@ for INPUT in "${VALID[@]}"; do
         case "${CODEC_NAME}" in
         hdmv_pgs_subtitle | pgssub | dvb_subtitle | \
           dvd_subtitle | dvdsub | s_hdmv/pgs | dvb_teletext)
-          echo "Skipping; image based" && continue
+          log "Skipping; image based" && continue
           ;;
         esac
         LANGUAGE=$(lang "${s}")
         [[ ${LANGUAGE} != "${LANGUAGES}" ]] &&
-          echo "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
+          log "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
         FILTERED+=("${s}")
       done
       [[ -z "${FILTERED[@]}" ]] && continue
