@@ -186,7 +186,7 @@ setExitCodes() {
   FAILURE=${2}
   SKIPPED=${3}
 }
-[[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]] &&
+[[ -n "${NZBPP_FINALDIR}" || -n "${NZBPP_DIRECTORY}" ]] &&
   setExitCodes 93 94 95 || setExitCodes 0 1 0
 
 [[ $(whoami) = "root" ]] &&
@@ -214,15 +214,15 @@ usage() {
 }
 
 loadConfig() {
-  if [[ ! -z "${1}" ]]; then
+  if [[ -n "${1}" ]]; then
     LOAD=$(cat "${1}")
-  elif [[ ! -z "${NZBPP_TOTALSTATUS}" ]]; then
+  elif [[ -n "${NZBPP_TOTALSTATUS}" ]]; then
     LOAD=$(declare -p | grep "NZBPO_")
   elif [[ -e "${CONFIG_FILE}" ]]; then
     LOAD=$(cat "${CONFIG_FILE}")
   fi
-  [[ ! -z "${LOAD}" ]] && while read -r LINE; do
-    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] &&
+  [[ -n "${LOAD}" ]] && while read -r LINE; do
+    [[ -n "${NZBPP_TOTALSTATUS}" ]] &&
       LINE="${LINE#*_}" && LINE="${LINE//\"/}"
     VAR="${LINE%%=*}"
     VAL="${LINE##*=}"
@@ -232,7 +232,7 @@ loadConfig() {
       ;;
     *) CONFIG["${VAR^^}"]="${VAL,,}" ;;
     esac
-  done <<<${LOAD} || for VAR in "${!CONFIG[@]}"; do echo "${VAR}=${CONFIG[${VAR}]}" >>"${CONFIG_FILE}"; done
+  done <<<"${LOAD}" || for VAR in "${!CONFIG[@]}"; do echo "${VAR}=${CONFIG[${VAR}]}" >>"${CONFIG_FILE}"; done
 }
 
 CONFIG_FILE="${0}"
@@ -300,25 +300,25 @@ while ((${#} > 0)); do
   esac
 done
 
-if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
+if [[ -n "${NZBPP_FINALDIR}" || -n "${NZBPP_DIRECTORY}" ]]; then
   [[ -z "${NZBPP_TOTALSTATUS}" ]] &&
     echo "Outdated; NZBGet version 13.0 or later required" && exit "${SKIPPED}"
   [[ "${NZBPP_TOTALSTATUS}" != "SUCCESS" ]] && exit "${SKIPPED}"
-  [[ ! -z "${NZBPP_FINALDIR}" ]] &&
+  [[ -n "${NZBPP_FINALDIR}" ]] &&
     DIRECTORY="${NZBPP_FINALDIR}" || DIRECTORY="${NZBPP_DIRECTORY}"
   if ((${NZBPO_SIZE:=0} > 0)); then
     NZBPO_SIZE=$((${NZBPO_SIZE//[!0-9]/} * 1024 * 1024))
     readarray -t CLEANUP <<<"$(find "${DIRECTORY}" -type f -size -"${NZBPO_SIZE}"c)"
-    [[ ! -z "${CLEANUP[*]}" ]] &&
+    [[ -n "${CLEANUP[*]}" ]] &&
       for FILE in "${CLEANUP[@]}"; do rm -f "${FILE}"; done
   fi
   readarray -t FILES <<<"$(find "${DIRECTORY}" -type f)"
-  if [[ ! -z "${FILES[*]}" ]]; then
+  if [[ -n "${FILES[*]}" ]]; then
     read -r -a EXTENSIONS <<<"$(echo "${NZBPO_EXTS}" |
       sed -E 's/,|,\ /\ /g')"
     for FILE in "${FILES[@]}"; do
       [[ "${FILE,,}" =~ sample ]] && rm -f "${FILE}" && continue
-      [[ ! -z "${EXTENSIONS[*]}" ]] &&
+      [[ -n "${EXTENSIONS[*]}" ]] &&
         for EXT in "${EXTENSIONS[@]}"; do
           [[ "${FILE##*.}" == "${EXT//./}" ]] &&
             rm -f "${FILE}" && break
@@ -328,7 +328,7 @@ if [[ ! -z "${NZBPP_FINALDIR}" || ! -z "${NZBPP_DIRECTORY}" ]]; then
   INPUTS+=("${DIRECTORY}")
 fi
 
-if [[ ! -z "${SAB_COMPLETE_DIR}" ]]; then
+if [[ -n "${SAB_COMPLETE_DIR}" ]]; then
   [[ -z "${SAB_PP_STATUS}" ]] &&
     echo "Outdated; SABnzbd version 2.0.0 or later" && exit "${SKIPPED}"
   ((SAB_PP_STATUS == 0)) &&
@@ -406,7 +406,7 @@ vaapi | videotoolbox | nvenc)
 auto | software) ;;
 *)
   echo "ENCODER is incorrectly configured"
-  exit ${SKIPPED}
+  exit "${SKIPPED}"
   ;;
 esac
 
@@ -414,8 +414,8 @@ ENCODERS=$(${CONFIG[FFMPEG]} -v quiet -encoders)
 ENCODERS="${ENCODERS,,}"
 [[ "${CONFIG[ENCODER]}" != "auto" ]] &&
   [[ "${CONFIG[ENCODER]}" != "software" ]] &&
-  [[ ! "${ENCODERS}" =~ "${CONFIG[ENCODER]}" ]] &&
-  echo "ENCODER selected is not available" && exit ${SKIPPED}
+  [[ ! "${ENCODERS}" =~ ${CONFIG[ENCODER]} ]] &&
+  echo "ENCODER selected is not available" && exit "${SKIPPED}"
 
 [[ ! "${CONFIG[VTBQ]}" =~ ^-?[0-9]+$ ]] ||
   (("${CONFIG[VTBQ]}" < 1)) ||
@@ -452,7 +452,7 @@ esac
   (("${CONFIG[CRF]}" > 51)) &&
   echo "CRF is incorrectly configured" && exit "${SKIPPED}"
 
-if [[ ! -z "${CONFIG[RESOLUTION]}" ]]; then
+if [[ -n "${CONFIG[RESOLUTION]}" ]]; then
   case "${CONFIG[RESOLUTION]}" in
   480p | sd) CONFIG[RESOLUTION]=640x480 ;;
   720p | hd) CONFIG[RESOLUTION]=1280x720 ;;
@@ -616,7 +616,7 @@ formatBytes() {
 }
 
 markBad() {
-  [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && ${NZBPO_BAD} && echo "[NZB] MARK=BAD"
+  [[ -n "${NZBPP_TOTALSTATUS}" ]] && ${NZBPO_BAD} && echo "[NZB] MARK=BAD"
 }
 
 progress() {
@@ -641,15 +641,15 @@ progress() {
 }
 
 force() {
-  pkill -P ${CONVERTER} &>/dev/null
-  wait ${CONVERTER} &>/dev/null
-  exit ${FAILURE}
+  pkill -P "${CONVERTER}" &>/dev/null
+  wait "${CONVERTER}" &>/dev/null
+  exit "${FAILURE}"
 }
 
 clean() {
   for FILE in "${TMPFILES[@]}"; do
     [[ -f "${FILE}" ]] && rm -f "${FILE}"
-    [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && [[ -d "${FILE}" ]] &&
+    [[ -n "${NZBPP_TOTALSTATUS}" ]] && [[ -d "${FILE}" ]] &&
       [[ -z "$(ls -A "${FILE}")" ]] && rmdir "${FILE}"
   done
 }
@@ -678,11 +678,11 @@ for INPUT in "${VALID[@]}"; do
     [[ "${CONFIG_FILE}" != "${CUSTOM_CONFIG}" ]] && [[ -e "${CUSTOM_CONFIG}" ]] &&
       loadConfig "${CUSTOM_CONFIG}" && CUSTOM=true &&
       log "Found config file; ${CUSTOM_CONFIG}"
-    if [[ ! -z "${CONFIG[OUTPUT]}" ]] &&
+    if [[ -n "${CONFIG[OUTPUT]}" ]] &&
       [[ -d "${CONFIG[OUTPUT]}" ]] &&
       [[ "${CONFIG[OUTPUT]}" != "${INPUT}" ]]; then
-      [[ ! -z "${NZBPP_TOTALSTATUS}" ]] && TMPFILES+=("${INPUT}")
-      [[ ! -z "${NZBPP_CATEGORY}" ]] &&
+      [[ -n "${NZBPP_TOTALSTATUS}" ]] && TMPFILES+=("${INPUT}")
+      [[ -n "${NZBPP_CATEGORY}" ]] &&
         OUTPUT="${CONFIG[OUTPUT]}/${NZBPP_CATEGORY}/${INPUT##*/}" && echo "[NZB] DIRECTORY=${OUTPUT}" ||
         OUTPUT="${CONFIG[OUTPUT]}/${INPUT##*/}"
       [[ ! -e "${OUTPUT}" ]] && mkdir -p "${OUTPUT}"
@@ -717,7 +717,7 @@ for INPUT in "${VALID[@]}"; do
     TOTAL=$("${CONFIG[JQ]}" '.streams | length' <<<"${DATA}")
     SKIP=true
     VIDEO=0
-    for ((v = 0; v < ${TOTAL}; v++)); do
+    for ((v = 0; v < TOTAL; v++)); do
       ((VIDEO == 1)) && break
       CODEC_TYPE=$("${CONFIG[JQ]}" -r ".streams[${v}].codec_type" <<<"${DATA}")
       [[ "${CODEC_TYPE}" != "video" ]] && continue
@@ -728,7 +728,7 @@ for INPUT in "${VALID[@]}"; do
       BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${v}].bit_rate" <<<"${DATA}")
       if [[ "${BIT_RATE}" == "null" ]]; then
         log "Stream issue; bit_rate=N/A; calculating based on FORMAT_BITRATE-STREAM_BITRATE"
-        for ((s = 0; s < ${TOTAL}; s++)); do
+        for ((s = 0; s < TOTAL; s++)); do
           [[ $("${CONFIG[JQ]}" -r ".streams[${v}].codec_type" <<<"${DATA}") == "video" ]] && continue
           STREAMS=$((STREAMS + $("${CONFIG[JQ]}" -r ".streams[${v}].bit_rate" <<<"${DATA}")))
         done
@@ -807,27 +807,28 @@ for INPUT in "${VALID[@]}"; do
     ((VIDEO < 1)) && echo "No usable video streams" && continue
     AUDIO=0
     for LANGUAGES in "${CONFIG_LANGUAGES[@]}"; do
-      ${CONFIG[DUAL_AUDIO]} && declare -A DESIRED_STREAMS["${LANGUAGES}"]=2 || declare -A DESIRED_STREAMS["${LANGUAGES}"]=1
+      AUDIO_STREAMS=0
+      ${CONFIG[DUAL_AUDIO]} && DESIRED_STREAMS=2 || DESIRED_STREAMS=1
       FILTERED=()
-      for ((a = 0; a < ${TOTAL}; a++)); do
+      for ((a = 0; a < TOTAL; a++)); do
         CODEC_TYPE=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_type" <<<"${DATA}")
         [[ "${CODEC_TYPE}" != "audio" ]] && continue
         CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${a}].codec_name" <<<"${DATA}")
         log "Stream found @${a}; type=audio; codec=${CODEC_NAME}"
         FILTER=$("${CONFIG[JQ]}" -r ".streams[${a}].tags.title" <<<"${DATA}")
-        [[ "${FILTER,,}" =~ commentary ]] && 
+        [[ "${FILTER,,}" =~ commentary ]] &&
           log "Skipping; commentary" && continue
         LANGUAGE=$(lang "${a}")
         [[ ${LANGUAGE} != "${LANGUAGES}" ]] &&
           log "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
         FILTERED+=("${a}")
       done
-      [[ -z "${FILTERED[@]}" ]] && continue
+      [[ -z "${FILTERED[*]}" ]] && continue
       SELECTED=()
       for STREAM in "${FILTERED[@]}"; do
         LANGUAGE=$(lang "${STREAM}")
         [[ "${LANGUAGE}" != "${LANGUAGES}" ]] && continue
-        ((${#SELECTED[@]} == ${DESIRED_STREAMS[${LANGUAGES}]})) && continue
+        ((${#SELECTED[@]} == ${DESIRED_STREAMS})) && continue
         CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${STREAM}].channels" <<<"${DATA}")
         MAX_CHANNELS=0
         for INDEX in "${FILTERED[@]}"; do
@@ -850,18 +851,18 @@ for INPUT in "${VALID[@]}"; do
             BR=0
           ((BR > MAX_BITRATE)) && MAX_BITRATE="${BR}" && MAX_BITRATE_INDEX="${INDEX}"
         done
-        if [[ ! -z "${MAX_BITRATE}" ]]; then
+        if [[ -n "${MAX_BITRATE}" ]]; then
           SELECTED+=("${MAX_BITRATE_INDEX}")
-        elif [[ ! -z "${MAX_CHANNELS}" ]]; then
+        elif [[ -n "${MAX_CHANNELS}" ]]; then
           SELECTED+=("${MAX_CHANNELS_INDEX}")
         fi
       done
-      [[ -z "${SELECTED}" ]] && SELECTED=("${FILTERED[@]}")
-      while ((AUDIO < ${DESIRED_STREAMS[${LANGUAGES}]})); do
+      [[ -z "${SELECTED[*]}" ]] && SELECTED=("${FILTERED[@]}")
+      while ((AUDIO_STREAMS < DESIRED_STREAMS)); do
         for SELECTION in "${SELECTED[@]}"; do
           LANGUAGE=$(lang "${SELECTION}")
           [[ ${LANGUAGE} != "${LANGUAGES}" ]] && continue
-          ((AUDIO == ${DESIRED_STREAMS[${LANGUAGES}]})) && continue
+          ((AUDIO_STREAMS == DESIRED_STREAMS)) && continue
           CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].codec_name" <<<"${DATA}")
           CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].channels" <<<"${DATA}")
           BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].bit_rate" <<<"${DATA}")
@@ -897,17 +898,19 @@ for INPUT in "${VALID[@]}"; do
             COMMAND+=" -c:a:${AUDIO} copy"
           fi
           ((AUDIO == 0)) && COMMAND+=" -disposition:a:${AUDIO} default" || COMMAND+=" -disposition:a:${AUDIO} 0"
-          COMMAND+=" -metadata:s:a:${AUDIO} \"language=${LANGUAGE}\""
+          COMMAND+=" -metadata:s:a:${AUDIO} language=${LANGUAGE}"
           ((AUDIO++))
+          ((AUDIO_STREAMS++))
         done
       done
     done
     ((AUDIO < 1)) && echo "No usable audio streams" && continue
     SUBTITLE=0
     for LANGUAGES in "${CONFIG_LANGUAGES[@]}"; do
-      declare -A DESIRED_STREAMS["${LANGUAGES}"]=1
+      SUBTITLE_STREAMS=0
+      DESIRED_STREAMS=1
       FILTERED=()
-      for ((s = 0; s < ${TOTAL}; s++)); do
+      for ((s = 0; s < TOTAL; s++)); do
         CODEC_TYPE=$("${CONFIG[JQ]}" -r ".streams[${s}].codec_type" <<<"${DATA}")
         [[ "${CODEC_TYPE}" != "subtitle" ]] && continue
         CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${s}].codec_name" <<<"${DATA}")
@@ -923,7 +926,7 @@ for INPUT in "${VALID[@]}"; do
           log "Skipping; config=${LANGUAGES}; language=${LANGUAGE}" && continue
         FILTERED+=("${s}")
       done
-      [[ -z "${FILTERED[@]}" ]] && continue
+      [[ -z "${FILTERED[*]}" ]] && continue
       SELECTED=()
       for STREAM in "${FILTERED[@]}"; do
         LANGUAGE=$(lang "${STREAM}")
@@ -933,11 +936,11 @@ for INPUT in "${VALID[@]}"; do
           [[ $("${CONFIG[JQ]}" -r ".streams[${STREAM}].disposition.forced" <<<"${DATA}") == 1 ]] &&
           log "Selecting stream @${STREAM}; disposition=forced; config=${LANGUAGES}; language=${LANGUAGE}" && SELECTED+=("${STREAM}")
       done
-      [[ -z "${SELECTED[@]}" ]] && SELECTED=("${FILTERED[@]}")
+      [[ -z "${SELECTED[*]}" ]] && SELECTED=("${FILTERED[@]}")
       for SELECTION in "${SELECTED[@]}"; do
         LANGUAGE=$(lang "${SELECTION}")
         [[ ${LANGUAGE} != "${LANGUAGES}" ]] && continue
-        ((SUBTITLE == ${DESIRED_STREAMS[${LANGUAGES}]})) && continue
+        ((SUBTITLE_STREAMS == DESIRED_STREAMS)) && continue
         if ${CONFIG[SUBTITLES]}; then
           CODEC_NAME=$("${CONFIG[JQ]}" -r ".streams[${SELECTION}].codec_name" <<<"${DATA}")
           SUBTITLE_CODEC_NAME=false
@@ -951,8 +954,9 @@ for INPUT in "${VALID[@]}"; do
           else
             COMMAND+=" -c:s:${SUBTITLE} copy"
           fi
-          COMMAND+=" -metadata:s:s:${SUBTITLE} \"language=${LANGUAGE}\""
+          COMMAND+=" -metadata:s:s:${SUBTITLE} language=${LANGUAGE}"
           ((SUBTITLE++))
+          ((SUBTITLE_STREAMS++))
         elif [[ "${CONFIG[SUBTITLES]}" == "extract" ]]; then
           SRT_NAME="${FILE_NAME%.*}.${LANGUAGE}.srt"
           SRT_FILE="${DIRECTORY}/${SRT_NAME}"
@@ -971,7 +975,7 @@ for INPUT in "${VALID[@]}"; do
             continue
           fi
           TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}")
-          if [[ ! -z "${OUTPUT}" ]]; then
+          if [[ -n "${OUTPUT}" ]]; then
             SRT_FILE="${OUTPUT}/${SRT_NAME}"
             log "Output enabled; config=${CONFIG[OUTPUT]} output=${SRT_FILE}"
           fi
@@ -997,15 +1001,15 @@ for INPUT in "${VALID[@]}"; do
     CONVERTER=${!}
     ${CONFIG[VERBOSE]} && eval "progress &" && PROGRESS=${!}
     ${CONFIG[BACKGROUND]} && eval "background &" && BACKGROUND=${!}
-    if wait "${CONVERTER}"; then
+    if wait "${CONVERTER}" 2>&1; then
       echo "Result: success"
     else
       echo "Result: failure"
       markBad
       exit "${FAILURE}"
     fi
-    pkill -P ${PROGRESS} &>/dev/null
-    pkill -P ${BACKGROUND} &>/dev/null
+    pkill -P "${PROGRESS}" &>/dev/null
+    pkill -P "${BACKGROUND}" &>/dev/null
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
     echo "Efficiency: $(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
@@ -1027,7 +1031,7 @@ for INPUT in "${VALID[@]}"; do
       TMPFILES=("${TMPFILES[@]//${TMP_FILE}/}")
       NEW_FILE="${TMP_FILE}"
     fi
-    if [[ ! -z "${OUTPUT}" ]]; then
+    if [[ -n "${OUTPUT}" ]]; then
       NEW_FILE="${OUTPUT}/${NEW_FILE_NAME}"
       log "Output enabled; config=${CONFIG[OUTPUT]} output=${NEW_FILE}"
     fi
