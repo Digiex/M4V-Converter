@@ -643,8 +643,12 @@ progress() {
 }
 
 force() {
-  pkill -P "${CONVERTER}" &>/dev/null
-  wait "${CONVERTER}" &>/dev/null
+  disown "${CONVERTER}" &>/dev/null
+  kill -9 "${CONVERTER}" &>/dev/null
+  disown "${PROGRESS}" &>/dev/null
+  disown "${BACKGROUND}" &>/dev/null
+  kill -9 "${PROGRESS}" &>/dev/null
+  kill -9 "${BACKGROUND}" &>/dev/null
   exit "${FAILURE}"
 }
 
@@ -673,9 +677,9 @@ for INPUT in "${VALID[@]}"; do
   ((CURRENTINPUT++))
   [[ ! -e "${INPUT}" ]] &&
     echo "Input: ${INPUT} no longer exists" && continue
+  CUSTOM=false
   if [[ -d "${INPUT}" ]]; then
     echo "Processing directory[${CURRENTINPUT} of ${#VALID[@]}]: ${INPUT}"
-    CUSTOM=false
     CUSTOM_CONFIG="${INPUT}/${CONFIG_NEW_NAME}"
     [[ "${CONFIG_FILE}" != "${CUSTOM_CONFIG}" ]] && [[ -e "${CUSTOM_CONFIG}" ]] &&
       loadConfig "${CUSTOM_CONFIG}" && CUSTOM=true &&
@@ -831,17 +835,12 @@ for INPUT in "${VALID[@]}"; do
         LANGUAGE=$(lang "${STREAM}")
         [[ "${LANGUAGE}" != "${LANGUAGES}" ]] && continue
         ((${#SELECTED[@]} == ${DESIRED_STREAMS})) && continue
-        CHANNELS=$("${CONFIG[JQ]}" -r ".streams[${STREAM}].channels" <<<"${DATA}")
         MAX_CHANNELS=0
         for INDEX in "${FILTERED[@]}"; do
           [[ "${LANGUAGE}" != $(lang "${INDEX}") ]] && continue
           CH=$("${CONFIG[JQ]}" -r ".streams[${INDEX}].channels" <<<"${DATA}")
           ((CH > MAX_CHANNELS)) && MAX_CHANNELS="${CH}" && MAX_CHANNELS_INDEX="${INDEX}"
         done
-        BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${STREAM}].bit_rate" <<<"${DATA}")
-        [[ "${BIT_RATE}" == "null" ]] &&
-          BIT_RATE=$("${CONFIG[JQ]}" -r ".streams[${STREAM}].tags.\"BPS-${LANGUAGE}\"" <<<"${DATA}")
-        [[ "${BIT_RATE}" == "null" ]] && BIT_RATE=0
         MAX_BITRATE=0
         for INDEX in "${FILTERED[@]}"; do
           [[ "${LANGUAGE}" != $(lang "${INDEX}") ]] && continue
@@ -854,8 +853,10 @@ for INPUT in "${VALID[@]}"; do
           ((BR > MAX_BITRATE)) && MAX_BITRATE="${BR}" && MAX_BITRATE_INDEX="${INDEX}"
         done
         if [[ -n "${MAX_BITRATE}" ]]; then
+          log "Selecting stream @${MAX_BITRATE_INDEX}; language=${LANGUAGE}; channels=${MAX_CHANNELS}; bitrate=${MAX_BITRATE}"
           SELECTED+=("${MAX_BITRATE_INDEX}")
         elif [[ -n "${MAX_CHANNELS}" ]]; then
+          log "Selecting stream @${MAX_CHANNELS_INDEX}; language=${LANGUAGE}; channels=${MAX_CHANNELS}"
           SELECTED+=("${MAX_CHANNELS_INDEX}")
         fi
       done
@@ -970,7 +971,8 @@ for INPUT in "${VALID[@]}"; do
           TMPFILES+=("${TMP_FILE}")
           eval "${EXTRACT_COMMAND} &"
           CONVERTER=${!}
-          if wait ${CONVERTER}; then
+          wait "${CONVERTER}" &>/dev/null
+          if [[ ${?} -eq 0 ]]; then
             echo "Result: success"
           else
             echo "Result: failure"
@@ -1003,15 +1005,18 @@ for INPUT in "${VALID[@]}"; do
     CONVERTER=${!}
     ${CONFIG[VERBOSE]} && eval "progress &" && PROGRESS=${!}
     ${CONFIG[BACKGROUND]} && eval "background &" && BACKGROUND=${!}
-    if wait "${CONVERTER}" 2>&1; then
+    wait "${CONVERTER}" &>/dev/null
+    if [[ ${?} -eq 0 ]]; then
       echo "Result: success"
     else
       echo "Result: failure"
       markBad
       exit "${FAILURE}"
     fi
-    pkill -P "${PROGRESS}" &>/dev/null
-    pkill -P "${BACKGROUND}" &>/dev/null
+    disown "${PROGRESS}" &>/dev/null
+    disown "${BACKGROUND}" &>/dev/null
+    kill -9 "${PROGRESS}" &>/dev/null
+    kill -9 "${BACKGROUND}" &>/dev/null
     FILE_SIZE=$(ls -l "${FILE}" 2>&1 | awk '{print($5)}')
     TMP_SIZE=$(ls -l "${TMP_FILE}" 2>&1 | awk '{print($5)}')
     echo "Efficiency: $(echo "${FILE_SIZE}" "${TMP_SIZE}" | awk \
