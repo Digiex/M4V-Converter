@@ -368,6 +368,8 @@ ${CONFIG[DEBUG]} && set -ex && declare -p
 ! hash "${CONFIG[JQ]}" 2>/dev/null &&
   echo "Missing dependency; jq" && exit "${SKIPPED}"
 
+[[ -n "${CONFIG[OUTPUT]}" ]] && CONFIG[OUTPUT]="${CONFIG[OUTPUT]%/}"
+
 if [[ "${CONFIG[THREADS]}" != "auto" ]]; then
   case "${OSTYPE}" in
   linux*) MAX_CORES="$(nproc)" ;;
