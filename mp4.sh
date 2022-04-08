@@ -852,10 +852,10 @@ for INPUT in "${VALID[@]}"; do
             BR=0
           ((BR > MAX_BITRATE)) && MAX_BITRATE="${BR}" && MAX_BITRATE_INDEX="${INDEX}"
         done
-        if [[ -n "${MAX_BITRATE}" ]]; then
+        if (( MAX_BITRATE > 0 )); then
           log "Selecting stream @${MAX_BITRATE_INDEX}; language=${LANGUAGE}; channels=${MAX_CHANNELS}; bitrate=${MAX_BITRATE}"
           SELECTED+=("${MAX_BITRATE_INDEX}")
-        elif [[ -n "${MAX_CHANNELS}" ]]; then
+        elif (( MAX_CHANNELS > 0 )); then
           log "Selecting stream @${MAX_CHANNELS_INDEX}; language=${LANGUAGE}; channels=${MAX_CHANNELS}"
           SELECTED+=("${MAX_CHANNELS_INDEX}")
         fi
