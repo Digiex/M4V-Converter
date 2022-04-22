@@ -896,7 +896,7 @@ for INPUT in "${VALID[@]}"; do
             COMMAND+=" -c:a:${AUDIO} ${DESIRED_CODEC}"
             ${AUDIO_CHANNELS} && COMMAND+=" -ac:a:${AUDIO} ${DESIRED_CHANNELS}"
             ${AUDIO_BITRATE} && COMMAND+=" -b:a:${AUDIO} ${DESIRED_BITRATE}"
-            ${AUDIO_CHANNELS} && ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm"
+            ${AUDIO_CHANNELS} && ${CONFIG[NORMALIZE]} && COMMAND+=" -filter:a:${AUDIO} loudnorm,aresample=48000"
           else
             COMMAND+=" -c:a:${AUDIO} copy"
           fi
