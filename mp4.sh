@@ -958,6 +958,8 @@ for INPUT in "${VALID[@]}"; do
             COMMAND+=" -c:s:${SUBTITLE} copy"
           fi
           COMMAND+=" -metadata:s:s:${SUBTITLE} language=${LANGUAGE}"
+          FORCED=$("${CONFIG[JQ]}" -r ".streams[${STREAM}].tags.title" <<<"${DATA}")
+          [[ "${FORCED,,}" =~ forced ]] || [[ $("${CONFIG[JQ]}" -r ".streams[${STREAM}].disposition.forced" <<<"${DATA}") == 1 ]] && COMMAND+=" -disposition:s:${SUBTITLE} forced"
           ((SUBTITLE++))
           ((SUBTITLE_STREAMS++))
         elif [[ "${CONFIG[SUBTITLES]}" == "extract" ]]; then
